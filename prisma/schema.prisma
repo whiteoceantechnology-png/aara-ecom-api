@@ -7,11 +7,42 @@ datasource db {
 }
 
 model User {
-  id                Int       @id @default(autoincrement())
-  username          String    @unique
+  id                Int          @id @default(autoincrement())
+  username          String       @unique
   password          String
   resetToken        String?
   resetTokenExpiry  DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  profile           UserProfile?
+  addresses         UserAddress[]
+}
+
+model UserProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName    String
+  lastName     String
+  emailAddress String
+  birthDate    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model UserAddress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  houseNo     String
+  areaStreet  String
+  city        String
+  state       String
+  pincode     String
+  country     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

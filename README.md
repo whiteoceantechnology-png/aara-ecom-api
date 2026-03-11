@@ -23,7 +23,7 @@
 
 ## Description
 
-**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) providing full authentication endpoints including register, login, update user, forgot password and reset password.
+**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) providing full authentication endpoints including register, login, update user, forgot password and reset password, along with user profile and address management.
 
 ---
 
@@ -114,19 +114,54 @@ Swagger docs at: **http://localhost:3008/api/docs**
 
 ## API Endpoints
 
+### 🔐 Auth
+
 | Method   | Endpoint                  | Description                          |
 |----------|---------------------------|--------------------------------------|
-| `POST`   | `/auth/register`          | Register a new user                  |
+| `POST`   | `/auth/register`          | Register a new user (with optional profile) |
 | `POST`   | `/auth/login`             | Login and receive a JWT token        |
 | `PATCH`  | `/auth/update/:id`        | Update username or password          |
 | `POST`   | `/auth/forgot-password`   | Request a password reset token       |
 | `POST`   | `/auth/reset-password`    | Reset password using the reset token |
 
-### Example: Register
+### 👤 User
+
+| Method   | Endpoint                          | Description                    |
+|----------|-----------------------------------|--------------------------------|
+| `GET`    | `/user/:id/details`               | Get user profile details       |
+| `GET`    | `/user/:id/address`               | Get all addresses for a user   |
+| `POST`   | `/user/:id/address`               | Add a new address              |
+| `PATCH`  | `/user/:id/address/:addressId`    | Edit an existing address       |
+| `DELETE` | `/user/:id/address/:addressId`    | Remove an address              |
+
+---
+
+### Example: Register (with profile)
 ```bash
 curl -X POST http://localhost:3008/auth/register \
   -H "Content-Type: application/json" \
-  -d '{ "username": "john_doe", "password": "Secret@123" }'
+  -d '{
+    "username": "john_doe",
+    "password": "Secret@123",
+    "firstName": "John",
+    "lastName": "Doe",
+    "emailAddress": "john@gmail.com",
+    "birthDate": "10-10-2000"
+  }'
+```
+
+**Response `201`:**
+```json
+{
+  "id": 1,
+  "username": "john_doe",
+  "profile": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "emailAddress": "john@gmail.com",
+    "birthDate": "10-10-2000"
+  }
+}
 ```
 
 ### Example: Login
@@ -134,6 +169,73 @@ curl -X POST http://localhost:3008/auth/register \
 curl -X POST http://localhost:3008/auth/login \
   -H "Content-Type: application/json" \
   -d '{ "username": "john_doe", "password": "Secret@123" }'
+```
+
+### Example: Get User Profile
+```bash
+curl http://localhost:3008/user/1/details
+```
+
+**Response `200`:**
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "emailAddress": "john@gmail.com",
+  "birthDate": "10-10-2000"
+}
+```
+
+### Example: Get User Addresses
+```bash
+curl http://localhost:3008/user/1/address
+```
+
+**Response `200`:**
+```json
+[
+  {
+    "id": 1,
+    "firstName": "John",
+    "lastName": "Doe",
+    "houseNo": "22/34",
+    "areaStreet": "Nehru Street",
+    "city": "Erode",
+    "state": "Tamil Nadu",
+    "pincode": "638105",
+    "country": "India",
+    "default": "yes"
+  }
+]
+```
+
+### Example: Add Address
+```bash
+curl -X POST http://localhost:3008/user/1/address \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "John",
+    "lastName": "Doe",
+    "houseNo": "22/34",
+    "areaStreet": "Nehru Street",
+    "city": "Erode",
+    "state": "Tamil Nadu",
+    "pincode": "638105",
+    "country": "India",
+    "isDefault": true
+  }'
+```
+
+### Example: Edit Address
+```bash
+curl -X PATCH http://localhost:3008/user/1/address/1 \
+  -H "Content-Type: application/json" \
+  -d '{ "city": "Coimbatore", "pincode": "641001" }'
+```
+
+### Example: Remove Address
+```bash
+curl -X DELETE http://localhost:3008/user/1/address/1
 ```
 
 ---
@@ -181,7 +283,7 @@ $ npm run test:cov
 src/
 ├── auth/
 │   ├── dto/
-│   │   ├── register.dto.ts         ← Input validation
+│   │   ├── register.dto.ts         ← Input validation (includes optional profile fields)
 │   │   ├── login.dto.ts
 │   │   ├── update-user.dto.ts
 │   │   ├── forgot-password.dto.ts
@@ -193,13 +295,20 @@ src/
 │   ├── auth.module.ts              ← NestJS module
 │   ├── user.repository.ts          ← Data access layer
 │   └── user.repository.spec.ts     ← Repository unit tests
+├── user/
+│   ├── dto/
+│   │   └── user.dto.ts             ← Profile & address DTOs
+│   ├── user.controller.ts          ← /user endpoints + Swagger
+│   ├── user.service.ts             ← Business logic
+│   ├── user.repository.ts          ← Prisma queries for profile & address
+│   └── user.module.ts              ← NestJS module
 ├── prisma/
 │   ├── prisma.service.ts           ← Prisma injectable service
 │   └── prisma.module.ts
 ├── app.module.ts
 └── main.ts                         ← Swagger + ValidationPipe bootstrap
 prisma/
-├── schema.prisma                   ← DB schema (User model)
+├── schema.prisma                   ← DB schema (User, UserProfile, UserAddress models)
 ├── prisma.config.ts                ← Prisma 7 config
 └── migrations/                     ← Migration history
 scripts/

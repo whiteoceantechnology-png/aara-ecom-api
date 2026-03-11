@@ -17,10 +17,43 @@ export class UserRepository {
     return this.prisma.user.findFirst({ where: { resetToken: token } });
   }
 
-  async createUser(username: string, hashedPassword: string) {
+  async createUser(
+    username: string,
+    hashedPassword: string,
+    profile?: {
+      firstName: string;
+      lastName: string;
+      emailAddress: string;
+      birthDate: string;
+    },
+  ) {
     return this.prisma.user.create({
-      data: { username, password: hashedPassword },
-      select: { id: true, username: true },
+      data: {
+        username,
+        password: hashedPassword,
+        ...(profile && {
+          profile: {
+            create: {
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              emailAddress: profile.emailAddress,
+              birthDate: profile.birthDate,
+            },
+          },
+        }),
+      },
+      select: {
+        id: true,
+        username: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            emailAddress: true,
+            birthDate: true,
+          },
+        },
+      },
     });
   }
 

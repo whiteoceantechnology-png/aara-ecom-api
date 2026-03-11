@@ -30,7 +30,18 @@ export class AuthService {
       throw new ConflictException('Username already exists');
     }
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    return this.userRepository.createUser(dto.username, hashedPassword);
+
+    const profile =
+      dto.firstName && dto.lastName && dto.emailAddress && dto.birthDate
+        ? {
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            emailAddress: dto.emailAddress,
+            birthDate: dto.birthDate,
+          }
+        : undefined;
+
+    return this.userRepository.createUser(dto.username, hashedPassword, profile);
   }
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
