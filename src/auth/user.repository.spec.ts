@@ -103,7 +103,13 @@ describe('UserRepository', () => {
 
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: { username: 'john_doe', password: 'hashed_password' },
-        select: { id: true, username: true },
+        select: {
+          id: true,
+          username: true,
+          profile: {
+            select: { firstName: true, lastName: true, emailAddress: true, birthDate: true },
+          },
+        },
       });
       expect(result).toEqual(expected);
     });

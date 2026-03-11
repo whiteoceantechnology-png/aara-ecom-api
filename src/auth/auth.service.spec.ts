@@ -50,7 +50,7 @@ describe('AuthService', () => {
 
       expect(mockUserRepository.findByUsername).toHaveBeenCalledWith('john_doe');
       expect(bcrypt.hash).toHaveBeenCalledWith('Secret@123', 10);
-      expect(mockUserRepository.createUser).toHaveBeenCalledWith('john_doe', 'hashed_password');
+      expect(mockUserRepository.createUser).toHaveBeenCalledWith('john_doe', 'hashed_password', undefined);
       expect(result).toEqual({ id: 1, username: 'john_doe' });
     });
 

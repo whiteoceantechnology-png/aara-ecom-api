@@ -23,7 +23,7 @@
 
 ## Description
 
-**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) providing full authentication endpoints including register, login, update user, forgot password and reset password, along with user profile and address management.
+**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants), cart, orders, payments, and customer management.
 
 ---
 
@@ -240,6 +240,188 @@ curl -X DELETE http://localhost:3008/user/1/address/1
 
 ---
 
+## API Endpoints — E-Commerce
+
+### 🗂️ Categories
+
+| Method   | Endpoint              | Description              |
+|----------|-----------------------|--------------------------|
+| `GET`    | `/categories`         | Get all categories       |
+| `GET`    | `/categories/:id`     | Get category by ID       |
+| `POST`   | `/categories`         | Create a category        |
+| `PUT`    | `/categories/:id`     | Update a category        |
+| `DELETE` | `/categories/:id`     | Delete a category        |
+
+### 📦 Products
+
+| Method   | Endpoint                    | Description                              |
+|----------|-----------------------------|------------------------------------------|
+| `GET`    | `/products`                 | Get all products                         |
+| `GET`    | `/products?category=1`      | Filter products by category ID           |
+| `GET`    | `/products?search=ashwagandha` | Search products by name              |
+| `GET`    | `/products/:id`             | Get product by ID (includes variants)    |
+| `POST`   | `/products`                 | Create a product                         |
+| `PUT`    | `/products/:id`             | Update a product                         |
+| `DELETE` | `/products/:id`             | Delete a product                         |
+| `GET`    | `/products/:id/variants`    | Get all variants for a product           |
+
+### 🔢 Variants
+
+| Method   | Endpoint          | Description             |
+|----------|-------------------|-------------------------|
+| `POST`   | `/variants`       | Create a product variant |
+| `PUT`    | `/variants/:id`   | Update a variant        |
+| `DELETE` | `/variants/:id`   | Delete a variant        |
+
+### 🧑 Customers
+
+| Method   | Endpoint                  | Description              |
+|----------|---------------------------|--------------------------|
+| `POST`   | `/customers/register`     | Register a new customer  |
+| `POST`   | `/customers/login`        | Customer login (JWT)     |
+| `GET`    | `/customers/:id`          | Get customer by ID       |
+
+### 🛒 Cart
+
+| Method   | Endpoint                        | Description                    |
+|----------|---------------------------------|--------------------------------|
+| `GET`    | `/cart/:customerId`             | Get cart for a customer        |
+| `POST`   | `/cart/add`                     | Add item to cart               |
+| `PUT`    | `/cart/update`                  | Update cart item quantity      |
+| `DELETE` | `/cart/remove/:cartItemId`      | Remove item from cart          |
+
+### 📋 Orders
+
+| Method   | Endpoint                  | Description                          |
+|----------|---------------------------|--------------------------------------|
+| `POST`   | `/orders`                 | Create order from cart               |
+| `GET`    | `/orders`                 | Get all orders                       |
+| `GET`    | `/orders?customerId=1`    | Get orders filtered by customer      |
+| `GET`    | `/orders/:id`             | Get order by ID                      |
+| `PUT`    | `/orders/:id/status`      | Update order status                  |
+
+### 💳 Payments
+
+| Method   | Endpoint                        | Description                    |
+|----------|---------------------------------|--------------------------------|
+| `POST`   | `/payments`                     | Create payment for an order    |
+| `GET`    | `/payments/order/:orderId`      | Get all payments for an order  |
+| `GET`    | `/payments/:id`                 | Get payment by ID              |
+
+---
+
+### Example: Get All Products
+```bash
+curl http://localhost:3008/products
+```
+
+**Response `200`:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Ashwagandha Root",
+    "hsnCode": "12119029",
+    "taxPercent": "5",
+    "category": { "id": 1, "name": "Raw Dried Herbs" },
+    "variants": [
+      { "id": 1, "sku": "ASH-25", "price": "31", "packSize": { "label": "25 g" } },
+      { "id": 2, "sku": "ASH-50", "price": "52", "packSize": { "label": "50 g" } },
+      { "id": 3, "sku": "ASH-100", "price": "94", "packSize": { "label": "100 g" } }
+    ]
+  }
+]
+```
+
+### Example: Filter by Category
+```bash
+curl "http://localhost:3008/products?category=1"
+```
+
+### Example: Search Products
+```bash
+curl "http://localhost:3008/products?search=ashwagandha"
+```
+
+### Example: Register Customer
+```bash
+curl -X POST http://localhost:3008/customers/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@gmail.com",
+    "phone": "9876543210",
+    "password": "Secret@123"
+  }'
+```
+
+### Example: Add to Cart
+```bash
+curl -X POST http://localhost:3008/cart/add \
+  -H "Content-Type: application/json" \
+  -d '{ "customerId": 1, "variantId": 1, "quantity": 2 }'
+```
+
+### Example: Create Order (from cart)
+```bash
+curl -X POST http://localhost:3008/orders \
+  -H "Content-Type: application/json" \
+  -d '{ "customerId": 1, "cartId": 1 }'
+```
+
+**Response `201`:**
+```json
+{
+  "id": 1,
+  "orderNumber": "ORD-1741700835000",
+  "status": "pending",
+  "totalAmount": "62",
+  "paymentStatus": "pending",
+  "items": [
+    {
+      "productName": "Ashwagandha Root",
+      "sizeLabel": "25 g",
+      "price": "31",
+      "quantity": 2,
+      "subtotal": "62"
+    }
+  ]
+}
+```
+
+### Example: Create Payment
+```bash
+curl -X POST http://localhost:3008/payments \
+  -H "Content-Type: application/json" \
+  -d '{ "orderId": 1, "paymentMethod": "UPI", "transactionId": "TXN123456" }'
+```
+
+**Response `201`:**
+```json
+{
+  "id": 1,
+  "orderId": 1,
+  "paymentMethod": "UPI",
+  "transactionId": "TXN123456",
+  "paymentStatus": "paid",
+  "paymentDate": "2026-03-11T14:30:00.000Z"
+}
+```
+
+### Example: Get Payments for an Order
+```bash
+curl http://localhost:3008/payments/order/1
+```
+
+### Example: Update Order Status
+```bash
+curl -X PUT http://localhost:3008/orders/1/status \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "shipped" }'
+```
+
+---
+
 ## Database Scripts
 
 | Command              | Description                                              |
@@ -267,13 +449,23 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-### Test Coverage (Auth Module)
+### Test Coverage
 
-| Spec File                    | Tests | What's Covered                            |
-|------------------------------|-------|-------------------------------------------|
-| `auth.service.spec.ts`       | 16    | All service methods with edge cases       |
-| `auth.controller.spec.ts`    | 5     | All controller endpoints                  |
-| `user.repository.spec.ts`    | 10    | All repository database operations        |
+| Spec File                                          | Tests | What's Covered                                      |
+|----------------------------------------------------|-------|-----------------------------------------------------|
+| `auth/auth.service.spec.ts`                        | 16    | All service methods with edge cases                 |
+| `auth/auth.controller.spec.ts`                     | 5     | All auth controller endpoints                       |
+| `auth/user.repository.spec.ts`                     | 10    | All repository database operations                  |
+| `product/categories/categories.controller.spec.ts` | 7     | CRUD + NotFoundException cases                      |
+| `product/products/products.controller.spec.ts`     | 9     | CRUD + filter/search + variants endpoint            |
+| `product/variants/variants.controller.spec.ts`     | 5     | Create, update, delete + NotFoundException          |
+| `product/customers/customers.controller.spec.ts`   | 6     | Register, login (JWT), getById + error cases        |
+| `product/cart/cart.controller.spec.ts`             | 8     | Get, add, update, remove + edge cases               |
+| `product/orders/orders.controller.spec.ts`         | 7     | Create, findAll (with filter), findOne, updateStatus|
+| `product/payments/payments.controller.spec.ts`     | 6     | Create, findByOrder, findOne + NotFoundException    |
+| `app.controller.spec.ts`                           | 1     | App health check                                    |
+
+**Total: 86 tests across 11 suites — all passing ✅**
 
 ---
 
@@ -289,12 +481,12 @@ src/
 │   │   ├── forgot-password.dto.ts
 │   │   └── auth-response.dto.ts    ← Response types
 │   ├── auth.controller.ts          ← HTTP layer + Swagger
-│   ├── auth.controller.spec.ts     ← Controller unit tests
+│   ├── auth.controller.spec.ts     ← Controller unit tests (5 tests)
 │   ├── auth.service.ts             ← Business logic
-│   ├── auth.service.spec.ts        ← Service unit tests
+│   ├── auth.service.spec.ts        ← Service unit tests (16 tests)
 │   ├── auth.module.ts              ← NestJS module
 │   ├── user.repository.ts          ← Data access layer
-│   └── user.repository.spec.ts     ← Repository unit tests
+│   └── user.repository.spec.ts     ← Repository unit tests (10 tests)
 ├── user/
 │   ├── dto/
 │   │   └── user.dto.ts             ← Profile & address DTOs
@@ -302,18 +494,86 @@ src/
 │   ├── user.service.ts             ← Business logic
 │   ├── user.repository.ts          ← Prisma queries for profile & address
 │   └── user.module.ts              ← NestJS module
+├── product/
+│   ├── dto/
+│   │   ├── category.dto.ts         ← Category create/update DTOs
+│   │   ├── product.dto.ts          ← Product create/update/filter DTOs
+│   │   ├── variant.dto.ts          ← Variant create/update DTOs
+│   │   ├── customer.dto.ts         ← Customer register/login DTOs
+│   │   ├── cart.dto.ts             ← Cart add/update/remove DTOs
+│   │   └── order.dto.ts            ← Order/payment DTOs
+│   ├── categories/
+│   │   ├── categories.controller.ts       ← /categories endpoints + Swagger
+│   │   ├── categories.controller.spec.ts  ← Unit tests (7 tests)
+│   │   ├── categories.service.ts          ← Business logic
+│   │   └── categories.module.ts
+│   ├── products/
+│   │   ├── products.controller.ts         ← /products endpoints + Swagger
+│   │   ├── products.controller.spec.ts    ← Unit tests (9 tests)
+│   │   ├── products.service.ts            ← Business logic
+│   │   └── products.module.ts
+│   ├── variants/
+│   │   ├── variants.controller.ts         ← /variants endpoints + Swagger
+│   │   ├── variants.controller.spec.ts    ← Unit tests (5 tests)
+│   │   ├── variants.service.ts            ← Business logic
+│   │   └── variants.module.ts
+│   ├── customers/
+│   │   ├── customers.controller.ts        ← /customers endpoints + Swagger
+│   │   ├── customers.controller.spec.ts   ← Unit tests (6 tests)
+│   │   ├── customers.service.ts           ← Business logic (bcrypt + JWT)
+│   │   └── customers.module.ts
+│   ├── cart/
+│   │   ├── cart.controller.ts             ← /cart endpoints + Swagger
+│   │   ├── cart.controller.spec.ts        ← Unit tests (8 tests)
+│   │   ├── cart.service.ts                ← Business logic
+│   │   └── cart.module.ts
+│   ├── orders/
+│   │   ├── orders.controller.ts           ← /orders endpoints + Swagger
+│   │   ├── orders.controller.spec.ts      ← Unit tests (7 tests)
+│   │   ├── orders.service.ts              ← Business logic (cart → order)
+│   │   └── orders.module.ts
+│   ├── payments/
+│   │   ├── payments.controller.ts         ← /payments endpoints + Swagger
+│   │   ├── payments.controller.spec.ts    ← Unit tests (6 tests)
+│   │   ├── payments.service.ts            ← Business logic
+│   │   └── payments.module.ts
+│   └── product.module.ts           ← Root module — aggregates all sub-modules
 ├── prisma/
 │   ├── prisma.service.ts           ← Prisma injectable service
 │   └── prisma.module.ts
 ├── app.module.ts
 └── main.ts                         ← Swagger + ValidationPipe bootstrap
 prisma/
-├── schema.prisma                   ← DB schema (User, UserProfile, UserAddress models)
+├── schema.prisma                   ← DB schema (User, UserProfile, UserAddress, Category,
+│                                     Product, PackSize, ProductVariant, ProductImage,
+│                                     Customer, CustomerAddress, Cart, CartItem,
+│                                     Order, OrderItem, Payment, Shipment)
 ├── prisma.config.ts                ← Prisma 7 config
 └── migrations/                     ← Migration history
 scripts/
 └── db-setup.sh                     ← Full DB setup script
 ```
+
+## Database Schema Overview
+
+| Model            | Description                                      |
+|------------------|--------------------------------------------------|
+| `User`           | Auth users (username + password)                 |
+| `UserProfile`    | User profile (name, email, birthdate)            |
+| `UserAddress`    | User delivery addresses                          |
+| `Category`       | Product categories (supports parent/child)       |
+| `Product`        | Products with HSN code & tax                     |
+| `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                 |
+| `ProductVariant` | Product + pack size combination with price & SKU |
+| `ProductImage`   | Product images                                   |
+| `Customer`       | E-commerce customers                             |
+| `CustomerAddress`| Customer delivery addresses                      |
+| `Cart`           | Customer cart                                    |
+| `CartItem`       | Items in a cart                                  |
+| `Order`          | Orders placed by customers                       |
+| `OrderItem`      | Line items in an order                           |
+| `Payment`        | Payment records                                  |
+| `Shipment`       | Shipment tracking                                |
 
 ## Deployment
 
