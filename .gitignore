@@ -1,0 +1,74 @@
+# ── Compiled Output ───────────────────────────────────────────────────────────
+/dist
+/build
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+/node_modules
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ── Test & Coverage ───────────────────────────────────────────────────────────
+/coverage
+/.nyc_output
+
+# ── Prisma ────────────────────────────────────────────────────────────────────
+# Keep migrations and schema, ignore generated client
+node_modules/.prisma
+
+# ── OS Files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs & Editors ────────────────────────────────────────────────────────────
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# VSCode (keep useful shared settings, ignore personal/workspace-specific)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ── Runtime & Process ─────────────────────────────────────────────────────────
+pids/
+*.pid
+*.seed
+*.pid.lock
+.temp
+.tmp
+
+# ── Diagnostic Reports ────────────────────────────────────────────────────────
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ── Package Manager ───────────────────────────────────────────────────────────
+yarn.lock
+pnpm-lock.yaml
+# Keep package-lock.json for reproducible installs (remove line below to ignore it)
+# package-lock.json
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ── Nest CLI ──────────────────────────────────────────────────────────────────
+.nest/

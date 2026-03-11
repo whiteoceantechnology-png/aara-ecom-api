@@ -84,7 +84,17 @@ Run the following command to automatically:
 $ npm run db:setup
 ```
 
-### 4. Run the Application
+### 4. Generate Prisma Client
+
+If the Prisma client is missing or you encounter a `Cannot find module '.prisma/client/default'` error, run:
+
+```bash
+$ npx prisma generate
+```
+
+> ℹ️ This is already handled automatically by `npm run db:setup`, but run this manually if needed after installing dependencies.
+
+### 5. Run the Application
 
 ```bash
 # development (watch mode)
