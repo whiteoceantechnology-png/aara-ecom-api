@@ -38,7 +38,134 @@
 
 ---
 
-## Prerequisites
+## Getting Started
+
+Choose your operating system below:
+
+- 🪟 [Windows Setup (Frontend Team — Start Here)](#-windows-setup-frontend-team)
+- 🍎 [macOS / Linux Setup](#-macos--linux-setup)
+
+---
+
+## 🪟 Windows Setup (Frontend Team)
+
+> **You are here if:** You are on Windows and just received this project. Follow every step in order.
+
+---
+
+### Step 1 — Install Prerequisites
+
+Install the following tools **once** on your Windows machine. Click each link and install with the default settings:
+
+| Tool | Why you need it | Download |
+|------|----------------|----------|
+| **Node.js 18 LTS** | Runs the API | [nodejs.org](https://nodejs.org/) → click **LTS** |
+| **PostgreSQL 15+** | The database | [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) |
+| **Git** | Download the project | [git-scm.com](https://git-scm.com/download/win) |
+
+> ⚠️ **Important — PostgreSQL install:** During the PostgreSQL installer, you will be asked to set a **password for the `postgres` user**. Write this password down — you will need it in Step 3.
+>
+> 💡 After installing, open a new **Command Prompt** (search for `cmd` in Start Menu) so the new tools are available.
+
+---
+
+### Step 2 — Clone the Project
+
+Open **Command Prompt** and run:
+
+```cmd
+git clone <your-repo-url>
+cd aara-ecom-api
+npm install
+```
+
+---
+
+### Step 3 — Create Your `.env` File
+
+In the project folder, copy `.env.example` to a new file named `.env`:
+
+```cmd
+copy .env.example .env
+```
+
+Now open `.env` in Notepad (or any text editor) and update **two lines** — replacing `YOUR_POSTGRES_PASSWORD` with the password you set when installing PostgreSQL:
+
+```env
+DATABASE_URL="postgresql://admin:YOUR_POSTGRES_PASSWORD@localhost:5432/ecomdb"
+POSTGRES_SUPERUSER_PASSWORD=YOUR_POSTGRES_PASSWORD
+```
+
+**Example:** If your PostgreSQL password is `mypassword123`:
+```env
+DATABASE_URL="postgresql://admin:mypassword123@localhost:5432/ecomdb"
+POSTGRES_SUPERUSER_PASSWORD=mypassword123
+```
+
+> ⚠️ If your password contains special characters like `@`, `#`, or `!`, replace them **only in the DATABASE_URL line**:
+> - `@` → `%40`
+> - `#` → `%23`
+> - `!` → `%21`
+>
+> **Example:** Password `abc@123` → `DATABASE_URL` uses `abc%40123`, but `POSTGRES_SUPERUSER_PASSWORD` uses the original `abc@123`.
+
+Leave the other lines in `.env` as they are.
+
+---
+
+### Step 4 — Run Database Setup
+
+This single command will:
+- ✅ Create the database user automatically
+- ✅ Create the `ecomdb` database automatically
+- ✅ Set up all the database tables
+- ✅ Prepare everything the API needs
+
+```cmd
+npm run db:setup
+```
+
+> ❗ **Troubleshooting:** If you see `psql is not recognized`, PostgreSQL's `bin` folder is not in your PATH.
+> Fix it:
+> 1. Open **Start Menu** → search `Environment Variables` → click **Edit the system environment variables**
+> 2. Click **Environment Variables** → under **System variables** find `Path` → click **Edit**
+> 3. Click **New** → add: `C:\Program Files\PostgreSQL\15\bin` (use your actual version number)
+> 4. Click OK, close Command Prompt, open a new one, and re-run `npm run db:setup`
+
+---
+
+### Step 5 — Start the API
+
+```cmd
+npm run start:dev
+```
+
+You should see: `🚀 Application running on: http://localhost:3008`
+
+---
+
+### Step 6 — Open the API Docs
+
+Open your browser and go to:
+
+**http://localhost:3008/api/docs**
+
+You will see the full API documentation where you can test every endpoint.
+
+---
+
+### ✅ Windows Setup Complete!
+
+Every time you want to use the API, just open Command Prompt in the project folder and run:
+```cmd
+npm run start:dev
+```
+
+---
+
+## 🍎 macOS / Linux Setup
+
+### Prerequisites
 
 Make sure you have the following installed:
 
@@ -48,27 +175,29 @@ Make sure you have the following installed:
 
 ---
 
-## Getting Started
-
 ### 1. Clone & Install Dependencies
 
 ```bash
-$ git clone <your-repo-url>
-$ cd aara-api
-$ npm install
+git clone <your-repo-url>
+cd aara-ecom-api
+npm install
 ```
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file in the project root (or update the existing one):
+```bash
+cp .env.example .env
+```
+
+Edit `.env` — for macOS with trust auth (no password), use:
 
 ```env
-DATABASE_URL="postgresql://YOUR_USER:YOUR_PASSWORD@localhost:5432/YOUR_DB"
+DATABASE_URL="postgresql://admin@localhost:5432/ecomdb"
 JWT_SECRET="your_jwt_secret_here"
 PORT=3008
 ```
 
-> ⚠️ **Note:** If your password contains special characters like `@`, URL-encode them.
+> ⚠️ If your password contains special characters like `@`, URL-encode them.
 > For example, `abc@123` becomes `abc%40123` in the `DATABASE_URL`.
 
 ### 3. Database Setup (Single Command)
@@ -81,30 +210,28 @@ Run the following command to automatically:
 - ✅ Generate the Prisma client
 
 ```bash
-$ npm run db:setup
+npm run db:setup
 ```
 
-### 4. Generate Prisma Client
+### 4. Generate Prisma Client (if needed)
 
-If the Prisma client is missing or you encounter a `Cannot find module '.prisma/client/default'` error, run:
+If you encounter a `Cannot find module '.prisma/client/default'` error:
 
 ```bash
-$ npx prisma generate
+npx prisma generate
 ```
-
-> ℹ️ This is already handled automatically by `npm run db:setup`, but run this manually if needed after installing dependencies.
 
 ### 5. Run the Application
 
 ```bash
-# development (watch mode)
-$ npm run start:dev
+# development (watch mode — recommended)
+npm run start:dev
 
 # standard mode
-$ npm run start
+npm run start
 
 # production mode
-$ npm run start:prod
+npm run start:prod
 ```
 
 The API will be available at: **http://localhost:3008**
