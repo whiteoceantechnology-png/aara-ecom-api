@@ -1,14 +1,21 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  IsInt,
+  IsNumber,
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+} from "class-validator";
+import { Transform, Type } from "class-transformer";
 
 export class CreateVariantDto {
-  @ApiProperty({ example: 1, description: 'Product ID' })
+  @ApiProperty({ example: 1, description: "Product ID" })
   @IsInt()
   @Type(() => Number)
   productId: number;
 
-  @ApiProperty({ example: 1, description: 'Pack Size ID' })
+  @ApiProperty({ example: 1, description: "Pack Size ID" })
   @IsInt()
   @Type(() => Number)
   packSizeId: number;
@@ -18,7 +25,7 @@ export class CreateVariantDto {
   @Type(() => Number)
   price: number;
 
-  @ApiProperty({ example: 'ASH-25' })
+  @ApiProperty({ example: "ASH-25" })
   @IsString()
   @IsNotEmpty()
   sku: string;
@@ -32,7 +39,7 @@ export class CreateVariantDto {
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => value === "true" || value === true)
   status?: boolean;
 }
 
@@ -49,7 +56,7 @@ export class UpdateVariantDto {
   @Type(() => Number)
   price?: number;
 
-  @ApiPropertyOptional({ example: 'ASH-25' })
+  @ApiPropertyOptional({ example: "ASH-25" })
   @IsOptional()
   @IsString()
   sku?: string;
@@ -63,6 +70,6 @@ export class UpdateVariantDto {
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => value === "true" || value === true)
   status?: boolean;
 }

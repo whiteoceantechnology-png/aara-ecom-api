@@ -1,11 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
-import { CartController } from './cart.controller';
-import { CartService } from './cart.service';
-import { AddToCartDto, UpdateCartItemDto } from '../dto/cart.dto';
+import { Test, TestingModule } from "@nestjs/testing";
+import { NotFoundException } from "@nestjs/common";
+import { CartController } from "./cart.controller";
+import { CartService } from "./cart.service";
+import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 
 const mockCart = { id: 1, customerId: 1, createdAt: new Date(), items: [] };
-const mockCartItem = { id: 1, cartId: 1, variantId: 1, productId: 1, quantity: 2, price: '31' };
+const mockCartItem = {
+  id: 1,
+  cartId: 1,
+  variantId: 1,
+  productId: 1,
+  quantity: 2,
+  price: "31",
+};
 
 const mockCartService = {
   getOrCreate: jest.fn(),
@@ -14,7 +21,7 @@ const mockCartService = {
   removeItem: jest.fn(),
 };
 
-describe('CartController', () => {
+describe("CartController", () => {
   let controller: CartController;
   let service: typeof mockCartService;
 
@@ -29,8 +36,8 @@ describe('CartController', () => {
     jest.clearAllMocks();
   });
 
-  describe('getCart', () => {
-    it('should return the cart for a customer', async () => {
+  describe("getCart", () => {
+    it("should return the cart for a customer", async () => {
       service.getOrCreate.mockResolvedValue(mockCart);
       const result = await controller.getCart(1);
       expect(result).toEqual(mockCart);
@@ -38,8 +45,8 @@ describe('CartController', () => {
     });
   });
 
-  describe('addItem', () => {
-    it('should add an item to the cart', async () => {
+  describe("addItem", () => {
+    it("should add an item to the cart", async () => {
       const dto: AddToCartDto = { customerId: 1, variantId: 1, quantity: 2 };
       service.addItem.mockResolvedValue(mockCartItem);
       const result = await controller.addItem(dto);
@@ -47,14 +54,16 @@ describe('CartController', () => {
       expect(service.addItem).toHaveBeenCalledWith(dto);
     });
 
-    it('should throw NotFoundException when variant not found', async () => {
+    it("should throw NotFoundException when variant not found", async () => {
       service.addItem.mockRejectedValue(new NotFoundException());
-      await expect(controller.addItem({ customerId: 1, variantId: 99, quantity: 1 })).rejects.toThrow(NotFoundException);
+      await expect(
+        controller.addItem({ customerId: 1, variantId: 99, quantity: 1 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('updateItem', () => {
-    it('should update the cart item quantity', async () => {
+  describe("updateItem", () => {
+    it("should update the cart item quantity", async () => {
       const dto: UpdateCartItemDto = { cartItemId: 1, quantity: 3 };
       service.updateItem.mockResolvedValue({ ...mockCartItem, quantity: 3 });
       const result = await controller.updateItem(dto);
@@ -62,30 +71,36 @@ describe('CartController', () => {
       expect(service.updateItem).toHaveBeenCalledWith(dto);
     });
 
-    it('should remove item when quantity is 0', async () => {
+    it("should remove item when quantity is 0", async () => {
       const dto: UpdateCartItemDto = { cartItemId: 1, quantity: 0 };
-      service.updateItem.mockResolvedValue({ message: 'Cart item removed' });
+      service.updateItem.mockResolvedValue({ message: "Cart item removed" });
       const result = await controller.updateItem(dto);
-      expect(result).toEqual({ message: 'Cart item removed' });
+      expect(result).toEqual({ message: "Cart item removed" });
     });
 
-    it('should throw NotFoundException when cart item not found', async () => {
+    it("should throw NotFoundException when cart item not found", async () => {
       service.updateItem.mockRejectedValue(new NotFoundException());
-      await expect(controller.updateItem({ cartItemId: 99, quantity: 1 })).rejects.toThrow(NotFoundException);
+      await expect(
+        controller.updateItem({ cartItemId: 99, quantity: 1 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('removeItem', () => {
-    it('should remove a cart item', async () => {
-      service.removeItem.mockResolvedValue({ message: 'Item removed from cart' });
+  describe("removeItem", () => {
+    it("should remove a cart item", async () => {
+      service.removeItem.mockResolvedValue({
+        message: "Item removed from cart",
+      });
       const result = await controller.removeItem(1);
-      expect(result).toEqual({ message: 'Item removed from cart' });
+      expect(result).toEqual({ message: "Item removed from cart" });
       expect(service.removeItem).toHaveBeenCalledWith(1);
     });
 
-    it('should throw NotFoundException when cart item not found', async () => {
+    it("should throw NotFoundException when cart item not found", async () => {
       service.removeItem.mockRejectedValue(new NotFoundException());
-      await expect(controller.removeItem(99)).rejects.toThrow(NotFoundException);
+      await expect(controller.removeItem(99)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

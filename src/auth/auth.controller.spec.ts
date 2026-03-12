@@ -1,6 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { AuthController } from "./auth.controller";
+import { AuthService } from "./auth.service";
 
 const mockAuthService = {
   register: jest.fn(),
@@ -10,7 +10,7 @@ const mockAuthService = {
   resetPassword: jest.fn(),
 };
 
-describe('AuthController', () => {
+describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(async () => {
@@ -25,10 +25,10 @@ describe('AuthController', () => {
 
   // ─── register ────────────────────────────────────────────────────────────────
 
-  describe('register()', () => {
-    it('should call authService.register and return the result', async () => {
-      const dto = { username: 'john_doe', password: 'Secret@123' };
-      const expected = { id: 1, username: 'john_doe' };
+  describe("register()", () => {
+    it("should call authService.register and return the result", async () => {
+      const dto = { username: "john_doe", password: "Secret@123" };
+      const expected = { id: 1, username: "john_doe" };
       mockAuthService.register.mockResolvedValue(expected);
 
       const result = await controller.register(dto);
@@ -40,10 +40,10 @@ describe('AuthController', () => {
 
   // ─── login ────────────────────────────────────────────────────────────────────
 
-  describe('login()', () => {
-    it('should call authService.login and return the token', async () => {
-      const dto = { username: 'john_doe', password: 'Secret@123' };
-      const expected = { token: 'mock.jwt.token' };
+  describe("login()", () => {
+    it("should call authService.login and return the token", async () => {
+      const dto = { username: "john_doe", password: "Secret@123" };
+      const expected = { token: "mock.jwt.token" };
       mockAuthService.login.mockResolvedValue(expected);
 
       const result = await controller.login(dto);
@@ -55,10 +55,10 @@ describe('AuthController', () => {
 
   // ─── updateUser ───────────────────────────────────────────────────────────────
 
-  describe('updateUser()', () => {
-    it('should call authService.updateUser with id and dto and return result', async () => {
-      const dto = { username: 'new_username' };
-      const expected = { id: 1, username: 'new_username' };
+  describe("updateUser()", () => {
+    it("should call authService.updateUser with id and dto and return result", async () => {
+      const dto = { username: "new_username" };
+      const expected = { id: 1, username: "new_username" };
       mockAuthService.updateUser.mockResolvedValue(expected);
 
       const result = await controller.updateUser(1, dto);
@@ -70,10 +70,12 @@ describe('AuthController', () => {
 
   // ─── forgotPassword ───────────────────────────────────────────────────────────
 
-  describe('forgotPassword()', () => {
-    it('should call authService.forgotPassword and return a message', async () => {
-      const dto = { username: 'john_doe' };
-      const expected = { message: 'Reset token generated. Use this token: abc123' };
+  describe("forgotPassword()", () => {
+    it("should call authService.forgotPassword and return a message", async () => {
+      const dto = { username: "john_doe" };
+      const expected = {
+        message: "Reset token generated. Use this token: abc123",
+      };
       mockAuthService.forgotPassword.mockResolvedValue(expected);
 
       const result = await controller.forgotPassword(dto);
@@ -85,10 +87,10 @@ describe('AuthController', () => {
 
   // ─── resetPassword ────────────────────────────────────────────────────────────
 
-  describe('resetPassword()', () => {
-    it('should call authService.resetPassword and return a success message', async () => {
-      const dto = { token: 'valid-token', newPassword: 'NewSecret@123' };
-      const expected = { message: 'Password has been reset successfully' };
+  describe("resetPassword()", () => {
+    it("should call authService.resetPassword and return a success message", async () => {
+      const dto = { token: "valid-token", newPassword: "NewSecret@123" };
+      const expected = { message: "Password has been reset successfully" };
       mockAuthService.resetPassword.mockResolvedValue(expected);
 
       const result = await controller.resetPassword(dto);

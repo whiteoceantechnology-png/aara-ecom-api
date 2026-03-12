@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateAddressDto, UpdateAddressDto } from './dto/user.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateAddressDto, UpdateAddressDto } from "./dto/user.dto";
 
 const addressSelect = {
   id: true,
@@ -31,17 +31,17 @@ export class UserRepository {
         birthDate: true,
       },
     });
-    if (!profile) throw new NotFoundException('User profile not found');
+    if (!profile) throw new NotFoundException("User profile not found");
     return profile;
   }
 
   // ─── Addresses ─────────────────────────────────────────────────────────────
 
-  async getAddresses(userId: number) {
+  getAddresses(userId: number) {
     return this.prisma.userAddress.findMany({
       where: { userId },
       select: addressSelect,
-      orderBy: { isDefault: 'desc' },
+      orderBy: { isDefault: "desc" },
     });
   }
 
@@ -71,11 +71,15 @@ export class UserRepository {
     });
   }
 
-  async updateAddress(userId: number, addressId: number, dto: UpdateAddressDto) {
+  async updateAddress(
+    userId: number,
+    addressId: number,
+    dto: UpdateAddressDto,
+  ) {
     const address = await this.prisma.userAddress.findFirst({
       where: { id: addressId, userId },
     });
-    if (!address) throw new NotFoundException('Address not found');
+    if (!address) throw new NotFoundException("Address not found");
 
     // If updating to default, unset other defaults
     if (dto.isDefault) {
@@ -96,9 +100,9 @@ export class UserRepository {
     const address = await this.prisma.userAddress.findFirst({
       where: { id: addressId, userId },
     });
-    if (!address) throw new NotFoundException('Address not found');
+    if (!address) throw new NotFoundException("Address not found");
 
     await this.prisma.userAddress.delete({ where: { id: addressId } });
-    return { message: 'Address removed successfully' };
+    return { message: "Address removed successfully" };
   }
 }

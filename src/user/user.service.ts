@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { UserRepository } from './user.repository';
-import { CreateAddressDto, UpdateAddressDto, AddressResponseDto, UserProfileResponseDto } from './dto/user.dto';
+import { Injectable } from "@nestjs/common";
+import { UserRepository } from "./user.repository";
+import {
+  CreateAddressDto,
+  UpdateAddressDto,
+  AddressResponseDto,
+  UserProfileResponseDto,
+} from "./dto/user.dto";
 
 @Injectable()
 export class UserService {
@@ -15,17 +20,31 @@ export class UserService {
     return addresses.map((a) => this.formatAddress(a));
   }
 
-  async createAddress(userId: number, dto: CreateAddressDto): Promise<AddressResponseDto> {
+  async createAddress(
+    userId: number,
+    dto: CreateAddressDto,
+  ): Promise<AddressResponseDto> {
     const address = await this.userRepository.createAddress(userId, dto);
     return this.formatAddress(address);
   }
 
-  async updateAddress(userId: number, addressId: number, dto: UpdateAddressDto): Promise<AddressResponseDto> {
-    const address = await this.userRepository.updateAddress(userId, addressId, dto);
+  async updateAddress(
+    userId: number,
+    addressId: number,
+    dto: UpdateAddressDto,
+  ): Promise<AddressResponseDto> {
+    const address = await this.userRepository.updateAddress(
+      userId,
+      addressId,
+      dto,
+    );
     return this.formatAddress(address);
   }
 
-  async removeAddress(userId: number, addressId: number): Promise<{ message: string }> {
+  async removeAddress(
+    userId: number,
+    addressId: number,
+  ): Promise<{ message: string }> {
     return this.userRepository.removeAddress(userId, addressId);
   }
 
@@ -51,7 +70,7 @@ export class UserService {
       state: a.state,
       pincode: a.pincode,
       country: a.country,
-      default: a.isDefault ? 'yes' : 'no',
+      default: a.isDefault ? "yes" : "no",
     };
   }
 }

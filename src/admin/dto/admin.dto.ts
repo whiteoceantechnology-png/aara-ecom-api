@@ -1,0 +1,216 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsString, IsOptional, IsBoolean, IsNumber } from "class-validator";
+import { Type } from "class-transformer";
+
+// ─── Brand DTOs ───────────────────────────────────────────────────────────────
+
+export class CreateBrandDto {
+  @ApiProperty({ example: "Himalaya" })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ example: "himalaya" })
+  @IsString()
+  slug: string;
+
+  @ApiPropertyOptional({ example: "https://cdn.example.com/himalaya.png" })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+}
+
+export class UpdateBrandDto {
+  @ApiPropertyOptional({ example: "Himalaya Wellness" })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: "himalaya-wellness" })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @ApiPropertyOptional({ example: "https://cdn.example.com/logo.png" })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// ─── Product Management DTOs ─────────────────────────────────────────────────
+
+export class AdminCreateProductDto {
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @Type(() => Number)
+  categoryId: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  brandId?: number;
+
+  @ApiProperty({ example: "Ashwagandha Root" })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ example: "ashwagandha-root" })
+  @IsString()
+  slug: string;
+
+  @ApiPropertyOptional({ example: "Premium quality ashwagandha root powder" })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ example: "12119029" })
+  @IsOptional()
+  @IsString()
+  hsnCode?: string;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  taxPercent?: number;
+}
+
+export class AdminUpdateProductDto {
+  @ApiPropertyOptional({ example: 2 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  categoryId?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  brandId?: number;
+
+  @ApiPropertyOptional({ example: "Ashwagandha Powder" })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: "ashwagandha-powder" })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @ApiPropertyOptional({ example: "Updated description" })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ example: "12119029" })
+  @IsOptional()
+  @IsString()
+  hsnCode?: string;
+
+  @ApiPropertyOptional({ example: 12 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  taxPercent?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  status?: boolean;
+}
+
+export class AdminUpdateStockDto {
+  @ApiProperty({ example: 100 })
+  @IsNumber()
+  @Type(() => Number)
+  stockQuantity: number;
+}
+
+export class AdminAddImageDto {
+  @ApiProperty({ example: "https://cdn.example.com/product.jpg" })
+  @IsString()
+  imageUrl: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+}
+
+// ─── Category DTOs ───────────────────────────────────────────────────────────
+
+export class AdminCreateCategoryDto {
+  @ApiProperty({ example: "Raw Dried Herbs" })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ example: "raw-dried-herbs" })
+  @IsString()
+  slug: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  parentId?: number;
+}
+
+export class AdminUpdateCategoryDto {
+  @ApiPropertyOptional({ example: "Dried Herbs" })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: "dried-herbs" })
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// ─── Order Management DTOs ───────────────────────────────────────────────────
+
+export class AdminUpdateOrderDto {
+  @ApiPropertyOptional({
+    example: "shipped",
+    enum: ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({ example: "TRK-987654321" })
+  @IsOptional()
+  @IsString()
+  trackingId?: string;
+
+  @ApiPropertyOptional({ example: "Handle with care" })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+// ─── Customer Management DTOs ────────────────────────────────────────────────
+
+export class AdminCustomerFilterDto {
+  @ApiPropertyOptional({ example: "john" })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isBlocked?: boolean;
+}

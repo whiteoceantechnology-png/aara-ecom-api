@@ -1,13 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CreateCategoryDto, UpdateCategoryDto } from '../dto/category.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
+import {
+  AdminCreateCategoryDto,
+  AdminUpdateCategoryDto,
+} from "../../admin/dto/admin.dto";
 
 @Injectable()
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // ─── Public ──────────────────────────────────────────────────────────────────
+
   findAll() {
-    return this.prisma.category.findMany({ orderBy: { id: 'asc' } });
+    return this.prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { id: "asc" },
+    });
   }
 
   async findOne(id: number) {
@@ -28,6 +37,49 @@ export class CategoriesService {
   async remove(id: number) {
     await this.findOne(id);
     await this.prisma.category.delete({ where: { id } });
-    return { message: 'Category deleted successfully' };
+    return { message: "Category deleted successfully" };
+  }
+
+  // ─── Admin ───────────────────────────────────────────────────────────────────
+
+  adminFindAll() {
+    return this.prisma.category.findMany({
+      include: {
+        parent: { select: { id: true, name: true } },
+        children: {
+          select: { id: true, name: true, slug: true, isActive: true },
+        },
+        _count: { select: { products: true } },
+      },
+      orderBy: { name: "asc" },
+    });
+  }
+
+  async adminFindOne(id: number) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      include: {
+        parent: { select: { id: true, name: true } },
+        children: true,
+        products: { select: { id: true, name: true, status: true } },
+      },
+    });
+    if (!category) throw new NotFoundException(`Category #${id} not found`);
+    return category;
+  }
+
+  adminCreate(dto: AdminCreateCategoryDto) {
+    return this.prisma.category.create({ data: dto });
+  }
+
+  async adminUpdate(id: number, dto: AdminUpdateCategoryDto) {
+    await this.findOne(id);
+    return this.prisma.category.update({ where: { id }, data: dto });
+  }
+
+  async adminRemove(id: number) {
+    await this.findOne(id);
+    await this.prisma.category.delete({ where: { id } });
+    return { message: `Category #${id} deleted` };
   }
 }

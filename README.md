@@ -23,7 +23,7 @@
 
 ## Description
 
-**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants), cart, orders, payments, and customer management.
+**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants, brands), cart, orders, payments, customer management, and a complete **Admin panel** (dashboard, product/category/brand management, customer moderation, order management with CSV export).
 
 ---
 
@@ -422,6 +422,146 @@ curl -X PUT http://localhost:3008/orders/1/status \
 
 ---
 
+## Admin API Endpoints
+
+> All admin routes are prefixed with `/admin`.
+>
+> **Architecture note:** Admin controllers do **not** duplicate domain services. Instead, each domain service (`CategoriesService`, `OrdersService`, `ProductsService`) is extended with `admin*`-prefixed methods. The `AdminModule` imports the domain modules to access their exported services — single source of truth per domain.
+
+### 🔐 Admin Auth
+
+| Method | Endpoint              | Description                      |
+|--------|-----------------------|----------------------------------|
+| `POST` | `/admin/auth/register`| Register admin account           |
+| `POST` | `/admin/auth/login`   | Login — returns 8h JWT token     |
+
+### 📊 Admin Dashboard
+
+| Method | Endpoint                        | Description                              |
+|--------|---------------------------------|------------------------------------------|
+| `GET`  | `/admin/dashboard`              | Summary: orders, revenue, customers, top products, orders by status |
+| `GET`  | `/admin/dashboard/sales?days=30`| Daily sales report for the past N days   |
+
+### 🗂️ Admin Categories
+
+| Method   | Endpoint                   | Description                                  |
+|----------|----------------------------|----------------------------------------------|
+| `GET`    | `/admin/categories`        | All categories with parent/child & product count |
+| `GET`    | `/admin/categories/:id`    | Category detail with products                |
+| `POST`   | `/admin/categories`        | Create category                              |
+| `PUT`    | `/admin/categories/:id`    | Edit category name, slug, or active status   |
+| `DELETE` | `/admin/categories/:id`    | Delete category                              |
+
+### 🏷️ Admin Brands
+
+| Method   | Endpoint              | Description        |
+|----------|-----------------------|--------------------|
+| `GET`    | `/admin/brands`       | List all brands    |
+| `POST`   | `/admin/brands`       | Create a brand     |
+| `PUT`    | `/admin/brands/:id`   | Update a brand     |
+| `DELETE` | `/admin/brands/:id`   | Delete a brand     |
+
+### 📦 Admin Products
+
+| Method   | Endpoint                          | Description                                    |
+|----------|-----------------------------------|------------------------------------------------|
+| `GET`    | `/admin/products`                 | List products (`?search=`, `?categoryId=`, `?brandId=`) |
+| `GET`    | `/admin/products/:id`             | Product detail (variants, images, brand)       |
+| `POST`   | `/admin/products`                 | Create product                                 |
+| `PUT`    | `/admin/products/:id`             | Edit product (name, description, tax, status)  |
+| `DELETE` | `/admin/products/:id`             | Delete product                                 |
+| `PUT`    | `/admin/variants/:id/stock`       | Update variant stock quantity                  |
+| `POST`   | `/admin/products/:id/images`      | Add image to product (set isPrimary)           |
+| `DELETE` | `/admin/images/:id`               | Delete a product image                         |
+
+### 👥 Admin Customers
+
+| Method  | Endpoint                          | Description                                       |
+|---------|-----------------------------------|---------------------------------------------------|
+| `GET`   | `/admin/customers`                | Customer list (`?search=`, `?isBlocked=true/false`) |
+| `GET`   | `/admin/customers/:id`            | Detail view: order history, total spent, last order date |
+| `PATCH` | `/admin/customers/:id/toggle-block` | Block / unblock customer account               |
+
+### 📋 Admin Orders
+
+| Method | Endpoint                  | Description                                              |
+|--------|---------------------------|----------------------------------------------------------|
+| `GET`  | `/admin/orders`           | All orders (`?status=`, `?paymentStatus=`, `?search=`, `?from=`, `?to=`) |
+| `GET`  | `/admin/orders/:id`       | Full order detail (items, payments, shipments)           |
+| `PUT`  | `/admin/orders/:id`       | Update order — status, tracking ID, notes                |
+| `GET`  | `/admin/orders/export`    | Export orders to CSV (`?status=`, `?from=`, `?to=`)      |
+
+### Example: Admin Login
+```bash
+curl -X POST http://localhost:3008/admin/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{ "username": "admin", "password": "Admin@123" }'
+```
+**Response `200`:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "admin": { "id": 1, "username": "admin", "role": "admin" }
+}
+```
+
+### Example: Dashboard Summary
+```bash
+curl http://localhost:3008/admin/dashboard
+```
+**Response `200`:**
+```json
+{
+  "summary": {
+    "totalOrders": 42,
+    "totalCustomers": 18,
+    "totalProducts": 12,
+    "pendingOrders": 5,
+    "totalRevenue": "4826.50"
+  },
+  "ordersByStatus": [
+    { "status": "pending", "count": 5 },
+    { "status": "shipped", "count": 15 }
+  ],
+  "recentOrders": [...],
+  "topProducts": [...]
+}
+```
+
+### Example: Export Orders to CSV
+```bash
+curl "http://localhost:3008/admin/orders/export?status=shipped&from=2026-01-01" \
+  -o orders.csv
+```
+
+### Example: Update Order (status + tracking)
+```bash
+curl -X PUT http://localhost:3008/admin/orders/1 \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "shipped", "trackingId": "TRK-987654321", "notes": "Express delivery" }'
+```
+
+### Example: Block a Customer
+```bash
+curl -X PATCH http://localhost:3008/admin/customers/1/toggle-block
+```
+**Response `200`:**
+```json
+{ "id": 1, "name": "John Doe", "email": "john@gmail.com", "isBlocked": true, "message": "Customer blocked" }
+```
+
+### Example: Update Stock
+```bash
+curl -X PUT http://localhost:3008/admin/variants/1/stock \
+  -H "Content-Type: application/json" \
+  -d '{ "stockQuantity": 150 }'
+```
+  -H "Content-Type: application/json" \
+  -d '{ "status": "shipped" }'
+```
+
+---
+
 ## Database Scripts
 
 | Command              | Description                                              |
@@ -451,21 +591,27 @@ $ npm run test:cov
 
 ### Test Coverage
 
-| Spec File                                          | Tests | What's Covered                                      |
-|----------------------------------------------------|-------|-----------------------------------------------------|
-| `auth/auth.service.spec.ts`                        | 16    | All service methods with edge cases                 |
-| `auth/auth.controller.spec.ts`                     | 5     | All auth controller endpoints                       |
-| `auth/user.repository.spec.ts`                     | 10    | All repository database operations                  |
-| `product/categories/categories.controller.spec.ts` | 7     | CRUD + NotFoundException cases                      |
-| `product/products/products.controller.spec.ts`     | 9     | CRUD + filter/search + variants endpoint            |
-| `product/variants/variants.controller.spec.ts`     | 5     | Create, update, delete + NotFoundException          |
-| `product/customers/customers.controller.spec.ts`   | 6     | Register, login (JWT), getById + error cases        |
-| `product/cart/cart.controller.spec.ts`             | 8     | Get, add, update, remove + edge cases               |
-| `product/orders/orders.controller.spec.ts`         | 7     | Create, findAll (with filter), findOne, updateStatus|
-| `product/payments/payments.controller.spec.ts`     | 6     | Create, findByOrder, findOne + NotFoundException    |
-| `app.controller.spec.ts`                           | 1     | App health check                                    |
+| Spec File                                          | Tests | What's Covered                                                       |
+|----------------------------------------------------|-------|----------------------------------------------------------------------|
+| `auth/auth.service.spec.ts`                        | 16    | All service methods with edge cases                                  |
+| `auth/auth.controller.spec.ts`                     | 5     | All auth controller endpoints                                        |
+| `auth/user.repository.spec.ts`                     | 10    | All repository database operations                                   |
+| `product/categories/categories.controller.spec.ts` | 7     | CRUD + NotFoundException cases                                       |
+| `product/products/products.controller.spec.ts`     | 9     | CRUD + filter/search + variants endpoint                             |
+| `product/variants/variants.controller.spec.ts`     | 5     | Create, update, delete + NotFoundException                           |
+| `product/customers/customers.controller.spec.ts`   | 6     | Register, login (JWT), getById + error cases                         |
+| `product/cart/cart.controller.spec.ts`             | 8     | Get, add, update, remove + edge cases                                |
+| `product/orders/orders.controller.spec.ts`         | 7     | Create, findAll (with filter), findOne, updateStatus                 |
+| `product/payments/payments.controller.spec.ts`     | 6     | Create, findByOrder, findOne + NotFoundException                     |
+| `admin/admin-auth.controller.spec.ts`              | 4     | Register (conflict), login (valid + invalid credentials)             |
+| `admin/admin-dashboard.controller.spec.ts`         | 4     | Summary stats, sales report (default + custom days)                  |
+| `admin/admin-categories.controller.spec.ts`        | 8     | Admin CRUD + NotFoundException + empty list                          |
+| `admin/admin-products.controller.spec.ts`          | 14    | Brand CRUD, product CRUD, stock update, image add/delete             |
+| `admin/admin-customers.controller.spec.ts`         | 6     | List (filter, search), detail (totalSpent), toggle-block             |
+| `admin/admin-orders.controller.spec.ts`            | 7     | List (filters), findOne, update, CSV export with correct headers     |
+| `app.controller.spec.ts`                           | 1     | App health check                                                     |
 
-**Total: 86 tests across 11 suites — all passing ✅**
+**Total: 144 tests across 17 suites — all passing ✅**
 
 ---
 
@@ -505,12 +651,12 @@ src/
 │   ├── categories/
 │   │   ├── categories.controller.ts       ← /categories endpoints + Swagger
 │   │   ├── categories.controller.spec.ts  ← Unit tests (7 tests)
-│   │   ├── categories.service.ts          ← Business logic
+│   │   ├── categories.service.ts          ← Business logic (public + admin methods)
 │   │   └── categories.module.ts
 │   ├── products/
 │   │   ├── products.controller.ts         ← /products endpoints + Swagger
 │   │   ├── products.controller.spec.ts    ← Unit tests (9 tests)
-│   │   ├── products.service.ts            ← Business logic
+│   │   ├── products.service.ts            ← Business logic (public + admin methods with brand/image support)
 │   │   └── products.module.ts
 │   ├── variants/
 │   │   ├── variants.controller.ts         ← /variants endpoints + Swagger
@@ -530,7 +676,7 @@ src/
 │   ├── orders/
 │   │   ├── orders.controller.ts           ← /orders endpoints + Swagger
 │   │   ├── orders.controller.spec.ts      ← Unit tests (7 tests)
-│   │   ├── orders.service.ts              ← Business logic (cart → order)
+│   │   ├── orders.service.ts              ← Business logic (cart → order) + admin methods (findAll/findOne/update/exportCsv)
 │   │   └── orders.module.ts
 │   ├── payments/
 │   │   ├── payments.controller.ts         ← /payments endpoints + Swagger
@@ -538,6 +684,27 @@ src/
 │   │   ├── payments.service.ts            ← Business logic
 │   │   └── payments.module.ts
 │   └── product.module.ts           ← Root module — aggregates all sub-modules
+├── admin/
+│   ├── dto/
+│   │   ├── admin-auth.dto.ts       ← Admin login/register DTOs
+│   │   └── admin.dto.ts            ← Brand, Product, Category, Order, Customer DTOs
+│   ├── admin-auth.controller.ts       ← POST /admin/auth/register, /admin/auth/login
+│   ├── admin-auth.controller.spec.ts  ← Unit tests (4 tests)
+│   ├── admin-auth.service.ts          ← bcrypt + JWT (8h)
+│   ├── admin-dashboard.controller.ts       ← GET /admin/dashboard, /admin/dashboard/sales
+│   ├── admin-dashboard.controller.spec.ts  ← Unit tests (4 tests)
+│   ├── admin-dashboard.service.ts          ← Summary stats, sales report grouped by day
+│   ├── admin-products.controller.ts       ← Brands CRUD + Products CRUD + Stock + Images
+│   ├── admin-products.controller.spec.ts  ← Unit tests (14 tests)
+│   ├── admin-categories.controller.ts       ← /admin/categories CRUD → injects CategoriesService
+│   ├── admin-categories.controller.spec.ts  ← Unit tests (8 tests)
+│   ├── admin-customers.controller.ts       ← List, detail, toggle-block
+│   ├── admin-customers.controller.spec.ts  ← Unit tests (6 tests)
+│   ├── admin-customers.service.ts          ← Customer list + detail with order history + block
+│   ├── admin-orders.controller.ts       ← List with filters, update, CSV export → injects OrdersService
+│   ├── admin-orders.controller.spec.ts  ← Unit tests (7 tests)
+│   ├── brands.service.ts           ← Brand CRUD (admin-scoped, injected into AdminProductsController)
+│   └── admin.module.ts             ← Imports CategoriesModule, OrdersModule, ProductsModule
 ├── prisma/
 │   ├── prisma.service.ts           ← Prisma injectable service
 │   └── prisma.module.ts
@@ -556,24 +723,26 @@ scripts/
 
 ## Database Schema Overview
 
-| Model            | Description                                      |
-|------------------|--------------------------------------------------|
-| `User`           | Auth users (username + password)                 |
-| `UserProfile`    | User profile (name, email, birthdate)            |
-| `UserAddress`    | User delivery addresses                          |
-| `Category`       | Product categories (supports parent/child)       |
-| `Product`        | Products with HSN code & tax                     |
-| `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                 |
-| `ProductVariant` | Product + pack size combination with price & SKU |
-| `ProductImage`   | Product images                                   |
-| `Customer`       | E-commerce customers                             |
-| `CustomerAddress`| Customer delivery addresses                      |
-| `Cart`           | Customer cart                                    |
-| `CartItem`       | Items in a cart                                  |
-| `Order`          | Orders placed by customers                       |
-| `OrderItem`      | Line items in an order                           |
-| `Payment`        | Payment records                                  |
-| `Shipment`       | Shipment tracking                                |
+| Model            | Description                                                   |
+|------------------|---------------------------------------------------------------|
+| `Admin`          | Admin accounts (username, password, role)                     |
+| `User`           | Auth users (username + password)                              |
+| `UserProfile`    | User profile (name, email, birthdate)                         |
+| `UserAddress`    | User delivery addresses                                       |
+| `Brand`          | Product brands (name, slug, logo, isActive)                   |
+| `Category`       | Product categories — supports parent/child hierarchy          |
+| `Product`        | Products with HSN code, tax, brand, category, status          |
+| `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                              |
+| `ProductVariant` | Product + pack size combination with price, SKU, stock        |
+| `ProductImage`   | Product images (with isPrimary flag)                          |
+| `Customer`       | E-commerce customers (isBlocked support)                      |
+| `CustomerAddress`| Customer delivery addresses                                   |
+| `Cart`           | Customer cart                                                 |
+| `CartItem`       | Items in a cart                                               |
+| `Order`          | Orders with status, trackingId, notes, paymentStatus          |
+| `OrderItem`      | Line items in an order                                        |
+| `Payment`        | Payment records (paymentMethod, paymentStatus, paymentDate)   |
+| `Shipment`       | Shipment tracking                                             |
 
 ## Deployment
 

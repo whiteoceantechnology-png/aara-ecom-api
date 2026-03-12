@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CreateVariantDto, UpdateVariantDto } from '../dto/variant.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import { CreateVariantDto, UpdateVariantDto } from "../dto/variant.dto";
 
 @Injectable()
 export class VariantsService {
@@ -21,15 +21,23 @@ export class VariantsService {
   }
 
   async update(id: number, dto: UpdateVariantDto) {
-    const variant = await this.prisma.productVariant.findUnique({ where: { id } });
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id },
+    });
     if (!variant) throw new NotFoundException(`Variant #${id} not found`);
-    return this.prisma.productVariant.update({ where: { id }, data: dto, include: { packSize: true } });
+    return this.prisma.productVariant.update({
+      where: { id },
+      data: dto,
+      include: { packSize: true },
+    });
   }
 
   async remove(id: number) {
-    const variant = await this.prisma.productVariant.findUnique({ where: { id } });
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id },
+    });
     if (!variant) throw new NotFoundException(`Variant #${id} not found`);
     await this.prisma.productVariant.delete({ where: { id } });
-    return { message: 'Variant deleted successfully' };
+    return { message: "Variant deleted successfully" };
   }
 }

@@ -4,21 +4,21 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
-import { UserRepository } from './user.repository';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
+} from "@nestjs/common";
+import * as bcrypt from "bcrypt";
+import * as jwt from "jsonwebtoken";
+import * as crypto from "crypto";
+import { UserRepository } from "./user.repository";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { ForgotPasswordDto, ResetPasswordDto } from "./dto/forgot-password.dto";
 import {
   RegisterResponseDto,
   LoginResponseDto,
   UpdateUserResponseDto,
   MessageResponseDto,
-} from './dto/auth-response.dto';
+} from "./dto/auth-response.dto";
 
 @Injectable()
 export class AuthService {
@@ -27,7 +27,7 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<RegisterResponseDto> {
     const existing = await this.userRepository.findByUsername(dto.username);
     if (existing) {
-      throw new ConflictException('Username already exists');
+      throw new ConflictException("Username already exists");
     }
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
@@ -41,30 +41,37 @@ export class AuthService {
           }
         : undefined;
 
-    return this.userRepository.createUser(dto.username, hashedPassword, profile);
+    return this.userRepository.createUser(
+      dto.username,
+      hashedPassword,
+      profile,
+    );
   }
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
     const user = await this.userRepository.findByUsername(dto.username);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET as string,
-      { expiresIn: '1h' },
+      { expiresIn: "1h" },
     );
     return { token };
   }
 
-  async updateUser(userId: number, dto: UpdateUserDto): Promise<UpdateUserResponseDto> {
+  async updateUser(
+    userId: number,
+    dto: UpdateUserDto,
+  ): Promise<UpdateUserResponseDto> {
     const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const updateData: { username?: string; password?: string } = {};
@@ -72,7 +79,7 @@ export class AuthService {
     if (dto.username && dto.username !== user.username) {
       const existing = await this.userRepository.findByUsername(dto.username);
       if (existing) {
-        throw new ConflictException('Username already taken');
+        throw new ConflictException("Username already taken");
       }
       updateData.username = dto.username;
     }
@@ -88,10 +95,12 @@ export class AuthService {
     const user = await this.userRepository.findByUsername(dto.username);
     if (!user) {
       // Return generic message to avoid username enumeration
-      return { message: 'If the username exists, a reset token has been generated.' };
+      return {
+        message: "If the username exists, a reset token has been generated.",
+      };
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     await this.userRepository.setResetToken(user.id, token, expiry);
@@ -105,17 +114,17 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto): Promise<MessageResponseDto> {
     const user = await this.userRepository.findByResetToken(dto.token);
     if (!user) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException("Invalid or expired reset token");
     }
 
     if (!user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
-      throw new BadRequestException('Reset token has expired');
+      throw new BadRequestException("Reset token has expired");
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
     await this.userRepository.updateUser(user.id, { password: hashedPassword });
     await this.userRepository.clearResetToken(user.id);
 
-    return { message: 'Password has been reset successfully' };
+    return { message: "Password has been reset successfully" };
   }
 }
