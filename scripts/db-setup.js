@@ -101,7 +101,24 @@ const DB_NAME = parsed.pathname.replace(/^\//, '');
 const SUPERUSER_PASS =
   envVars['POSTGRES_SUPERUSER_PASSWORD'] ||
   process.env.POSTGRES_SUPERUSER_PASSWORD ||
-  undefined;
+  '';
+
+// ── Detect Windows with no superuser password set ────────────────────────────
+// On Windows, PostgreSQL always requires a password for the 'postgres' user.
+// If POSTGRES_SUPERUSER_PASSWORD is empty, the pg client throws a SASL error.
+// Detect this early and give a clear message instead of a cryptic crash.
+
+const isWindows = process.platform === 'win32';
+if (isWindows && !SUPERUSER_PASS) {
+  bail(
+    '❌  POSTGRES_SUPERUSER_PASSWORD is not set in your .env file.',
+    '👉  Fix: Open .env in Notepad and add your PostgreSQL install password:\n\n' +
+    '      POSTGRES_SUPERUSER_PASSWORD=mypassword123\n\n' +
+    '    Also make sure DATABASE_URL includes the same password:\n\n' +
+    '      DATABASE_URL="postgresql://admin:mypassword123@localhost:5432/ecomdb"\n\n' +
+    '    Use the password you set when you installed PostgreSQL.'
+  );
+}
 
 // ── Validate .env is complete ─────────────────────────────────────────────────
 
@@ -134,9 +151,8 @@ function makeClient(database = 'postgres') {
     port: DB_PORT,
     database,
     user: 'postgres',
-    password: SUPERUSER_PASS,
-    // allow trust auth (no password) on macOS/Linux
-    ...(SUPERUSER_PASS ? {} : {}),
+    // Always pass a string — pg throws SASL error if password is undefined
+    password: SUPERUSER_PASS || null,
   });
 }
 
