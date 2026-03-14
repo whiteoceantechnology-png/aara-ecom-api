@@ -179,7 +179,15 @@ async function main() {
       `SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'`
     );
     if (check.rows.length > 0) {
-      log(`    ✅  User '${DB_USER}' already exists.\n`);
+      // User exists — always sync the password to match DATABASE_URL.
+      // This fixes the case where the user was previously created without
+      // a password (or with a different one) and Prisma now rejects it.
+      if (DB_PASS) {
+        await query(`ALTER USER "${DB_USER}" WITH PASSWORD '${DB_PASS}'`);
+        log(`    ✅  User '${DB_USER}' already exists — password updated to match DATABASE_URL.\n`);
+      } else {
+        log(`    ✅  User '${DB_USER}' already exists.\n`);
+      }
     } else {
       const createSql = DB_PASS
         ? `CREATE USER "${DB_USER}" WITH PASSWORD '${DB_PASS}'`
