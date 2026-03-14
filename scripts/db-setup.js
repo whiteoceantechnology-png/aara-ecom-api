@@ -3,6 +3,9 @@
 /**
  * db-setup.js — Cross-platform database setup script (Windows + macOS + Linux)
  *
+ * Uses the 'pg' npm package directly — no psql binary needed, no PATH issues,
+ * no password prompts. Works identically on Windows, macOS, and Linux.
+ *
  * What this does:
  *   1. Reads DATABASE_URL from .env
  *   2. Creates the PostgreSQL user (if not exists)
@@ -14,31 +17,35 @@
  * Run: npm run db:setup
  */
 
-const { execSync, execFileSync } = require('child_process');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { Client } = require('pg');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function run(cmd, opts = {}) {
-  execSync(cmd, { stdio: 'inherit', ...opts });
-}
-
-function runCapture(cmd) {
-  return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-}
-
 function log(msg) {
   console.log(msg);
+}
+
+function bail(msg, hint) {
+  console.error('\n' + msg);
+  if (hint) console.error('\n' + hint);
+  console.error('');
+  process.exit(1);
 }
 
 // ── Load .env ─────────────────────────────────────────────────────────────────
 
 const envPath = path.join(__dirname, '..', '.env');
 if (!fs.existsSync(envPath)) {
-  console.error('\n❌  .env file not found. Please create one first.');
-  console.error('    Copy .env.example to .env and fill in the values.\n');
-  process.exit(1);
+  bail(
+    '❌  .env file not found.',
+    '👉  Fix: Copy .env.example to .env\n' +
+    '         Windows : copy .env.example .env\n' +
+    '         Mac/Linux: cp .env.example .env\n' +
+    '    Then fill in your values and run npm run db:setup again.'
+  );
 }
 
 const envContent = fs.readFileSync(envPath, 'utf8');
@@ -53,138 +60,231 @@ for (const line of envContent.split('\n')) {
   envVars[key] = val;
 }
 
+// ── Read DATABASE_URL ─────────────────────────────────────────────────────────
+
 const dbUrl = envVars['DATABASE_URL'];
-if (!dbUrl) {
-  console.error('\n❌  DATABASE_URL not found in .env\n');
-  process.exit(1);
+if (!dbUrl || dbUrl.includes('YOUR_POSTGRES_PASSWORD')) {
+  bail(
+    '❌  DATABASE_URL is not configured in your .env file.',
+    '👉  Fix: Open .env and replace YOUR_POSTGRES_PASSWORD with your actual PostgreSQL password.\n' +
+    '    Example:\n' +
+    '      DATABASE_URL="postgresql://admin:mypassword123@localhost:5432/ecomdb"'
+  );
 }
 
 // ── Parse DATABASE_URL ────────────────────────────────────────────────────────
-// Supports:
-//   postgresql://user:password@host:port/dbname
-//   postgresql://user@host:port/dbname        (no password / trust auth)
 
 let parsed;
 try {
   parsed = new URL(dbUrl);
 } catch {
-  console.error('\n❌  Invalid DATABASE_URL format in .env');
-  console.error('    Expected: postgresql://user:password@host:port/dbname\n');
-  process.exit(1);
+  bail(
+    '❌  DATABASE_URL in .env has an invalid format.',
+    '👉  Fix: It should look like:\n' +
+    '      DATABASE_URL="postgresql://admin:yourpassword@localhost:5432/ecomdb"'
+  );
 }
 
 const DB_USER = parsed.username;
 const DB_PASS = parsed.password ? decodeURIComponent(parsed.password) : null;
 const DB_HOST = parsed.hostname;
-const DB_PORT = parsed.port || '5432';
+const DB_PORT = parseInt(parsed.port || '5432', 10);
 const DB_NAME = parsed.pathname.replace(/^\//, '');
 
-log('\n🔧  Database Setup');
-log('─────────────────────────────────────');
-log(`  Host     : ${DB_HOST}:${DB_PORT}`);
-log(`  Database : ${DB_NAME}`);
-log(`  User     : ${DB_USER}`);
-log(`  Password : ${DB_PASS ? '(set)' : '(none — trust auth)'}`);
-log('─────────────────────────────────────\n');
+// ── Read superuser password ───────────────────────────────────────────────────
+//
+// On Windows, PostgreSQL's default superuser 'postgres' requires a password.
+// On macOS/Linux with trust auth, no password is needed (leave blank).
+//
+// The user sets POSTGRES_SUPERUSER_PASSWORD in .env (see .env.example).
 
-// ── Build psql env (for password-based auth) ──────────────────────────────────
-//
-// On Windows, PostgreSQL's default superuser is 'postgres' and it uses
-// password auth. The PGPASSWORD env variable is used by psql so it doesn't
-// prompt interactively.
-//
-// The user must set POSTGRES_SUPERUSER_PASSWORD in their environment or .env
-// if their postgres superuser requires a password (Windows default).
-// We also fall back to DB_PASS if the DB user IS postgres (some setups).
 const SUPERUSER_PASS =
   envVars['POSTGRES_SUPERUSER_PASSWORD'] ||
   process.env.POSTGRES_SUPERUSER_PASSWORD ||
-  '';
+  undefined;
 
-function psql(sql, database = 'postgres') {
-  // Pass SQL via stdin (-f -) to avoid shell quoting issues on Windows and Unix
-  const env = { ...process.env, PGPASSWORD: SUPERUSER_PASS };
-  return execFileSync(
-    'psql',
-    ['-h', DB_HOST, '-p', DB_PORT, '-U', 'postgres', '-d', database, '-t', '-c', sql],
-    { encoding: 'utf8', input: sql, env, stdio: ['pipe', 'pipe', 'pipe'] },
-  ).trim();
+// ── Validate .env is complete ─────────────────────────────────────────────────
+
+if (!DB_PASS && SUPERUSER_PASS) {
+  bail(
+    '❌  DATABASE_URL has no password but POSTGRES_SUPERUSER_PASSWORD is set.',
+    '👉  Fix: On Windows, both must have the same password.\n' +
+    '    Update DATABASE_URL in .env to include the password:\n' +
+    '      DATABASE_URL="postgresql://admin:mypassword123@localhost:5432/ecomdb"\n' +
+    '      POSTGRES_SUPERUSER_PASSWORD=mypassword123'
+  );
 }
 
-// ── Step 1: Create user ───────────────────────────────────────────────────────
-log('👤  Step 1: Creating PostgreSQL user...');
-try {
-  const exists = psql(`SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'`);
-  if (exists.includes('1')) {
-    log(`    ✅  User '${DB_USER}' already exists.\n`);
-  } else {
-    const createSql = DB_PASS
-      ? `CREATE USER "${DB_USER}" WITH PASSWORD '${DB_PASS}';`
-      : `CREATE USER "${DB_USER}";`;
-    psql(createSql);
-    log(`    ✅  User '${DB_USER}' created.\n`);
-  }
-} catch (e) {
-  console.error(`    ❌  Could not create user. Make sure PostgreSQL is running and your superuser (postgres) has access.`);
-  if (process.env.VERBOSE) console.error(e.message);
-  process.exit(1);
-}
+// ── Print summary ─────────────────────────────────────────────────────────────
 
-// ── Step 2: Create database ───────────────────────────────────────────────────
-log('🗄️   Step 2: Creating database...');
-try {
-  const exists = psql(`SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'`);
-  if (exists.includes('1')) {
-    log(`    ✅  Database '${DB_NAME}' already exists.\n`);
-  } else {
-    psql(`CREATE DATABASE "${DB_NAME}" OWNER "${DB_USER}";`);
-    log(`    ✅  Database '${DB_NAME}' created.\n`);
-  }
-} catch (e) {
-  console.error(`    ❌  Could not create database.`);
-  if (process.env.VERBOSE) console.error(e.message);
-  process.exit(1);
-}
+log('\n🔧  Database Setup');
+log('─────────────────────────────────────────────────');
+log(`  Host          : ${DB_HOST}:${DB_PORT}`);
+log(`  Database      : ${DB_NAME}`);
+log(`  App User      : ${DB_USER}`);
+log(`  App Password  : ${DB_PASS ? '(set)' : '(none — trust auth)'}`);
+log(`  Superuser pwd : ${SUPERUSER_PASS ? '(set)' : '(none — trust auth)'}`);
+log('─────────────────────────────────────────────────\n');
 
-// ── Step 3: Grant privileges ──────────────────────────────────────────────────
-log('🔑  Step 3: Granting privileges...');
-try {
-  psql(`GRANT ALL PRIVILEGES ON DATABASE "${DB_NAME}" TO "${DB_USER}";`);
-  psql(`ALTER DATABASE "${DB_NAME}" OWNER TO "${DB_USER}";`, DB_NAME);
-  log(`    ✅  Privileges granted.\n`);
-} catch (e) {
-  console.error(`    ❌  Could not grant privileges.`);
-  if (process.env.VERBOSE) console.error(e.message);
-  process.exit(1);
-}
+// ── pg superuser client (connects to 'postgres' maintenance DB) ───────────────
 
-// ── Step 4: Run Prisma migrations ─────────────────────────────────────────────
-log('📦  Step 4: Running Prisma migrations...');
-try {
-  run('npx prisma migrate deploy --schema=prisma/schema.prisma --config=prisma/prisma.config.ts', {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, DATABASE_URL: dbUrl },
+function makeClient(database = 'postgres') {
+  return new Client({
+    host: DB_HOST,
+    port: DB_PORT,
+    database,
+    user: 'postgres',
+    password: SUPERUSER_PASS,
+    // allow trust auth (no password) on macOS/Linux
+    ...(SUPERUSER_PASS ? {} : {}),
   });
-  log('    ✅  Migrations applied.\n');
-} catch (e) {
-  console.error('    ❌  Prisma migration failed.');
-  process.exit(1);
 }
 
-// ── Step 5: Generate Prisma client ────────────────────────────────────────────
-log('⚙️   Step 5: Generating Prisma client...');
-try {
-  run('npx prisma generate', {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, DATABASE_URL: dbUrl },
-  });
-  log('    ✅  Prisma client generated.\n');
-} catch (e) {
-  console.error('    ❌  Prisma generate failed.');
-  process.exit(1);
+async function query(sql, database = 'postgres') {
+  const client = makeClient(database);
+  try {
+    await client.connect();
+    const res = await client.query(sql);
+    return res;
+  } finally {
+    await client.end().catch(() => {});
+  }
 }
 
-log('');
-log('🎉  Setup complete! You can now run:');
-log('    npm run start:dev');
-log('');
+// ── Main setup (async) ────────────────────────────────────────────────────────
+
+async function main() {
+
+  // ── Step 1: Create user ─────────────────────────────────────────────────────
+
+  log('👤  Step 1: Creating PostgreSQL user...');
+  try {
+    const check = await query(
+      `SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}'`
+    );
+    if (check.rows.length > 0) {
+      log(`    ✅  User '${DB_USER}' already exists.\n`);
+    } else {
+      const createSql = DB_PASS
+        ? `CREATE USER "${DB_USER}" WITH PASSWORD '${DB_PASS}'`
+        : `CREATE USER "${DB_USER}"`;
+      await query(createSql);
+      log(`    ✅  User '${DB_USER}' created.\n`);
+    }
+  } catch (err) {
+    const msg = (err.message || '').toString();
+
+    if (msg.includes('password authentication failed') || msg.includes('no pg_hba.conf entry')) {
+      bail(
+        '❌  PostgreSQL rejected the superuser password.',
+        '👉  Fix: Open your .env file and set the correct POSTGRES_SUPERUSER_PASSWORD.\n' +
+        '    This is the password you chose when you installed PostgreSQL.\n\n' +
+        '    Example (in .env):\n' +
+        '      POSTGRES_SUPERUSER_PASSWORD=mypassword123'
+      );
+    }
+
+    if (msg.includes('ECONNREFUSED') || msg.includes('connect ECONNREFUSED')) {
+      bail(
+        '❌  Cannot connect to PostgreSQL. Is it running?',
+        '👉  Fix for Windows:\n' +
+        '    Press Win+S → search "Services" → find "postgresql-x64-17" → Right-click → Start.\n\n' +
+        '👉  Fix for macOS:\n' +
+        '    Run: brew services start postgresql'
+      );
+    }
+
+    bail(
+      '❌  Could not create the database user.\n    Error: ' + msg,
+      '👉  Make sure:\n' +
+      '    1. PostgreSQL is running\n' +
+      '    2. POSTGRES_SUPERUSER_PASSWORD in .env matches your PostgreSQL install password'
+    );
+  }
+
+  // ── Step 2: Create database ─────────────────────────────────────────────────
+
+  log('🗄️   Step 2: Creating database...');
+  try {
+    const check = await query(
+      `SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'`
+    );
+    if (check.rows.length > 0) {
+      log(`    ✅  Database '${DB_NAME}' already exists.\n`);
+    } else {
+      // CREATE DATABASE cannot run in a transaction, use a fresh client
+      await query(`CREATE DATABASE "${DB_NAME}" OWNER "${DB_USER}"`);
+      log(`    ✅  Database '${DB_NAME}' created.\n`);
+    }
+  } catch (err) {
+    bail(
+      '❌  Could not create database.\n    Error: ' + err.message,
+      '👉  Make sure POSTGRES_SUPERUSER_PASSWORD in .env is correct.'
+    );
+  }
+
+  // ── Step 3: Grant privileges ────────────────────────────────────────────────
+
+  log('🔑  Step 3: Granting privileges...');
+  try {
+    await query(`GRANT ALL PRIVILEGES ON DATABASE "${DB_NAME}" TO "${DB_USER}"`);
+    await query(`ALTER DATABASE "${DB_NAME}" OWNER TO "${DB_USER}"`, DB_NAME);
+    log(`    ✅  Privileges granted.\n`);
+  } catch (err) {
+    bail(
+      '❌  Could not grant privileges.\n    Error: ' + err.message,
+      '👉  Make sure POSTGRES_SUPERUSER_PASSWORD in .env is correct.'
+    );
+  }
+
+  // ── Step 4: Run Prisma migrations ──────────────────────────────────────────
+
+  log('📦  Step 4: Running Prisma migrations...');
+  try {
+    execSync(
+      'npx prisma migrate deploy --schema=prisma/schema.prisma --config=prisma/prisma.config.ts',
+      {
+        stdio: 'inherit',
+        cwd: path.join(__dirname, '..'),
+        env: { ...process.env, DATABASE_URL: dbUrl },
+      },
+    );
+    log('    ✅  Migrations applied.\n');
+  } catch {
+    bail(
+      '❌  Prisma migration failed.',
+      '👉  Most likely cause: the password in DATABASE_URL does not match the admin user password.\n' +
+      '    Make sure DATABASE_URL in .env includes the correct password:\n' +
+      '      DATABASE_URL="postgresql://admin:mypassword123@localhost:5432/ecomdb"'
+    );
+  }
+
+  // ── Step 5: Generate Prisma client ─────────────────────────────────────────
+
+  log('⚙️   Step 5: Generating Prisma client...');
+  try {
+    execSync('npx prisma generate', {
+      stdio: 'inherit',
+      cwd: path.join(__dirname, '..'),
+      env: { ...process.env, DATABASE_URL: dbUrl },
+    });
+    log('    ✅  Prisma client generated.\n');
+  } catch {
+    bail('❌  Prisma generate failed. Check the error above.');
+  }
+
+  // ── Done ────────────────────────────────────────────────────────────────────
+
+  log('');
+  log('🎉  Setup complete! You can now start the API:');
+  log('');
+  log('    npm run start:dev');
+  log('');
+  log('    Then open: http://localhost:3008/api/docs');
+  log('');
+}
+
+main().catch((err) => {
+  console.error('\n❌  Unexpected error:', err.message);
+  process.exit(1);
+});
