@@ -3,6 +3,7 @@ import { NotFoundException } from "@nestjs/common";
 import { AdminCustomersController } from "./admin-customers.controller";
 import { AdminCustomersService } from "./admin-customers.service";
 import { AdminCustomerFilterDto } from "./dto/admin.dto";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockCustomer = {
   id: 1,
@@ -159,6 +160,30 @@ describe("AdminCustomersController", () => {
       await expect(controller.toggleBlock(99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        AdminCustomersController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark any route as @Public() — all require auth", () => {
+      const methods = ["findAll", "findOne", "toggleBlock"];
+      methods.forEach((method) => {
+        const isPublic = Reflect.getMetadata(
+          IS_PUBLIC_KEY,
+          AdminCustomersController.prototype[method],
+        );
+        expect(isPublic).toBeUndefined();
+      });
     });
   });
 });

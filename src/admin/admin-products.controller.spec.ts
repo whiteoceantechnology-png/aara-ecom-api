@@ -11,6 +11,7 @@ import {
   AdminUpdateStockDto,
   AdminAddImageDto,
 } from "./dto/admin.dto";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockBrand = {
   id: 1,
@@ -318,6 +319,43 @@ describe("AdminProductsController", () => {
       await expect(controller.deleteImage(99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        AdminProductsController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark any route as @Public() — all require auth", () => {
+      const methods = [
+        "getBrands",
+        "createBrand",
+        "updateBrand",
+        "deleteBrand",
+        "getProducts",
+        "getProduct",
+        "createProduct",
+        "updateProduct",
+        "deleteProduct",
+        "updateStock",
+        "addImage",
+        "deleteImage",
+      ];
+      methods.forEach((method) => {
+        const isPublic = Reflect.getMetadata(
+          IS_PUBLIC_KEY,
+          AdminProductsController.prototype[method],
+        );
+        expect(isPublic).toBeUndefined();
+      });
     });
   });
 });

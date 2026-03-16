@@ -17,6 +17,7 @@ import {
   ApiBody,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ProductService } from "./product.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
@@ -39,6 +40,7 @@ import { Public } from "../auth/public.decorator";
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORIES
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Categories")
 @Controller("categories")
 export class CategoryController {
@@ -97,6 +99,7 @@ export class CategoryController {
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODUCTS
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Products")
 @Controller("products")
 export class ProductController {
@@ -164,6 +167,7 @@ export class ProductController {
 // ─────────────────────────────────────────────────────────────────────────────
 // VARIANTS
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Variants")
 @Controller("variants")
 export class VariantController {
@@ -222,6 +226,7 @@ export class ProductLookupController2 {
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOMERS
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Customers")
 @Controller("customers")
 export class CustomerController {
@@ -256,6 +261,7 @@ export class CustomerController {
 // ─────────────────────────────────────────────────────────────────────────────
 // CART
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Cart")
 @Controller("cart")
 export class CartController {
@@ -294,6 +300,7 @@ export class CartController {
 // ─────────────────────────────────────────────────────────────────────────────
 // ORDERS
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Orders")
 @Controller("orders")
 export class OrderController {
@@ -338,6 +345,7 @@ export class OrderController {
 // ─────────────────────────────────────────────────────────────────────────────
 // PAYMENTS
 // ─────────────────────────────────────────────────────────────────────────────
+@ApiBearerAuth()
 @ApiTags("Payments")
 @Controller("payments")
 export class PaymentController {

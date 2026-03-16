@@ -16,11 +16,13 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { CategoriesService } from "./categories.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import { Public } from "../../auth/public.decorator";
 
+@ApiBearerAuth()
 @ApiTags("Categories")
 @Controller("categories")
 export class CategoriesController {

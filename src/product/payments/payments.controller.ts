@@ -14,10 +14,12 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { PaymentsService } from "./payments.service";
 import { CreatePaymentDto } from "../dto/order.dto";
 
+@ApiBearerAuth()
 @ApiTags("Payments")
 @Controller("payments")
 export class PaymentsController {

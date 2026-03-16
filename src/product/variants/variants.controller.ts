@@ -15,10 +15,12 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { VariantsService } from "./variants.service";
 import { CreateVariantDto, UpdateVariantDto } from "../dto/variant.dto";
 
+@ApiBearerAuth()
 @ApiTags("Variants")
 @Controller("variants")
 export class VariantsController {

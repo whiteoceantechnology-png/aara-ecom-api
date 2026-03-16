@@ -47,6 +47,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
+      // Accessing Controller.prototype.method for Reflect.getMetadata() triggers this rule
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 );

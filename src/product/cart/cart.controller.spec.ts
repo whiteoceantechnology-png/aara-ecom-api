@@ -3,6 +3,7 @@ import { NotFoundException } from "@nestjs/common";
 import { CartController } from "./cart.controller";
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
+import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockCart = { id: 1, customerId: 1, createdAt: new Date(), items: [] };
 const mockCartItem = {
@@ -101,6 +102,51 @@ describe("CartController", () => {
       await expect(controller.removeItem(99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        CartController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark getCart as @Public() — requires auth", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CartController.prototype.getCart,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark addItem as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CartController.prototype.addItem,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark updateItem as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CartController.prototype.updateItem,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark removeItem as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CartController.prototype.removeItem,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });

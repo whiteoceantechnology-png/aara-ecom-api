@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { CustomersController } from "./customers.controller";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, CustomerLoginDto } from "../dto/customer.dto";
+import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockCustomer = {
   id: 1,
@@ -102,6 +103,43 @@ describe("CustomersController", () => {
     it("should throw NotFoundException when customer not found", async () => {
       service.findOne.mockRejectedValue(new NotFoundException());
       await expect(controller.findOne(99)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        CustomersController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should mark register as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CustomersController.prototype.register,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark login as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CustomersController.prototype.login,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should NOT mark findOne as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CustomersController.prototype.findOne,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });

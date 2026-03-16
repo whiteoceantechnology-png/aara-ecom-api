@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException, BadRequestException } from "@nestjs/common";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
+import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockOrdersService = {
   create: jest.fn(),
@@ -125,6 +126,51 @@ describe("OrdersController", () => {
       await expect(
         controller.updateStatus(999, { status: "shipped" } as any),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        OrdersController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark create as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        OrdersController.prototype.create,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark findAll as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        OrdersController.prototype.findAll,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark findOne as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        OrdersController.prototype.findOne,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark updateStatus as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        OrdersController.prototype.updateStatus,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });

@@ -18,6 +18,7 @@ import {
   ApiBody,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ProductsService } from "./products.service";
 import {
@@ -27,6 +28,7 @@ import {
 } from "../dto/product.dto";
 import { Public } from "../../auth/public.decorator";
 
+@ApiBearerAuth()
 @ApiTags("Products")
 @Controller("products")
 export class ProductsController {

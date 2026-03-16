@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AdminDashboardController } from "./admin-dashboard.controller";
 import { AdminDashboardService } from "./admin-dashboard.service";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockSummary = {
   summary: {
@@ -98,6 +99,30 @@ describe("AdminDashboardController", () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toHaveProperty("date");
       expect(result[0]).toHaveProperty("revenue");
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        AdminDashboardController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark any route as @Public() — all require auth", () => {
+      const methods = ["getSummary", "getSalesReport"];
+      methods.forEach((method) => {
+        const isPublic = Reflect.getMetadata(
+          IS_PUBLIC_KEY,
+          AdminDashboardController.prototype[method],
+        );
+        expect(isPublic).toBeUndefined();
+      });
     });
   });
 });

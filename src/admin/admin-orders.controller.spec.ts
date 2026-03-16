@@ -3,6 +3,7 @@ import { NotFoundException } from "@nestjs/common";
 import { AdminOrdersController } from "./admin-orders.controller";
 import { OrdersService } from "../product/orders/orders.service";
 import { AdminUpdateOrderDto } from "./dto/admin.dto";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockOrder = {
   id: 1,
@@ -187,6 +188,30 @@ describe("AdminOrdersController", () => {
         expect.stringContaining('attachment; filename="orders-'),
       );
       expect(mockRes.send).toHaveBeenCalledWith(csvContent);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        AdminOrdersController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark any route as @Public() — all require auth", () => {
+      const methods = ["findAll", "findOne", "update", "exportCsv"];
+      methods.forEach((method) => {
+        const isPublic = Reflect.getMetadata(
+          IS_PUBLIC_KEY,
+          AdminOrdersController.prototype[method],
+        );
+        expect(isPublic).toBeUndefined();
+      });
     });
   });
 });

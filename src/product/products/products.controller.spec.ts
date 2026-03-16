@@ -7,6 +7,7 @@ import {
   UpdateProductDto,
   ProductFilterDto,
 } from "../dto/product.dto";
+import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockVariant = {
   id: 1,
@@ -141,6 +142,67 @@ describe("ProductsController", () => {
       const result = await controller.findVariants(1);
       expect(result).toEqual([mockVariant]);
       expect(service.findVariants).toHaveBeenCalledWith(1);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        ProductsController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should mark findAll as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.findAll,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark findOne as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.findOne,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark findVariants as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.findVariants,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should NOT mark create as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.create,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark update as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.update,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark remove as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.remove,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });

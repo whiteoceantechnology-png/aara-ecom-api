@@ -6,6 +6,7 @@ import {
   AdminCreateCategoryDto,
   AdminUpdateCategoryDto,
 } from "./dto/admin.dto";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockCategory = {
   id: 1,
@@ -161,6 +162,30 @@ describe("AdminCategoriesController", () => {
       );
 
       await expect(controller.remove(99)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        AdminCategoriesController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should NOT mark any route as @Public() — all require auth", () => {
+      const methods = ["findAll", "findOne", "create", "update", "remove"];
+      methods.forEach((method) => {
+        const isPublic = Reflect.getMetadata(
+          IS_PUBLIC_KEY,
+          AdminCategoriesController.prototype[method],
+        );
+        expect(isPublic).toBeUndefined();
+      });
     });
   });
 });

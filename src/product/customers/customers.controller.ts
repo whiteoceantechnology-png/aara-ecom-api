@@ -14,11 +14,13 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, CustomerLoginDto } from "../dto/customer.dto";
 import { Public } from "../../auth/public.decorator";
 
+@ApiBearerAuth()
 @ApiTags("Customers")
 @Controller("customers")
 export class CustomersController {

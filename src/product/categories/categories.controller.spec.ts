@@ -3,6 +3,7 @@ import { NotFoundException } from "@nestjs/common";
 import { CategoriesController } from "./categories.controller";
 import { CategoriesService } from "./categories.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
+import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockCategory = {
   id: 1,
@@ -106,6 +107,67 @@ describe("CategoriesController", () => {
     it("should throw NotFoundException when category not found", async () => {
       service.remove.mockRejectedValue(new NotFoundException());
       await expect(controller.remove(99)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should have @ApiBearerAuth() on the controller", () => {
+      const metadata = Reflect.getMetadata(
+        "swagger/apiSecurity",
+        CategoriesController,
+      );
+      expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should mark findAll as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.findAll,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark findOne as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.findOne,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark findProductsByCategory as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.findProductsByCategory,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should NOT mark create as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.create,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark update as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.update,
+      );
+      expect(isPublic).toBeUndefined();
+    });
+
+    it("should NOT mark remove as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        CategoriesController.prototype.remove,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });

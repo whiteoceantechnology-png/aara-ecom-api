@@ -17,10 +17,12 @@ import {
   ApiBody,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { OrdersService } from "./orders.service";
 import { CreateOrderDto, UpdateOrderStatusDto } from "../dto/order.dto";
 
+@ApiBearerAuth()
 @ApiTags("Orders")
 @Controller("orders")
 export class OrdersController {

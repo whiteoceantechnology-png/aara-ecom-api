@@ -16,10 +16,12 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 
+@ApiBearerAuth()
 @ApiTags("Cart")
 @Controller("cart")
 export class CartController {

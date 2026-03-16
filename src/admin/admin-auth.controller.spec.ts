@@ -3,6 +3,7 @@ import { ConflictException, UnauthorizedException } from "@nestjs/common";
 import { AdminAuthController } from "./admin-auth.controller";
 import { AdminAuthService } from "./admin-auth.service";
 import { AdminLoginDto, CreateAdminDto } from "./dto/admin-auth.dto";
+import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockAdminAuthService = {
   register: jest.fn(),
@@ -86,6 +87,27 @@ describe("AdminAuthController", () => {
       await expect(
         controller.login({ username: "admin", password: "wrong" }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should mark register as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AdminAuthController.prototype.register,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark login as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AdminAuthController.prototype.login,
+      );
+      expect(isPublic).toBe(true);
     });
   });
 });

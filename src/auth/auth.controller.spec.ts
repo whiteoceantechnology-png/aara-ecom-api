@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { IS_PUBLIC_KEY } from "./public.decorator";
 
 const mockAuthService = {
   register: jest.fn(),
@@ -97,6 +98,51 @@ describe("AuthController", () => {
 
       expect(mockAuthService.resetPassword).toHaveBeenCalledWith(dto);
       expect(result).toEqual(expected);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Authentication decorators
+  // ──────────────────────────────────────────────
+  describe("auth decorators", () => {
+    it("should mark register as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AuthController.prototype.register,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark login as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AuthController.prototype.login,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark forgotPassword as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AuthController.prototype.forgotPassword,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark resetPassword as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AuthController.prototype.resetPassword,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should NOT mark updateUser as @Public() — requires auth", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        AuthController.prototype.updateUser,
+      );
+      expect(isPublic).toBeUndefined();
     });
   });
 });
