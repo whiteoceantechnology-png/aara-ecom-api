@@ -22,6 +22,7 @@
     "db:migrate": "npx prisma migrate deploy --schema=prisma/schema.prisma --config=prisma/prisma.config.ts",
     "db:generate": "npx prisma generate",
     "db:reset": "npx prisma migrate reset --schema=prisma/schema.prisma --config=prisma/prisma.config.ts --force",
+    "db:seed": "node prisma/seed.js",
     "prepare": "husky"
   },
   "dependencies": {
@@ -93,5 +94,8 @@
       "eslint --fix",
       "prettier --write"
     ]
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }
