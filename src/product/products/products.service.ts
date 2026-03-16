@@ -28,14 +28,13 @@ export class ProductsService {
         category: { select: { id: true, name: true } },
         variants: {
           where: { status: true },
-          include: { packSize: { select: { label: true } } },
           select: {
             id: true,
             sku: true,
             price: true,
             stockQuantity: true,
             status: true,
-            packSize: true,
+            packSize: { select: { label: true } },
           },
         },
         images: { select: { id: true, imageUrl: true, isPrimary: true } },
