@@ -32,6 +32,20 @@ export class OrdersService {
       throw new BadRequestException("Cart is empty");
     }
 
+    // Validate stock availability for all items
+    const outOfStock = cart.items.filter(
+      (item) => item.variant.stockQuantity < item.quantity,
+    );
+    if (outOfStock.length > 0) {
+      const details = outOfStock.map(
+        (item) =>
+          `${item.variant.product.name} (requested: ${item.quantity}, available: ${item.variant.stockQuantity})`,
+      );
+      throw new BadRequestException(
+        `Insufficient stock for: ${details.join("; ")}`,
+      );
+    }
+
     const orderNumber = `ORD-${Date.now()}`;
     let total = 0;
 
@@ -58,6 +72,17 @@ export class OrdersService {
       include: { items: true },
     });
 
+    // Deduct stock for each variant
+    await Promise.all(
+      cart.items.map((item) =>
+        this.prisma.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { decrement: item.quantity } },
+        }),
+      ),
+    );
+
+    // Clear the cart
     await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
     return order;

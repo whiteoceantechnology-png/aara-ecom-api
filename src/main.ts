@@ -2,14 +2,39 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import {
+  HttpExceptionFilter,
+  PrismaExceptionFilter,
+  LoggingInterceptor,
+  TimeoutInterceptor,
+  TransformInterceptor,
+} from "./common";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS — allow frontend origins
+  app.enableCors();
+
+  // Global interceptors (order: logging → timeout → transform)
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new TimeoutInterceptor(),
+    new TransformInterceptor(),
+  );
+
   // Global validation pipe
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
   );
+
+  // Global exception filters (order matters — more specific first)
+  app.useGlobalFilters(new HttpExceptionFilter(), new PrismaExceptionFilter());
 
   // Swagger setup
   const config = new DocumentBuilder()
@@ -26,4 +51,4 @@ async function bootstrap() {
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger docs available at: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+void bootstrap();

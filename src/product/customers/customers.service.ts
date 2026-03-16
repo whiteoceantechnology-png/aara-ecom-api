@@ -1,6 +1,7 @@
 import {
   Injectable,
-  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -16,7 +17,7 @@ export class CustomersService {
     const existing = await this.prisma.customer.findUnique({
       where: { email: dto.email },
     });
-    if (existing) throw new BadRequestException("Email already registered");
+    if (existing) throw new ConflictException("Email already registered");
     const passwordHash = await bcrypt.hash(dto.password, 10);
     return this.prisma.customer.create({
       data: {
@@ -39,9 +40,9 @@ export class CustomersService {
     const customer = await this.prisma.customer.findUnique({
       where: { email: dto.email },
     });
-    if (!customer) throw new BadRequestException("Invalid credentials");
+    if (!customer) throw new UnauthorizedException("Invalid credentials");
     const valid = await bcrypt.compare(dto.password, customer.passwordHash);
-    if (!valid) throw new BadRequestException("Invalid credentials");
+    if (!valid) throw new UnauthorizedException("Invalid credentials");
     const token = jwt.sign(
       { customerId: customer.id },
       process.env.JWT_SECRET as string,

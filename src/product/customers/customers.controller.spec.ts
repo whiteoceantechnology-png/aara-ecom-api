@@ -1,5 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  UnauthorizedException,
+  NotFoundException,
+} from "@nestjs/common";
 import { CustomersController } from "./customers.controller";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, CustomerLoginDto } from "../dto/customer.dto";
@@ -55,9 +59,9 @@ describe("CustomersController", () => {
       expect(service.register).toHaveBeenCalledWith(dto);
     });
 
-    it("should throw BadRequestException for duplicate email", async () => {
+    it("should throw ConflictException for duplicate email", async () => {
       service.register.mockRejectedValue(
-        new BadRequestException("Email already registered"),
+        new ConflictException("Email already registered"),
       );
       await expect(
         controller.register({
@@ -65,7 +69,7 @@ describe("CustomersController", () => {
           email: "john@gmail.com",
           password: "pass",
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -82,13 +86,13 @@ describe("CustomersController", () => {
       expect(service.login).toHaveBeenCalledWith(dto);
     });
 
-    it("should throw BadRequestException for invalid credentials", async () => {
+    it("should throw UnauthorizedException for invalid credentials", async () => {
       service.login.mockRejectedValue(
-        new BadRequestException("Invalid credentials"),
+        new UnauthorizedException("Invalid credentials"),
       );
       await expect(
         controller.login({ email: "wrong@gmail.com", password: "wrong" }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 

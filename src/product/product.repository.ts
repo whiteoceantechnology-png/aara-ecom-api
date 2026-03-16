@@ -3,9 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { Prisma } from "@prisma/client";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 import {
   CreateProductDto,
@@ -84,19 +84,16 @@ export class ProductRepository {
   }
 
   async createCategory(dto: CreateCategoryDto) {
-    try {
-      return await this.prisma.category.create({ data: dto });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === "P2002"
-      ) {
-        throw new ConflictException(
-          `A category with slug "${dto.slug}" already exists`,
+    if (dto.parentId) {
+      const parent = await this.prisma.category.findUnique({
+        where: { id: dto.parentId },
+      });
+      if (!parent)
+        throw new NotFoundException(
+          `Parent category #${dto.parentId} not found`,
         );
-      }
-      throw e;
     }
+    return this.prisma.category.create({ data: dto });
   }
 
   async updateCategory(id: number, dto: UpdateCategoryDto) {
@@ -124,14 +121,13 @@ export class ProductRepository {
         category: { select: { id: true, name: true } },
         variants: {
           where: { status: true },
-          include: { packSize: { select: { label: true } } },
           select: {
             id: true,
             sku: true,
             price: true,
             stockQuantity: true,
             status: true,
-            packSize: true,
+            packSize: { select: { label: true } },
           },
         },
         images: { select: { id: true, imageUrl: true, isPrimary: true } },
@@ -157,7 +153,13 @@ export class ProductRepository {
   }
 
   async createProduct(dto: CreateProductDto) {
-    return await this.prisma.product.create({
+    const category = await this.prisma.category.findUnique({
+      where: { id: dto.categoryId },
+    });
+    if (!category)
+      throw new NotFoundException(`Category #${dto.categoryId} not found`);
+
+    return this.prisma.product.create({
       data: {
         categoryId: dto.categoryId,
         name: dto.name,
@@ -257,6 +259,18 @@ export class ProductRepository {
   }
 
   async createVariant(dto: CreateVariantDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${dto.productId} not found`);
+
+    const packSize = await this.prisma.packSize.findUnique({
+      where: { id: dto.packSizeId },
+    });
+    if (!packSize)
+      throw new NotFoundException(`PackSize #${dto.packSizeId} not found`);
+
     return await this.prisma.productVariant.create({
       data: {
         productId: dto.productId,
@@ -293,7 +307,7 @@ export class ProductRepository {
     const existing = await this.prisma.customer.findUnique({
       where: { email: dto.email },
     });
-    if (existing) throw new BadRequestException("Email already registered");
+    if (existing) throw new ConflictException("Email already registered");
     const passwordHash = await bcrypt.hash(dto.password, 10);
     return this.prisma.customer.create({
       data: {
@@ -316,9 +330,9 @@ export class ProductRepository {
     const customer = await this.prisma.customer.findUnique({
       where: { email: dto.email },
     });
-    if (!customer) throw new BadRequestException("Invalid credentials");
+    if (!customer) throw new UnauthorizedException("Invalid credentials");
     const valid = await bcrypt.compare(dto.password, customer.passwordHash);
-    if (!valid) throw new BadRequestException("Invalid credentials");
+    if (!valid) throw new UnauthorizedException("Invalid credentials");
     const token = jwt.sign(
       { customerId: customer.id },
       process.env.JWT_SECRET as string,
@@ -378,6 +392,12 @@ export class ProductRepository {
       where: { id: dto.variantId },
     });
     if (!variant) throw new NotFoundException("Variant not found");
+
+    if (variant.stockQuantity < dto.quantity) {
+      throw new BadRequestException(
+        `Insufficient stock for variant #${dto.variantId}. Available: ${variant.stockQuantity}`,
+      );
+    }
 
     const cart = await this.getOrCreateCart(dto.customerId);
 
@@ -442,6 +462,20 @@ export class ProductRepository {
       throw new NotFoundException("Cart not found");
     if (cart.items.length === 0) throw new BadRequestException("Cart is empty");
 
+    // Validate stock availability
+    const outOfStock = cart.items.filter(
+      (item) => item.variant.stockQuantity < item.quantity,
+    );
+    if (outOfStock.length > 0) {
+      const details = outOfStock.map(
+        (item) =>
+          `${item.variant.product.name} (requested: ${item.quantity}, available: ${item.variant.stockQuantity})`,
+      );
+      throw new BadRequestException(
+        `Insufficient stock for: ${details.join("; ")}`,
+      );
+    }
+
     const orderNumber = `ORD-${Date.now()}`;
     let total = 0;
     const orderItems = cart.items.map((item) => {
@@ -466,6 +500,16 @@ export class ProductRepository {
       },
       include: { items: true },
     });
+
+    // Deduct stock
+    await Promise.all(
+      cart.items.map((item) =>
+        this.prisma.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { decrement: item.quantity } },
+        }),
+      ),
+    );
 
     // Clear the cart
     await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });

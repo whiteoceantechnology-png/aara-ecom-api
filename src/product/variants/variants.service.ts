@@ -6,7 +6,19 @@ import { CreateVariantDto, UpdateVariantDto } from "../dto/variant.dto";
 export class VariantsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateVariantDto) {
+  async create(dto: CreateVariantDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${dto.productId} not found`);
+
+    const packSize = await this.prisma.packSize.findUnique({
+      where: { id: dto.packSizeId },
+    });
+    if (!packSize)
+      throw new NotFoundException(`PackSize #${dto.packSizeId} not found`);
+
     return this.prisma.productVariant.create({
       data: {
         productId: dto.productId,

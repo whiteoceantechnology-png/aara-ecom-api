@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AdminCreateCategoryDto,
@@ -36,6 +40,15 @@ export class AdminCategoriesService {
   }
 
   async create(dto: AdminCreateCategoryDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.category.findUnique({
+        where: { id: dto.parentId },
+      });
+      if (!parent)
+        throw new BadRequestException(
+          `Parent category #${dto.parentId} not found`,
+        );
+    }
     return await this.prisma.category.create({ data: dto });
   }
 

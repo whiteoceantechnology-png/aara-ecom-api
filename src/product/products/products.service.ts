@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateProductDto,
@@ -59,7 +63,8 @@ export class ProductsService {
     return product;
   }
 
-  create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto) {
+    await this.validateProductRefs(dto.categoryId);
     return this.prisma.product.create({
       data: {
         categoryId: dto.categoryId,
@@ -192,7 +197,8 @@ export class ProductsService {
     return product;
   }
 
-  adminCreate(dto: AdminCreateProductDto) {
+  async adminCreate(dto: AdminCreateProductDto) {
+    await this.validateProductRefs(dto.categoryId, dto.brandId);
     return this.prisma.product.create({
       data: dto,
       include: { category: true, brand: true },
@@ -245,5 +251,22 @@ export class ProductsService {
     if (!image) throw new NotFoundException(`Image #${imageId} not found`);
     await this.prisma.productImage.delete({ where: { id: imageId } });
     return { message: `Image #${imageId} deleted` };
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  private async validateProductRefs(categoryId: number, brandId?: number) {
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category)
+      throw new BadRequestException(`Category #${categoryId} not found`);
+
+    if (brandId) {
+      const brand = await this.prisma.brand.findUnique({
+        where: { id: brandId },
+      });
+      if (!brand) throw new BadRequestException(`Brand #${brandId} not found`);
+    }
   }
 }

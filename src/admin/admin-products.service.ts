@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AdminCreateProductDto,
@@ -74,6 +78,20 @@ export class AdminProductsService {
   }
 
   async createProduct(dto: AdminCreateProductDto) {
+    const category = await this.prisma.category.findUnique({
+      where: { id: dto.categoryId },
+    });
+    if (!category)
+      throw new BadRequestException(`Category #${dto.categoryId} not found`);
+
+    if (dto.brandId) {
+      const brand = await this.prisma.brand.findUnique({
+        where: { id: dto.brandId },
+      });
+      if (!brand)
+        throw new BadRequestException(`Brand #${dto.brandId} not found`);
+    }
+
     return await this.prisma.product.create({
       data: dto,
       include: { category: true, brand: true },
