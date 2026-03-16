@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 import {
   CreateProductDto,
@@ -82,7 +84,19 @@ export class ProductRepository {
   }
 
   async createCategory(dto: CreateCategoryDto) {
-    return await this.prisma.category.create({ data: dto });
+    try {
+      return await this.prisma.category.create({ data: dto });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        throw new ConflictException(
+          `A category with slug "${dto.slug}" already exists`,
+        );
+      }
+      throw e;
+    }
   }
 
   async updateCategory(id: number, dto: UpdateCategoryDto) {

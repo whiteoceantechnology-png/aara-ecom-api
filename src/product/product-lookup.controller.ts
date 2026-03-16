@@ -2,7 +2,9 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from "@nestjs/swagger";
 import { ProductsService } from "./products/products.service";
 import { ProductIdDto } from "./dto/product-lookup.dto";
+import { Public } from "../auth/public.decorator";
 
+@Public()
 @ApiTags("Product Lookup")
 @Controller("product")
 export class ProductLookupController {

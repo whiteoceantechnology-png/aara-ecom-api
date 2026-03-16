@@ -1,7 +1,14 @@
 import { Controller, Get, Query } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from "@nestjs/swagger";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiBearerAuth,
+} from "@nestjs/swagger";
 import { AdminDashboardService } from "./admin-dashboard.service";
 
+@ApiBearerAuth()
 @ApiTags("Admin — Dashboard")
 @Controller("admin/dashboard")
 export class AdminDashboardController {

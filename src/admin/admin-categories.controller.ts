@@ -16,6 +16,7 @@ import {
   ApiParam,
   ApiBody,
   ApiResponse,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { CategoriesService } from "../product/categories/categories.service";
 import {
@@ -23,6 +24,7 @@ import {
   AdminUpdateCategoryDto,
 } from "./dto/admin.dto";
 
+@ApiBearerAuth()
 @ApiTags("Admin — Categories")
 @Controller("admin/categories")
 export class AdminCategoriesController {

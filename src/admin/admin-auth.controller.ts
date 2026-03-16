@@ -2,12 +2,14 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBody, ApiResponse } from "@nestjs/swagger";
 import { AdminAuthService } from "./admin-auth.service";
 import { AdminLoginDto, CreateAdminDto } from "./dto/admin-auth.dto";
+import { Public } from "../auth/public.decorator";
 
 @ApiTags("Admin — Auth")
 @Controller("admin/auth")
 export class AdminAuthController {
   constructor(private readonly adminAuthService: AdminAuthService) {}
 
+  @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Register a new admin account" })
@@ -18,6 +20,7 @@ export class AdminAuthController {
     return this.adminAuthService.register(dto);
   }
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Admin login — returns JWT token (8h expiry)" })

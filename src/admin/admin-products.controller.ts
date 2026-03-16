@@ -17,6 +17,7 @@ import {
   ApiParam,
   ApiBody,
   ApiQuery,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ProductsService } from "../product/products/products.service";
 import { BrandsService } from "./brands.service";
@@ -29,6 +30,7 @@ import {
   AdminAddImageDto,
 } from "./dto/admin.dto";
 
+@ApiBearerAuth()
 @ApiTags("Admin — Products & Brands")
 @Controller("admin")
 export class AdminProductsController {

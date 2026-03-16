@@ -17,12 +17,14 @@ import {
 } from "@nestjs/swagger";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, CustomerLoginDto } from "../dto/customer.dto";
+import { Public } from "../../auth/public.decorator";
 
 @ApiTags("Customers")
 @Controller("customers")
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
+  @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Register a new customer" })
@@ -33,6 +35,7 @@ export class CustomersController {
     return this.customersService.register(dto);
   }
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Customer login — returns JWT token" })

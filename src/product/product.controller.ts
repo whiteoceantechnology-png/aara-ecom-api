@@ -34,6 +34,7 @@ import {
   UpdateOrderStatusDto,
   CreatePaymentDto,
 } from "./dto/order.dto";
+import { Public } from "../auth/public.decorator";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORIES
@@ -43,12 +44,14 @@ import {
 export class CategoryController {
   constructor(private readonly service: ProductService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Get all categories" })
   getAll() {
     return this.service.getCategories();
   }
 
+  @Public()
   @Get(":id/products")
   @ApiOperation({ summary: "Get products by category ID" })
   @ApiParam({ name: "id", type: Number })
@@ -56,6 +59,7 @@ export class CategoryController {
     return this.service.getCategoryProducts(id);
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get category by ID" })
   @ApiParam({ name: "id", type: Number })
@@ -98,6 +102,7 @@ export class CategoryController {
 export class ProductController {
   constructor(private readonly service: ProductService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Get all products (filter by category or search)" })
   @ApiQuery({
@@ -116,6 +121,7 @@ export class ProductController {
     return this.service.getProducts(filter);
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get product by ID with variants" })
   @ApiParam({ name: "id", type: Number })
@@ -146,6 +152,7 @@ export class ProductController {
     return this.service.deleteProduct(id);
   }
 
+  @Public()
   @Get(":id/variants")
   @ApiOperation({ summary: "Get all variants for a product" })
   @ApiParam({ name: "id", type: Number })
@@ -189,6 +196,7 @@ export class VariantController {
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODUCT LOOKUP (Frontend APIs)
 // ─────────────────────────────────────────────────────────────────────────────
+@Public()
 @ApiTags("Product Lookup")
 @Controller("product")
 export class ProductLookupController2 {
@@ -219,6 +227,7 @@ export class ProductLookupController2 {
 export class CustomerController {
   constructor(private readonly service: ProductService) {}
 
+  @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Register a new customer" })
@@ -227,6 +236,7 @@ export class CustomerController {
     return this.service.registerCustomer(dto);
   }
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Customer login" })

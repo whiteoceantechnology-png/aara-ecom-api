@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import {
   AdminCreateCategoryDto,
@@ -72,8 +77,20 @@ export class CategoriesService {
     return category;
   }
 
-  create(dto: CreateCategoryDto) {
-    return this.prisma.category.create({ data: dto });
+  async create(dto: CreateCategoryDto) {
+    try {
+      return await this.prisma.category.create({ data: dto });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        throw new ConflictException(
+          `A category with slug "${dto.slug}" already exists`,
+        );
+      }
+      throw e;
+    }
   }
 
   async update(id: number, dto: UpdateCategoryDto) {
@@ -115,8 +132,20 @@ export class CategoriesService {
     return category;
   }
 
-  adminCreate(dto: AdminCreateCategoryDto) {
-    return this.prisma.category.create({ data: dto });
+  async adminCreate(dto: AdminCreateCategoryDto) {
+    try {
+      return await this.prisma.category.create({ data: dto });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        throw new ConflictException(
+          `A category with slug "${dto.slug}" already exists`,
+        );
+      }
+      throw e;
+    }
   }
 
   async adminUpdate(id: number, dto: AdminUpdateCategoryDto) {

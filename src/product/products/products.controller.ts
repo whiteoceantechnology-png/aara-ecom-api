@@ -25,12 +25,14 @@ import {
   UpdateProductDto,
   ProductFilterDto,
 } from "../dto/product.dto";
+import { Public } from "../../auth/public.decorator";
 
 @ApiTags("Products")
 @Controller("products")
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Public()
   @Get()
   @ApiOperation({
     summary: "Get all products — filter by ?category=1 or ?search=ashwagandha",
@@ -42,6 +44,7 @@ export class ProductsController {
     return this.productsService.findAll(filter);
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get product by ID with variants and images" })
   @ApiParam({ name: "id", type: Number })
@@ -79,6 +82,7 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 
+  @Public()
   @Get(":id/variants")
   @ApiOperation({ summary: "Get all variants for a product" })
   @ApiParam({ name: "id", type: Number })

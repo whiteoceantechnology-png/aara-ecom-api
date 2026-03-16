@@ -17,6 +17,7 @@ import {
   ApiParam,
 } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
+import { Public } from "./public.decorator";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
@@ -33,6 +34,7 @@ import {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Register a new user" })
@@ -48,6 +50,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Login with username and password" })
@@ -84,6 +87,7 @@ export class AuthController {
     return this.authService.updateUser(id, dto);
   }
 
+  @Public()
   @Post("forgot-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Request a password reset token" })
@@ -100,6 +104,7 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
+  @Public()
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Reset password using the reset token" })

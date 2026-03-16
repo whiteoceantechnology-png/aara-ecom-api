@@ -19,12 +19,14 @@ import {
 } from "@nestjs/swagger";
 import { CategoriesService } from "./categories.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
+import { Public } from "../../auth/public.decorator";
 
 @ApiTags("Categories")
 @Controller("categories")
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Get all categories" })
   @ApiResponse({ status: 200, description: "List of categories" })
@@ -32,6 +34,7 @@ export class CategoriesController {
     return this.categoriesService.findAll();
   }
 
+  @Public()
   @Get(":id/products")
   @ApiOperation({ summary: "Get products by category ID" })
   @ApiParam({ name: "id", type: Number, description: "Category ID" })
@@ -41,6 +44,7 @@ export class CategoriesController {
     return this.categoriesService.findProductsByCategory(id);
   }
 
+  @Public()
   @Get(":id")
   @ApiOperation({ summary: "Get category by ID" })
   @ApiParam({ name: "id", type: Number })

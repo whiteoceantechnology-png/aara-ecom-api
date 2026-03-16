@@ -12,10 +12,12 @@ import {
   ApiParam,
   ApiQuery,
   ApiResponse,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { AdminCustomersService } from "./admin-customers.service";
 import { AdminCustomerFilterDto } from "./dto/admin.dto";
 
+@ApiBearerAuth()
 @ApiTags("Admin — Customers")
 @Controller("admin/customers")
 export class AdminCustomersController {
