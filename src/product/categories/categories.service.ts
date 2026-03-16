@@ -12,11 +12,58 @@ export class CategoriesService {
 
   // ─── Public ──────────────────────────────────────────────────────────────────
 
-  findAll() {
-    return this.prisma.category.findMany({
+  async findAll() {
+    const categories = await this.prisma.category.findMany({
       where: { isActive: true },
       orderBy: { id: "asc" },
+      select: {
+        id: true,
+        name: true,
+        categoryImage: true,
+      },
     });
+    return {
+      status: true,
+      data: categories.map((c) => ({
+        id: c.id,
+        categoryName: c.name,
+        categoryImage: c.categoryImage,
+      })),
+    };
+  }
+
+  async findProductsByCategory(categoryId: number) {
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category)
+      throw new NotFoundException(`Category #${categoryId} not found`);
+
+    const products = await this.prisma.product.findMany({
+      where: { categoryId, status: true },
+      select: {
+        id: true,
+        categoryId: true,
+        name: true,
+        productImage: true,
+        actualPrice: true,
+        discountPrice: true,
+        category: { select: { name: true } },
+      },
+      orderBy: { id: "asc" },
+    });
+
+    return {
+      data: products.map((p) => ({
+        id: p.id,
+        categoryId: p.categoryId,
+        categoryName: p.category.name,
+        productName: p.name,
+        productImage: p.productImage,
+        actualPrice: p.actualPrice ? Number(p.actualPrice) : null,
+        discountPrice: p.discountPrice ? Number(p.discountPrice) : null,
+      })),
+    };
   }
 
   async findOne(id: number) {

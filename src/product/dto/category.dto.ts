@@ -13,6 +13,14 @@ export class CreateCategoryDto {
   slug: string;
 
   @ApiPropertyOptional({
+    example: "/images/category/sample.png",
+    description: "Category image URL",
+  })
+  @IsOptional()
+  @IsString()
+  categoryImage?: string;
+
+  @ApiPropertyOptional({
     example: null,
     description: "Parent category ID for sub-categories",
   })
@@ -31,6 +39,11 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
   slug?: string;
+
+  @ApiPropertyOptional({ example: "/images/category/sample.png" })
+  @IsOptional()
+  @IsString()
+  categoryImage?: string;
 
   @ApiPropertyOptional({ example: null })
   @IsOptional()

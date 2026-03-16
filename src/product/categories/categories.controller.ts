@@ -32,6 +32,15 @@ export class CategoriesController {
     return this.categoriesService.findAll();
   }
 
+  @Get(":id/products")
+  @ApiOperation({ summary: "Get products by category ID" })
+  @ApiParam({ name: "id", type: Number, description: "Category ID" })
+  @ApiResponse({ status: 200, description: "Products in this category" })
+  @ApiResponse({ status: 404, description: "Category not found" })
+  findProductsByCategory(@Param("id", ParseIntPipe) id: number) {
+    return this.categoriesService.findProductsByCategory(id);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get category by ID" })
   @ApiParam({ name: "id", type: Number })

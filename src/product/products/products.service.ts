@@ -94,6 +94,72 @@ export class ProductsService {
     });
   }
 
+  async findVariantsByProductId(productId: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, name: true },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: { productId, status: true },
+      include: {
+        product: { select: { name: true } },
+        images: { select: { imageUrl: true }, orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: { id: "asc" },
+    });
+
+    return variants.map((v) => ({
+      id: v.id,
+      productId: v.productId,
+      productName: v.product.name,
+      variantName: v.variantName,
+      variantImage: v.images.map((img) => img.imageUrl),
+      variantColor: v.variantColor,
+      isColor: v.isColor,
+      actualPrice: v.actualPrice ? Number(v.actualPrice) : Number(v.price),
+      discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
+      altTags: v.altTags,
+      availableStock: v.stockQuantity,
+      favourites: v.favourites,
+    }));
+  }
+
+  async findSpecification(productId: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        description: true,
+        category: { select: { name: true } },
+      },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    const spec = await this.prisma.productSpecification.findFirst({
+      where: { productId },
+    });
+
+    return {
+      specification: spec
+        ? {
+            id: spec.id,
+            productId: spec.productId,
+            productSpecification: spec.productSpecification,
+          }
+        : null,
+      description: {
+        moreInfo: spec?.moreInfo || null,
+        productDescription:
+          spec?.productDescription || product.description || null,
+        categoryName: product.category.name,
+      },
+    };
+  }
+
   // ─── Admin ───────────────────────────────────────────────────────────────────
 
   adminFindAll(search?: string, categoryId?: number, brandId?: number) {

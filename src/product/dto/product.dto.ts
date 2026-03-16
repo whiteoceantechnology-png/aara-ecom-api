@@ -41,6 +41,26 @@ export class CreateProductDto {
   @Type(() => Number)
   taxPercent?: number;
 
+  @ApiPropertyOptional({ example: 1699, description: "Original price" })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
+
+  @ApiPropertyOptional({ example: 1455, description: "Discounted price" })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPrice?: number;
+
+  @ApiPropertyOptional({
+    example: "/images/products/sample.png",
+    description: "Product listing image",
+  })
+  @IsOptional()
+  @IsString()
+  productImage?: string;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
@@ -80,6 +100,23 @@ export class UpdateProductDto {
   @IsNumber()
   @Type(() => Number)
   taxPercent?: number;
+
+  @ApiPropertyOptional({ example: 1699 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
+
+  @ApiPropertyOptional({ example: 1455 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPrice?: number;
+
+  @ApiPropertyOptional({ example: "/images/products/sample.png" })
+  @IsOptional()
+  @IsString()
+  productImage?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
