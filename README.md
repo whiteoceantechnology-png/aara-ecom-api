@@ -239,27 +239,89 @@ Swagger docs at: **http://localhost:3008/api/docs**
 
 ---
 
+## 🔐 Authentication
+
+All API routes are **protected by JWT authentication** by default. You must include a valid token in the `Authorization` header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### How to get a token
+
+1. **User token** — `POST /auth/login` → returns `{ "token": "eyJ..." }`
+2. **Admin token** — `POST /admin/auth/login` → returns `{ "token": "eyJ...", "admin": {...} }`
+3. **Customer token** — `POST /customers/login` → returns `{ "token": "eyJ..." }`
+
+### Public routes (no token needed)
+
+The following routes are accessible **without** a token:
+
+| Route | Description |
+|---|---|
+| `GET /` | Health check |
+| `POST /auth/register` | User registration |
+| `POST /auth/login` | User login |
+| `POST /auth/forgot-password` | Request password reset |
+| `POST /auth/reset-password` | Reset password |
+| `POST /admin/auth/register` | Admin registration |
+| `POST /admin/auth/login` | Admin login |
+| `POST /customers/register` | Customer registration |
+| `POST /customers/login` | Customer login |
+| `GET /categories` | List categories |
+| `GET /categories/:id` | Category detail |
+| `GET /categories/:id/products` | Products by category |
+| `GET /products` | List products |
+| `GET /products/:id` | Product detail |
+| `GET /products/:id/variants` | Variants for a product |
+| `POST /product/variant` | Product variant lookup |
+| `POST /product/specification` | Product specification lookup |
+
+> All other routes return `401 Unauthorized` without a valid token.
+
+### Swagger
+
+In Swagger UI (`/api/docs`), click the **🔒 Authorize** button at the top, paste your token, and all protected endpoints will include it automatically.
+
+---
+
+## 🔄 Pulling Latest Changes (For Developers)
+
+When another developer pushes changes (new features, schema updates, etc.), run:
+
+```bash
+git pull
+npm install
+npm run db:migrate
+npm run db:generate
+npm run start:dev
+```
+
+---
+
 ## API Endpoints
+
+> 🔓 = Public (no token) | 🔒 = Protected (requires `Authorization: Bearer <token>`)
 
 ### 🔐 Auth
 
-| Method   | Endpoint                  | Description                          |
-|----------|---------------------------|--------------------------------------|
-| `POST`   | `/auth/register`          | Register a new user (with optional profile) |
-| `POST`   | `/auth/login`             | Login and receive a JWT token        |
-| `PATCH`  | `/auth/update/:id`        | Update username or password          |
-| `POST`   | `/auth/forgot-password`   | Request a password reset token       |
-| `POST`   | `/auth/reset-password`    | Reset password using the reset token |
+| Method   | Endpoint                  | Auth | Description                          |
+|----------|---------------------------|------|--------------------------------------|
+| `POST`   | `/auth/register`          | 🔓   | Register a new user (with optional profile) |
+| `POST`   | `/auth/login`             | 🔓   | Login and receive a JWT token        |
+| `PATCH`  | `/auth/update/:id`        | 🔒   | Update username or password          |
+| `POST`   | `/auth/forgot-password`   | 🔓   | Request a password reset token       |
+| `POST`   | `/auth/reset-password`    | 🔓   | Reset password using the reset token |
 
 ### 👤 User
 
-| Method   | Endpoint                          | Description                    |
-|----------|-----------------------------------|--------------------------------|
-| `GET`    | `/user/:id/details`               | Get user profile details       |
-| `GET`    | `/user/:id/address`               | Get all addresses for a user   |
-| `POST`   | `/user/:id/address`               | Add a new address              |
-| `PATCH`  | `/user/:id/address/:addressId`    | Edit an existing address       |
-| `DELETE` | `/user/:id/address/:addressId`    | Remove an address              |
+| Method   | Endpoint                          | Auth | Description                    |
+|----------|-----------------------------------|------|--------------------------------|
+| `GET`    | `/user/:id/details`               | 🔒   | Get user profile details       |
+| `GET`    | `/user/:id/address`               | 🔒   | Get all addresses for a user   |
+| `POST`   | `/user/:id/address`               | 🔒   | Add a new address              |
+| `PATCH`  | `/user/:id/address/:addressId`    | 🔒   | Edit an existing address       |
+| `DELETE` | `/user/:id/address/:addressId`    | 🔒   | Remove an address              |
 
 ---
 
@@ -300,7 +362,8 @@ curl -X POST http://localhost:3008/auth/login \
 
 ### Example: Get User Profile
 ```bash
-curl http://localhost:3008/user/1/details
+curl http://localhost:3008/user/1/details \
+  -H "Authorization: Bearer <your-token>"
 ```
 
 **Response `200`:**
@@ -315,7 +378,8 @@ curl http://localhost:3008/user/1/details
 
 ### Example: Get User Addresses
 ```bash
-curl http://localhost:3008/user/1/address
+curl http://localhost:3008/user/1/address \
+  -H "Authorization: Bearer <your-token>"
 ```
 
 **Response `200`:**
@@ -340,6 +404,7 @@ curl http://localhost:3008/user/1/address
 ```bash
 curl -X POST http://localhost:3008/user/1/address \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{
     "firstName": "John",
     "lastName": "Doe",
@@ -357,12 +422,14 @@ curl -X POST http://localhost:3008/user/1/address \
 ```bash
 curl -X PATCH http://localhost:3008/user/1/address/1 \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{ "city": "Coimbatore", "pincode": "641001" }'
 ```
 
 ### Example: Remove Address
 ```bash
-curl -X DELETE http://localhost:3008/user/1/address/1
+curl -X DELETE http://localhost:3008/user/1/address/1 \
+  -H "Authorization: Bearer <your-token>"
 ```
 
 ---
@@ -371,69 +438,77 @@ curl -X DELETE http://localhost:3008/user/1/address/1
 
 ### 🗂️ Categories
 
-| Method   | Endpoint              | Description              |
-|----------|-----------------------|--------------------------|
-| `GET`    | `/categories`         | Get all categories       |
-| `GET`    | `/categories/:id`     | Get category by ID       |
-| `POST`   | `/categories`         | Create a category        |
-| `PUT`    | `/categories/:id`     | Update a category        |
-| `DELETE` | `/categories/:id`     | Delete a category        |
+| Method   | Endpoint                    | Auth | Description                    |
+|----------|-----------------------------|------|--------------------------------|
+| `GET`    | `/categories`               | 🔓   | Get all categories             |
+| `GET`    | `/categories/:id`           | 🔓   | Get category by ID             |
+| `GET`    | `/categories/:id/products`  | 🔓   | Get products by category       |
+| `POST`   | `/categories`               | 🔒   | Create a category              |
+| `PUT`    | `/categories/:id`           | 🔒   | Update a category              |
+| `DELETE` | `/categories/:id`           | 🔒   | Delete a category              |
 
 ### 📦 Products
 
-| Method   | Endpoint                    | Description                              |
-|----------|-----------------------------|------------------------------------------|
-| `GET`    | `/products`                 | Get all products                         |
-| `GET`    | `/products?category=1`      | Filter products by category ID           |
-| `GET`    | `/products?search=ashwagandha` | Search products by name              |
-| `GET`    | `/products/:id`             | Get product by ID (includes variants)    |
-| `POST`   | `/products`                 | Create a product                         |
-| `PUT`    | `/products/:id`             | Update a product                         |
-| `DELETE` | `/products/:id`             | Delete a product                         |
-| `GET`    | `/products/:id/variants`    | Get all variants for a product           |
+| Method   | Endpoint                       | Auth | Description                          |
+|----------|--------------------------------|------|--------------------------------------|
+| `GET`    | `/products`                    | 🔓   | Get all products                     |
+| `GET`    | `/products?category=1`         | 🔓   | Filter products by category ID       |
+| `GET`    | `/products?search=ashwagandha` | 🔓   | Search products by name              |
+| `GET`    | `/products/:id`                | 🔓   | Get product by ID (includes variants)|
+| `GET`    | `/products/:id/variants`       | 🔓   | Get all variants for a product       |
+| `POST`   | `/products`                    | 🔒   | Create a product                     |
+| `PUT`    | `/products/:id`                | 🔒   | Update a product                     |
+| `DELETE` | `/products/:id`                | 🔒   | Delete a product                     |
+
+### 🔎 Product Lookup (Frontend APIs)
+
+| Method   | Endpoint                  | Auth | Description                                    |
+|----------|---------------------------|------|------------------------------------------------|
+| `POST`   | `/product/variant`        | 🔓   | Get variants with images, colors, stock, price |
+| `POST`   | `/product/specification`  | 🔓   | Get product specification and description      |
 
 ### 🔢 Variants
 
-| Method   | Endpoint          | Description             |
-|----------|-------------------|-------------------------|
-| `POST`   | `/variants`       | Create a product variant |
-| `PUT`    | `/variants/:id`   | Update a variant        |
-| `DELETE` | `/variants/:id`   | Delete a variant        |
+| Method   | Endpoint          | Auth | Description             |
+|----------|-------------------|------|-------------------------|
+| `POST`   | `/variants`       | 🔒   | Create a product variant |
+| `PUT`    | `/variants/:id`   | 🔒   | Update a variant        |
+| `DELETE` | `/variants/:id`   | 🔒   | Delete a variant        |
 
 ### 🧑 Customers
 
-| Method   | Endpoint                  | Description              |
-|----------|---------------------------|--------------------------|
-| `POST`   | `/customers/register`     | Register a new customer  |
-| `POST`   | `/customers/login`        | Customer login (JWT)     |
-| `GET`    | `/customers/:id`          | Get customer by ID       |
+| Method   | Endpoint                  | Auth | Description              |
+|----------|---------------------------|------|--------------------------|
+| `POST`   | `/customers/register`     | 🔓   | Register a new customer  |
+| `POST`   | `/customers/login`        | 🔓   | Customer login (JWT)     |
+| `GET`    | `/customers/:id`          | 🔒   | Get customer by ID       |
 
 ### 🛒 Cart
 
-| Method   | Endpoint                        | Description                    |
-|----------|---------------------------------|--------------------------------|
-| `GET`    | `/cart/:customerId`             | Get cart for a customer        |
-| `POST`   | `/cart/add`                     | Add item to cart               |
-| `PUT`    | `/cart/update`                  | Update cart item quantity      |
-| `DELETE` | `/cart/remove/:cartItemId`      | Remove item from cart          |
+| Method   | Endpoint                        | Auth | Description                    |
+|----------|---------------------------------|------|--------------------------------|
+| `GET`    | `/cart/:customerId`             | 🔒   | Get cart for a customer        |
+| `POST`   | `/cart/add`                     | 🔒   | Add item to cart               |
+| `PUT`    | `/cart/update`                  | 🔒   | Update cart item quantity      |
+| `DELETE` | `/cart/remove/:cartItemId`      | 🔒   | Remove item from cart          |
 
 ### 📋 Orders
 
-| Method   | Endpoint                  | Description                          |
-|----------|---------------------------|--------------------------------------|
-| `POST`   | `/orders`                 | Create order from cart               |
-| `GET`    | `/orders`                 | Get all orders                       |
-| `GET`    | `/orders?customerId=1`    | Get orders filtered by customer      |
-| `GET`    | `/orders/:id`             | Get order by ID                      |
-| `PUT`    | `/orders/:id/status`      | Update order status                  |
+| Method   | Endpoint                  | Auth | Description                          |
+|----------|---------------------------|------|--------------------------------------|
+| `POST`   | `/orders`                 | 🔒   | Create order from cart               |
+| `GET`    | `/orders`                 | 🔒   | Get all orders                       |
+| `GET`    | `/orders?customerId=1`    | 🔒   | Get orders filtered by customer      |
+| `GET`    | `/orders/:id`             | 🔒   | Get order by ID                      |
+| `PUT`    | `/orders/:id/status`      | 🔒   | Update order status                  |
 
 ### 💳 Payments
 
-| Method   | Endpoint                        | Description                    |
-|----------|---------------------------------|--------------------------------|
-| `POST`   | `/payments`                     | Create payment for an order    |
-| `GET`    | `/payments/order/:orderId`      | Get all payments for an order  |
-| `GET`    | `/payments/:id`                 | Get payment by ID              |
+| Method   | Endpoint                        | Auth | Description                    |
+|----------|---------------------------------|------|--------------------------------|
+| `POST`   | `/payments`                     | 🔒   | Create payment for an order    |
+| `GET`    | `/payments/order/:orderId`      | 🔒   | Get all payments for an order  |
+| `GET`    | `/payments/:id`                 | 🔒   | Get payment by ID              |
 
 ---
 
@@ -486,6 +561,7 @@ curl -X POST http://localhost:3008/customers/register \
 ```bash
 curl -X POST http://localhost:3008/cart/add \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{ "customerId": 1, "variantId": 1, "quantity": 2 }'
 ```
 
@@ -493,6 +569,7 @@ curl -X POST http://localhost:3008/cart/add \
 ```bash
 curl -X POST http://localhost:3008/orders \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{ "customerId": 1, "cartId": 1 }'
 ```
 
@@ -520,6 +597,7 @@ curl -X POST http://localhost:3008/orders \
 ```bash
 curl -X POST http://localhost:3008/payments \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{ "orderId": 1, "paymentMethod": "UPI", "transactionId": "TXN123456" }'
 ```
 
@@ -537,13 +615,15 @@ curl -X POST http://localhost:3008/payments \
 
 ### Example: Get Payments for an Order
 ```bash
-curl http://localhost:3008/payments/order/1
+curl http://localhost:3008/payments/order/1 \
+  -H "Authorization: Bearer <your-token>"
 ```
 
 ### Example: Update Order Status
 ```bash
 curl -X PUT http://localhost:3008/orders/1/status \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
   -d '{ "status": "shipped" }'
 ```
 
@@ -552,71 +632,72 @@ curl -X PUT http://localhost:3008/orders/1/status \
 ## Admin API Endpoints
 
 > All admin routes are prefixed with `/admin`.
+> All admin routes (except auth) require a valid JWT token: `Authorization: Bearer <token>`
 >
 > **Architecture note:** Admin controllers do **not** duplicate domain services. Instead, each domain service (`CategoriesService`, `OrdersService`, `ProductsService`) is extended with `admin*`-prefixed methods. The `AdminModule` imports the domain modules to access their exported services — single source of truth per domain.
 
 ### 🔐 Admin Auth
 
-| Method | Endpoint              | Description                      |
-|--------|-----------------------|----------------------------------|
-| `POST` | `/admin/auth/register`| Register admin account           |
-| `POST` | `/admin/auth/login`   | Login — returns 8h JWT token     |
+| Method | Endpoint              | Auth | Description                      |
+|--------|-----------------------|------|----------------------------------|
+| `POST` | `/admin/auth/register`| 🔓   | Register admin account           |
+| `POST` | `/admin/auth/login`   | 🔓   | Login — returns 8h JWT token     |
 
 ### 📊 Admin Dashboard
 
-| Method | Endpoint                        | Description                              |
-|--------|---------------------------------|------------------------------------------|
-| `GET`  | `/admin/dashboard`              | Summary: orders, revenue, customers, top products, orders by status |
-| `GET`  | `/admin/dashboard/sales?days=30`| Daily sales report for the past N days   |
+| Method | Endpoint                        | Auth | Description                              |
+|--------|---------------------------------|------|------------------------------------------|
+| `GET`  | `/admin/dashboard`              | 🔒   | Summary: orders, revenue, customers, top products, orders by status |
+| `GET`  | `/admin/dashboard/sales?days=30`| 🔒   | Daily sales report for the past N days   |
 
 ### 🗂️ Admin Categories
 
-| Method   | Endpoint                   | Description                                  |
-|----------|----------------------------|----------------------------------------------|
-| `GET`    | `/admin/categories`        | All categories with parent/child & product count |
-| `GET`    | `/admin/categories/:id`    | Category detail with products                |
-| `POST`   | `/admin/categories`        | Create category                              |
-| `PUT`    | `/admin/categories/:id`    | Edit category name, slug, or active status   |
-| `DELETE` | `/admin/categories/:id`    | Delete category                              |
+| Method   | Endpoint                   | Auth | Description                                  |
+|----------|----------------------------|------|----------------------------------------------|
+| `GET`    | `/admin/categories`        | 🔒   | All categories with parent/child & product count |
+| `GET`    | `/admin/categories/:id`    | 🔒   | Category detail with products                |
+| `POST`   | `/admin/categories`        | 🔒   | Create category                              |
+| `PUT`    | `/admin/categories/:id`    | 🔒   | Edit category name, slug, or active status   |
+| `DELETE` | `/admin/categories/:id`    | 🔒   | Delete category                              |
 
 ### 🏷️ Admin Brands
 
-| Method   | Endpoint              | Description        |
-|----------|-----------------------|--------------------|
-| `GET`    | `/admin/brands`       | List all brands    |
-| `POST`   | `/admin/brands`       | Create a brand     |
-| `PUT`    | `/admin/brands/:id`   | Update a brand     |
-| `DELETE` | `/admin/brands/:id`   | Delete a brand     |
+| Method   | Endpoint              | Auth | Description        |
+|----------|-----------------------|------|--------------------|
+| `GET`    | `/admin/brands`       | 🔒   | List all brands    |
+| `POST`   | `/admin/brands`       | 🔒   | Create a brand     |
+| `PUT`    | `/admin/brands/:id`   | 🔒   | Update a brand     |
+| `DELETE` | `/admin/brands/:id`   | 🔒   | Delete a brand     |
 
 ### 📦 Admin Products
 
-| Method   | Endpoint                          | Description                                    |
-|----------|-----------------------------------|------------------------------------------------|
-| `GET`    | `/admin/products`                 | List products (`?search=`, `?categoryId=`, `?brandId=`) |
-| `GET`    | `/admin/products/:id`             | Product detail (variants, images, brand)       |
-| `POST`   | `/admin/products`                 | Create product                                 |
-| `PUT`    | `/admin/products/:id`             | Edit product (name, description, tax, status)  |
-| `DELETE` | `/admin/products/:id`             | Delete product                                 |
-| `PUT`    | `/admin/variants/:id/stock`       | Update variant stock quantity                  |
-| `POST`   | `/admin/products/:id/images`      | Add image to product (set isPrimary)           |
-| `DELETE` | `/admin/images/:id`               | Delete a product image                         |
+| Method   | Endpoint                          | Auth | Description                                    |
+|----------|-----------------------------------|------|------------------------------------------------|
+| `GET`    | `/admin/products`                 | 🔒   | List products (`?search=`, `?categoryId=`, `?brandId=`) |
+| `GET`    | `/admin/products/:id`             | 🔒   | Product detail (variants, images, brand)       |
+| `POST`   | `/admin/products`                 | 🔒   | Create product                                 |
+| `PUT`    | `/admin/products/:id`             | 🔒   | Edit product (name, description, tax, status)  |
+| `DELETE` | `/admin/products/:id`             | 🔒   | Delete product                                 |
+| `PUT`    | `/admin/variants/:id/stock`       | 🔒   | Update variant stock quantity                  |
+| `POST`   | `/admin/products/:id/images`      | 🔒   | Add image to product (set isPrimary)           |
+| `DELETE` | `/admin/images/:id`               | 🔒   | Delete a product image                         |
 
 ### 👥 Admin Customers
 
-| Method  | Endpoint                          | Description                                       |
-|---------|-----------------------------------|---------------------------------------------------|
-| `GET`   | `/admin/customers`                | Customer list (`?search=`, `?isBlocked=true/false`) |
-| `GET`   | `/admin/customers/:id`            | Detail view: order history, total spent, last order date |
-| `PATCH` | `/admin/customers/:id/toggle-block` | Block / unblock customer account               |
+| Method  | Endpoint                          | Auth | Description                                       |
+|---------|-----------------------------------|------|---------------------------------------------------|
+| `GET`   | `/admin/customers`                | 🔒   | Customer list (`?search=`, `?isBlocked=true/false`) |
+| `GET`   | `/admin/customers/:id`            | 🔒   | Detail view: order history, total spent, last order date |
+| `PATCH` | `/admin/customers/:id/toggle-block` | 🔒 | Block / unblock customer account               |
 
 ### 📋 Admin Orders
 
-| Method | Endpoint                  | Description                                              |
-|--------|---------------------------|----------------------------------------------------------|
-| `GET`  | `/admin/orders`           | All orders (`?status=`, `?paymentStatus=`, `?search=`, `?from=`, `?to=`) |
-| `GET`  | `/admin/orders/:id`       | Full order detail (items, payments, shipments)           |
-| `PUT`  | `/admin/orders/:id`       | Update order — status, tracking ID, notes                |
-| `GET`  | `/admin/orders/export`    | Export orders to CSV (`?status=`, `?from=`, `?to=`)      |
+| Method | Endpoint                  | Auth | Description                                              |
+|--------|---------------------------|------|----------------------------------------------------------|
+| `GET`  | `/admin/orders`           | 🔒   | All orders (`?status=`, `?paymentStatus=`, `?search=`, `?from=`, `?to=`) |
+| `GET`  | `/admin/orders/:id`       | 🔒   | Full order detail (items, payments, shipments)           |
+| `PUT`  | `/admin/orders/:id`       | 🔒   | Update order — status, tracking ID, notes                |
+| `GET`  | `/admin/orders/export`    | 🔒   | Export orders to CSV (`?status=`, `?from=`, `?to=`)      |
 
 ### Example: Admin Login
 ```bash
@@ -634,7 +715,8 @@ curl -X POST http://localhost:3008/admin/auth/login \
 
 ### Example: Dashboard Summary
 ```bash
-curl http://localhost:3008/admin/dashboard
+curl http://localhost:3008/admin/dashboard \
+  -H "Authorization: Bearer <admin-token>"
 ```
 **Response `200`:**
 ```json
@@ -658,6 +740,7 @@ curl http://localhost:3008/admin/dashboard
 ### Example: Export Orders to CSV
 ```bash
 curl "http://localhost:3008/admin/orders/export?status=shipped&from=2026-01-01" \
+  -H "Authorization: Bearer <admin-token>" \
   -o orders.csv
 ```
 
@@ -665,12 +748,14 @@ curl "http://localhost:3008/admin/orders/export?status=shipped&from=2026-01-01" 
 ```bash
 curl -X PUT http://localhost:3008/admin/orders/1 \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
   -d '{ "status": "shipped", "trackingId": "TRK-987654321", "notes": "Express delivery" }'
 ```
 
 ### Example: Block a Customer
 ```bash
-curl -X PATCH http://localhost:3008/admin/customers/1/toggle-block
+curl -X PATCH http://localhost:3008/admin/customers/1/toggle-block \
+  -H "Authorization: Bearer <admin-token>"
 ```
 **Response `200`:**
 ```json
@@ -681,10 +766,8 @@ curl -X PATCH http://localhost:3008/admin/customers/1/toggle-block
 ```bash
 curl -X PUT http://localhost:3008/admin/variants/1/stock \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
   -d '{ "stockQuantity": 150 }'
-```
-  -H "Content-Type: application/json" \
-  -d '{ "status": "shipped" }'
 ```
 
 ---
@@ -758,6 +841,8 @@ src/
 │   ├── auth.service.ts             ← Business logic
 │   ├── auth.service.spec.ts        ← Service unit tests (16 tests)
 │   ├── auth.module.ts              ← NestJS module
+│   ├── jwt-auth.guard.ts           ← Global JWT guard (verifies Bearer token)
+│   ├── public.decorator.ts         ← @Public() decorator to skip auth
 │   ├── user.repository.ts          ← Data access layer
 │   └── user.repository.spec.ts     ← Repository unit tests (10 tests)
 ├── user/
@@ -771,10 +856,12 @@ src/
 │   ├── dto/
 │   │   ├── category.dto.ts         ← Category create/update DTOs
 │   │   ├── product.dto.ts          ← Product create/update/filter DTOs
+│   │   ├── product-lookup.dto.ts   ← Product ID DTO for variant/spec lookup
 │   │   ├── variant.dto.ts          ← Variant create/update DTOs
 │   │   ├── customer.dto.ts         ← Customer register/login DTOs
 │   │   ├── cart.dto.ts             ← Cart add/update/remove DTOs
 │   │   └── order.dto.ts            ← Order/payment DTOs
+│   ├── product-lookup.controller.ts ← POST /product/variant, /product/specification
 │   ├── categories/
 │   │   ├── categories.controller.ts       ← /categories endpoints + Swagger
 │   │   ├── categories.controller.spec.ts  ← Unit tests (7 tests)
@@ -862,6 +949,8 @@ scripts/
 | `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                              |
 | `ProductVariant` | Product + pack size combination with price, SKU, stock        |
 | `ProductImage`   | Product images (with isPrimary flag)                          |
+| `VariantImage`   | Multiple images per product variant                           |
+| `ProductSpecification` | Product specs (JSON), moreInfo, description             |
 | `Customer`       | E-commerce customers (isBlocked support)                      |
 | `CustomerAddress`| Customer delivery addresses                                   |
 | `Cart`           | Customer cart                                                 |
