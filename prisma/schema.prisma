@@ -29,6 +29,15 @@ model Admin {
   updatedAt DateTime @updatedAt
 }
 
+model UploadedImage {
+  id           Int      @id @default(autoincrement())
+  path         String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+}
+
 model UserProfile {
   id           Int      @id @default(autoincrement())
   userId       Int      @unique

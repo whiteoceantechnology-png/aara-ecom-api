@@ -20,8 +20,8 @@ import {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(filter: ProductFilterDto) {
-    return this.prisma.product.findMany({
+  async findAll(filter: ProductFilterDto) {
+    const products = await this.prisma.product.findMany({
       where: {
         ...(filter.category ? { categoryId: filter.category } : {}),
         ...(filter.search
@@ -45,6 +45,7 @@ export class ProductsService {
       },
       orderBy: { id: "asc" },
     });
+    return products.map((p) => this.mapProductName(p));
   }
 
   async findOne(id: number) {
@@ -60,7 +61,7 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
-    return product;
+    return this.mapProductName(product);
   }
 
   async create(dto: CreateProductDto) {
@@ -254,6 +255,13 @@ export class ProductsService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  private mapProductName<T extends { name: string }>(product: T) {
+    const { name, ...rest } = product;
+    return { ...rest, productName: name } as Omit<T, "name"> & {
+      productName: string;
+    };
+  }
 
   private async validateProductRefs(categoryId: number, brandId?: number) {
     const category = await this.prisma.category.findUnique({

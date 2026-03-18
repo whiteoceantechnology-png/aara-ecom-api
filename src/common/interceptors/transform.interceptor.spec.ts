@@ -1,6 +1,6 @@
 import { TransformInterceptor } from "./transform.interceptor";
 import { of } from "rxjs";
-import { ExecutionContext, CallHandler } from "@nestjs/common";
+import { ExecutionContext, CallHandler, StreamableFile } from "@nestjs/common";
 
 describe("TransformInterceptor", () => {
   let interceptor: TransformInterceptor;
@@ -76,6 +76,18 @@ describe("TransformInterceptor", () => {
         statusCode: 200,
         data: payload,
       });
+      done();
+    });
+  });
+
+  it("should pass through StreamableFile without wrapping", (done) => {
+    const ctx = createMockContext(200);
+    const file = new StreamableFile(Buffer.from("test"));
+    const next: CallHandler = { handle: () => of(file) };
+
+    interceptor.intercept(ctx, next).subscribe((value) => {
+      expect(value).toBe(file);
+      expect(value).toBeInstanceOf(StreamableFile);
       done();
     });
   });

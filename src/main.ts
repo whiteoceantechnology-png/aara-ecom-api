@@ -5,6 +5,7 @@ import { AppModule } from "./app.module";
 import {
   HttpExceptionFilter,
   PrismaExceptionFilter,
+  MulterExceptionFilter,
   LoggingInterceptor,
   TimeoutInterceptor,
   TransformInterceptor,
@@ -34,7 +35,11 @@ async function bootstrap() {
   );
 
   // Global exception filters (order matters — more specific first)
-  app.useGlobalFilters(new HttpExceptionFilter(), new PrismaExceptionFilter());
+  app.useGlobalFilters(
+    new MulterExceptionFilter(),
+    new HttpExceptionFilter(),
+    new PrismaExceptionFilter(),
+  );
 
   // Swagger setup
   const config = new DocumentBuilder()

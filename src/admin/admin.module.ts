@@ -15,6 +15,8 @@ import { AdminProductsController } from "./admin-products.controller";
 import { AdminCategoriesController } from "./admin-categories.controller";
 import { AdminCustomersController } from "./admin-customers.controller";
 import { AdminOrdersController } from "./admin-orders.controller";
+import { AdminImagesController } from "./admin-images.controller";
+import { AdminImagesService } from "./admin-images.service";
 
 @Module({
   imports: [
@@ -30,12 +32,14 @@ import { AdminOrdersController } from "./admin-orders.controller";
     AdminCategoriesController,
     AdminCustomersController,
     AdminOrdersController,
+    AdminImagesController,
   ],
   providers: [
     AdminAuthService,
     AdminDashboardService,
     AdminCustomersService,
     BrandsService, // scoped to admin; no public-facing BrandsModule needed
+    AdminImagesService,
   ],
 })
 export class AdminModule {}

@@ -3,6 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  StreamableFile,
 } from "@nestjs/common";
 import { Observable, map } from "rxjs";
 
@@ -13,12 +14,15 @@ import { Observable, map } from "rxjs";
  *
  * This gives the frontend a predictable contract for every endpoint.
  * Error responses are NOT wrapped — they go through the exception filters.
+ * StreamableFile responses are passed through without wrapping.
  */
 @Injectable()
 export class TransformInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       map((data: unknown) => {
+        if (data instanceof StreamableFile) return data;
+
         const statusCode = context
           .switchToHttp()
           .getResponse<{ statusCode: number }>().statusCode;
