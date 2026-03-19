@@ -454,6 +454,7 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | `GET`    | `/products`                    | 🔓   | Get all products                     |
 | `GET`    | `/products?category=1`         | 🔓   | Filter products by category ID       |
 | `GET`    | `/products?search=ashwagandha` | 🔓   | Search products by name              |
+| `GET`    | `/products?specKey=Fabric&specValue=Cotton` | 🔓 | Filter by spec (Amazon-style) |
 | `GET`    | `/products/:id`                | 🔓   | Get product by ID (includes variants)|
 | `GET`    | `/products/:id/variants`       | 🔓   | Get all variants for a product       |
 | `POST`   | `/products`                    | 🔒   | Create a product                     |
@@ -465,7 +466,7 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | Method   | Endpoint                  | Auth | Description                                    |
 |----------|---------------------------|------|------------------------------------------------|
 | `POST`   | `/product/variant`        | 🔓   | Get variants with images, colors, stock, price |
-| `POST`   | `/product/specification`  | 🔓   | Get product specification and description      |
+| `POST`   | `/product/specification`  | 🔓   | Get product specification (shortDescription, longDescription, moreInfoHtml) |
 
 ### 🔢 Variants
 
@@ -543,6 +544,34 @@ curl "http://localhost:3008/products?category=1"
 ### Example: Search Products
 ```bash
 curl "http://localhost:3008/products?search=ashwagandha"
+```
+
+### Example: Filter by Spec (Amazon-style)
+```bash
+curl "http://localhost:3008/products?specKey=Fabric&specValue=Cotton"
+```
+
+### Example: Upsert Product Specification (Admin)
+```bash
+curl -X PUT http://localhost:3008/admin/products/7/specification \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{
+    "specification": [
+      {
+        "title": "Product Details",
+        "items": [
+          { "key": "Fabric", "value": "Cotton" },
+          { "key": "Fit", "value": "Regular" }
+        ]
+      }
+    ],
+    "description": {
+      "shortDescription": "Brief product summary",
+      "longDescription": "Full product description with details",
+      "moreInfoHtml": "<ul><li>Feature 1</li><li>Feature 2</li></ul>"
+    }
+  }'
 ```
 
 ### Example: Register Customer
@@ -673,11 +702,13 @@ curl -X PUT http://localhost:3008/orders/1/status \
 
 | Method   | Endpoint                          | Auth | Description                                    |
 |----------|-----------------------------------|------|------------------------------------------------|
-| `GET`    | `/admin/products`                 | 🔒   | List products (`?search=`, `?categoryId=`, `?brandId=`) |
-| `GET`    | `/admin/products/:id`             | 🔒   | Product detail (variants, images, brand)       |
+| `GET`    | `/admin/products`                 | 🔒   | List products (`?search=`, `?categoryId=`, `?brandId=`, `?specKey=`, `?specValue=`) |
+| `GET`    | `/admin/products/:id`             | 🔒   | Product detail (variants, images, brand, specifications, specItems) |
 | `POST`   | `/admin/products`                 | 🔒   | Create product                                 |
 | `PUT`    | `/admin/products/:id`             | 🔒   | Edit product (name, description, tax, status)  |
 | `DELETE` | `/admin/products/:id`             | 🔒   | Delete product                                 |
+| `PUT`    | `/admin/products/:id/specification` | 🔒 | Create/update specification (JSON + flat table for filtering) |
+| `DELETE` | `/admin/products/:id/specification` | 🔒 | Delete product specification                  |
 | `PUT`    | `/admin/variants/:id/stock`       | 🔒   | Update variant stock quantity                  |
 | `POST`   | `/admin/products/:id/images`      | 🔒   | Add image to product (set isPrimary)           |
 | `DELETE` | `/admin/images/:id`               | 🔒   | Delete a product image                         |
@@ -950,7 +981,8 @@ scripts/
 | `ProductVariant` | Product + pack size combination with price, SKU, stock        |
 | `ProductImage`   | Product images (with isPrimary flag)                          |
 | `VariantImage`   | Multiple images per product variant                           |
-| `ProductSpecification` | Product specs (JSON), moreInfo, description             |
+| `ProductSpecification` | Product specs (JSON), shortDescription, longDescription, moreInfo |
+| `ProductSpecItem`      | Flat spec items (title, key, value) — enables Amazon-style filtering |
 | `Customer`       | E-commerce customers (isBlocked support)                      |
 | `CustomerAddress`| Customer delivery addresses                                   |
 | `Cart`           | Customer cart                                                 |

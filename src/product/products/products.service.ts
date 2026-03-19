@@ -14,6 +14,8 @@ import {
   AdminUpdateProductDto,
   AdminUpdateStockDto,
   AdminAddImageDto,
+  UpsertSpecificationDto,
+  SpecSectionDto,
 } from "../../admin/dto/admin.dto";
 
 @Injectable()
@@ -26,6 +28,16 @@ export class ProductsService {
         ...(filter.category ? { categoryId: filter.category } : {}),
         ...(filter.search
           ? { name: { contains: filter.search, mode: "insensitive" } }
+          : {}),
+        ...(filter.specKey && filter.specValue
+          ? {
+              specItems: {
+                some: {
+                  key: filter.specKey,
+                  value: { equals: filter.specValue, mode: "insensitive" },
+                },
+              },
+            }
           : {}),
       },
       include: {
@@ -157,9 +169,10 @@ export class ProductsService {
           }
         : null,
       description: {
-        moreInfo: spec?.moreInfo || null,
-        productDescription:
-          spec?.productDescription || product.description || null,
+        shortDescription: spec?.shortDescription ?? null,
+        longDescription:
+          spec?.productDescription ?? product.description ?? null,
+        moreInfoHtml: spec?.moreInfo ?? null,
         categoryName: product.category.name,
       },
     };
@@ -167,12 +180,27 @@ export class ProductsService {
 
   // ─── Admin ───────────────────────────────────────────────────────────────────
 
-  adminFindAll(search?: string, categoryId?: number, brandId?: number) {
+  adminFindAll(
+    search?: string,
+    categoryId?: number,
+    brandId?: number,
+    specKey?: string,
+    specValue?: string,
+  ) {
     return this.prisma.product.findMany({
       where: {
         ...(search && { name: { contains: search, mode: "insensitive" } }),
         ...(categoryId && { categoryId }),
         ...(brandId && { brandId }),
+        ...(specKey &&
+          specValue && {
+            specItems: {
+              some: {
+                key: specKey,
+                value: { equals: specValue, mode: "insensitive" },
+              },
+            },
+          }),
       },
       include: {
         category: { select: { id: true, name: true } },
@@ -192,6 +220,8 @@ export class ProductsService {
         brand: true,
         variants: { include: { packSize: true } },
         images: true,
+        specifications: true,
+        specItems: true,
       },
     });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
@@ -252,6 +282,73 @@ export class ProductsService {
     if (!image) throw new NotFoundException(`Image #${imageId} not found`);
     await this.prisma.productImage.delete({ where: { id: imageId } });
     return { message: `Image #${imageId} deleted` };
+  }
+
+  // ─── Specification (Admin) ───────────────────────────────────────────────────
+
+  async upsertSpecification(dto: UpsertSpecificationDto) {
+    await this.findOne(dto.productId);
+
+    const flattened = this.flattenSpecs(dto.productId, dto.specification);
+
+    const [spec] = await this.prisma.$transaction([
+      this.prisma.productSpecification.upsert({
+        where: { productId: dto.productId },
+        update: {
+          productSpecification: dto.specification as object,
+          shortDescription: dto.description?.shortDescription ?? null,
+          productDescription: dto.description?.longDescription ?? null,
+          moreInfo: dto.description?.moreInfoHtml ?? null,
+        },
+        create: {
+          productId: dto.productId,
+          productSpecification: dto.specification as object,
+          shortDescription: dto.description?.shortDescription ?? null,
+          productDescription: dto.description?.longDescription ?? null,
+          moreInfo: dto.description?.moreInfoHtml ?? null,
+        },
+      }),
+      this.prisma.productSpecItem.deleteMany({
+        where: { productId: dto.productId },
+      }),
+      this.prisma.productSpecItem.createMany({
+        data: flattened,
+      }),
+    ]);
+
+    return spec;
+  }
+
+  async deleteSpecification(productId: number) {
+    await this.findOne(productId);
+    await this.prisma.productSpecItem.deleteMany({ where: { productId } });
+    await this.prisma.productSpecification.deleteMany({
+      where: { productId },
+    });
+    return { message: `Specification for product #${productId} deleted` };
+  }
+
+  private flattenSpecs(
+    productId: number,
+    specs: SpecSectionDto[],
+  ): { productId: number; title: string; key: string; value: string }[] {
+    const result: {
+      productId: number;
+      title: string;
+      key: string;
+      value: string;
+    }[] = [];
+    for (const section of specs) {
+      for (const item of section.items) {
+        result.push({
+          productId,
+          title: section.title,
+          key: item.key,
+          value: item.value,
+        });
+      }
+    }
+    return result;
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────

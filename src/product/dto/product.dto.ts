@@ -139,4 +139,20 @@ export class ProductFilterDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    example: "Fabric",
+    description: "Filter by spec key (use with specValue)",
+  })
+  @IsOptional()
+  @IsString()
+  specKey?: string;
+
+  @ApiPropertyOptional({
+    example: "Cotton",
+    description: "Filter by spec value (use with specKey)",
+  })
+  @IsOptional()
+  @IsString()
+  specValue?: string;
 }

@@ -237,7 +237,7 @@ export class ProductRepository {
     });
     if (!product) throw new NotFoundException("Product not found");
 
-    const spec = await this.prisma.productSpecification.findFirst({
+    const spec = await this.prisma.productSpecification.findUnique({
       where: { productId },
     });
 
@@ -250,9 +250,10 @@ export class ProductRepository {
           }
         : null,
       description: {
-        moreInfo: spec?.moreInfo || null,
-        productDescription:
-          spec?.productDescription || product.description || null,
+        shortDescription: spec?.shortDescription ?? null,
+        longDescription:
+          spec?.productDescription ?? product.description ?? null,
+        moreInfoHtml: spec?.moreInfo ?? null,
         categoryName: product.category.name,
       },
     };

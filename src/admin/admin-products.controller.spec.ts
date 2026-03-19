@@ -10,6 +10,7 @@ import {
   AdminUpdateProductDto,
   AdminUpdateStockDto,
   AdminAddImageDto,
+  UpsertSpecificationBodyDto,
 } from "./dto/admin.dto";
 import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
@@ -41,6 +42,8 @@ const mockProductsService = {
   updateStock: jest.fn(),
   addImage: jest.fn(),
   deleteImage: jest.fn(),
+  upsertSpecification: jest.fn(),
+  deleteSpecification: jest.fn(),
 };
 
 const mockBrandsService = {
@@ -155,6 +158,8 @@ describe("AdminProductsController", () => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
       expect(result).toEqual([mockProduct]);
     });
@@ -168,6 +173,28 @@ describe("AdminProductsController", () => {
         "ashwagandha",
         1,
         2,
+        undefined,
+        undefined,
+      );
+    });
+
+    it("should forward specKey and specValue filters", async () => {
+      mockProductsService.adminFindAll.mockResolvedValue([mockProduct]);
+
+      await controller.getProducts(
+        undefined,
+        undefined,
+        undefined,
+        "Fabric",
+        "Cotton",
+      );
+
+      expect(mockProductsService.adminFindAll).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        undefined,
+        "Fabric",
+        "Cotton",
       );
     });
   });
@@ -323,6 +350,59 @@ describe("AdminProductsController", () => {
   });
 
   // ──────────────────────────────────────────────
+  // Specification
+  // ──────────────────────────────────────────────
+  describe("upsertSpecification()", () => {
+    it("should create or update specification", async () => {
+      const dto: UpsertSpecificationBodyDto = {
+        specification: [
+          {
+            title: "Product Details",
+            items: [
+              { key: "Fabric", value: "Cotton" },
+              { key: "Fit", value: "Regular" },
+            ],
+          },
+        ],
+        description: {
+          shortDescription: "Brief summary",
+          longDescription: "Full description",
+          moreInfoHtml: "<ul><li>Feature 1</li></ul>",
+        },
+      };
+      const spec = {
+        id: 1,
+        productId: 7,
+        productSpecification: dto.specification,
+      };
+      mockProductsService.upsertSpecification.mockResolvedValue(spec);
+
+      const result = await controller.upsertSpecification(7, dto);
+
+      expect(mockProductsService.upsertSpecification).toHaveBeenCalledWith({
+        ...dto,
+        productId: 7,
+      });
+      expect(result).toEqual(spec);
+    });
+  });
+
+  describe("deleteSpecification()", () => {
+    it("should delete specification and return message", async () => {
+      mockProductsService.deleteSpecification.mockResolvedValue({
+        message: "Specification for product #7 deleted",
+      });
+
+      const result = await controller.deleteSpecification(7);
+
+      expect(mockProductsService.deleteSpecification).toHaveBeenCalledWith(7);
+      expect(result).toEqual({
+        message: "Specification for product #7 deleted",
+      });
+    });
+  });
+
+  // ──────────────────────────────────────────────
   // Authentication decorators
   // ──────────────────────────────────────────────
   describe("auth decorators", () => {
@@ -348,6 +428,8 @@ describe("AdminProductsController", () => {
         "updateStock",
         "addImage",
         "deleteImage",
+        "upsertSpecification",
+        "deleteSpecification",
       ];
       methods.forEach((method) => {
         const isPublic = Reflect.getMetadata(

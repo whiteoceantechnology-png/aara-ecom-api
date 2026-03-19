@@ -28,6 +28,7 @@ import {
   AdminUpdateProductDto,
   AdminUpdateStockDto,
   AdminAddImageDto,
+  UpsertSpecificationBodyDto,
 } from "./dto/admin.dto";
 
 @ApiBearerAuth()
@@ -77,20 +78,26 @@ export class AdminProductsController {
 
   @Get("products")
   @ApiOperation({
-    summary: "List all products with search/category/brand filters",
+    summary: "List all products with search/category/brand/spec filters",
   })
   @ApiQuery({ name: "search", required: false, type: String })
   @ApiQuery({ name: "categoryId", required: false, type: Number })
   @ApiQuery({ name: "brandId", required: false, type: Number })
+  @ApiQuery({ name: "specKey", required: false, type: String })
+  @ApiQuery({ name: "specValue", required: false, type: String })
   getProducts(
     @Query("search") search?: string,
     @Query("categoryId") categoryId?: string,
     @Query("brandId") brandId?: string,
+    @Query("specKey") specKey?: string,
+    @Query("specValue") specValue?: string,
   ) {
     return this.productsService.adminFindAll(
       search,
       categoryId ? parseInt(categoryId) : undefined,
       brandId ? parseInt(brandId) : undefined,
+      specKey,
+      specValue,
     );
   }
 
@@ -163,5 +170,28 @@ export class AdminProductsController {
   @ApiParam({ name: "id", type: Number, description: "Image ID" })
   deleteImage(@Param("id", ParseIntPipe) id: number) {
     return this.productsService.deleteImage(id);
+  }
+
+  // ─── Specification ─────────────────────────────────────────────────────────
+
+  @Put("products/:id/specification")
+  @ApiOperation({
+    summary:
+      "Create or update product specification (JSON for UI + flat table for filtering)",
+  })
+  @ApiParam({ name: "id", type: Number, description: "Product ID" })
+  @ApiBody({ type: UpsertSpecificationBodyDto })
+  upsertSpecification(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpsertSpecificationBodyDto,
+  ) {
+    return this.productsService.upsertSpecification({ ...dto, productId: id });
+  }
+
+  @Delete("products/:id/specification")
+  @ApiOperation({ summary: "Delete product specification" })
+  @ApiParam({ name: "id", type: Number, description: "Product ID" })
+  deleteSpecification(@Param("id", ParseIntPipe) id: number) {
+    return this.productsService.deleteSpecification(id);
   }
 }

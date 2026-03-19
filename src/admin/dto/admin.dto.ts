@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsString, IsOptional, IsBoolean, IsNumber } from "class-validator";
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 // ─── Brand DTOs ───────────────────────────────────────────────────────────────
@@ -214,3 +221,81 @@ export class AdminCustomerFilterDto {
   @Type(() => Boolean)
   isBlocked?: boolean;
 }
+
+// ─── Specification DTOs ──────────────────────────────────────────────────────
+
+export class SpecItemDto {
+  @ApiProperty({ example: "Fabric" })
+  @IsString()
+  key: string;
+
+  @ApiProperty({ example: "Cotton" })
+  @IsString()
+  value: string;
+}
+
+export class SpecSectionDto {
+  @ApiProperty({ example: "Product Details" })
+  @IsString()
+  title: string;
+
+  @ApiProperty({
+    type: [SpecItemDto],
+    example: [
+      { key: "Fabric", value: "Cotton" },
+      { key: "Fit", value: "Regular" },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SpecItemDto)
+  items: SpecItemDto[];
+}
+
+export class SpecificationDescriptionDto {
+  @ApiPropertyOptional({ example: "Brief product summary" })
+  @IsOptional()
+  @IsString()
+  shortDescription?: string;
+
+  @ApiPropertyOptional({ example: "Full product description with details" })
+  @IsOptional()
+  @IsString()
+  longDescription?: string;
+
+  @ApiPropertyOptional({
+    example: "<ul><li>Feature 1</li><li>Feature 2</li></ul>",
+  })
+  @IsOptional()
+  @IsString()
+  moreInfoHtml?: string;
+}
+
+export class UpsertSpecificationBodyDto {
+  @ApiProperty({
+    type: [SpecSectionDto],
+    example: [
+      {
+        title: "Product Details",
+        items: [
+          { key: "Fabric", value: "Cotton" },
+          { key: "Fit", value: "Regular" },
+        ],
+      },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SpecSectionDto)
+  specification: SpecSectionDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SpecificationDescriptionDto)
+  description?: SpecificationDescriptionDto;
+}
+
+export type UpsertSpecificationDto = UpsertSpecificationBodyDto & {
+  productId: number;
+};
