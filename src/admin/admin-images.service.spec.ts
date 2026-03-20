@@ -159,5 +159,30 @@ describe("AdminImagesService", () => {
         originalName: "photo.jpg",
       });
     });
+
+    it("should accept Windows-style paths (backslashes) and normalize to forward slashes", async () => {
+      const buffer = Buffer.from("image-data");
+      mockPrisma.uploadedImage.findUnique.mockResolvedValue({
+        id: 1,
+        path: "2026/03/20/1773990762403-cfbcb565.jpeg",
+        originalName: "photo.jpeg",
+        mimeType: "image/jpeg",
+        size: 1024,
+      });
+      (fs.readFile as jest.Mock).mockResolvedValue(buffer);
+
+      const result = await service.getByPath(
+        "2026\\03\\20\\1773990762403-cfbcb565.jpeg",
+      );
+
+      expect(mockPrisma.uploadedImage.findUnique).toHaveBeenCalledWith({
+        where: { path: "2026/03/20/1773990762403-cfbcb565.jpeg" },
+      });
+      expect(result).toEqual({
+        buffer,
+        mimeType: "image/jpeg",
+        originalName: "photo.jpeg",
+      });
+    });
   });
 });

@@ -8,7 +8,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? "uploads";
-const PATH_TRAVERSAL = /\.\.|^\/|\\/;
+const PATH_TRAVERSAL = /\.\.|^\//;
+
+/** Normalize path to forward slashes (handles Windows backslashes from frontend) */
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
 
 const ALLOWED_MIME = [
   "image/jpeg",
@@ -40,7 +45,7 @@ export class AdminImagesService {
     const dateDir = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
     const ext = path.extname(file.originalname) || ".bin";
     const filename = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
-    const relativePath = path.join(dateDir, filename);
+    const relativePath = `${dateDir}/${filename}`;
     const fullPath = path.join(process.cwd(), UPLOAD_DIR, relativePath);
 
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -66,12 +71,13 @@ export class AdminImagesService {
   }
 
   async getByPath(pathParam: string) {
-    if (PATH_TRAVERSAL.test(pathParam)) {
+    const normalized = normalizePath(pathParam);
+    if (PATH_TRAVERSAL.test(normalized)) {
       throw new BadRequestException("Invalid path");
     }
 
     const record = await this.prisma.uploadedImage.findUnique({
-      where: { path: pathParam },
+      where: { path: normalized },
     });
     if (!record) throw new NotFoundException(`Image not found: ${pathParam}`);
 
