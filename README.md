@@ -507,7 +507,10 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 
 | Method   | Endpoint                        | Auth | Description                    |
 |----------|---------------------------------|------|--------------------------------|
-| `POST`   | `/payments`                     | 🔒   | Create payment for an order    |
+| `POST`   | `/payments`                     | 🔒   | Create payment (COD, manual)   |
+| `POST`   | `/payments/razorpay/create-order` | 🔒 | Create Razorpay order for checkout |
+| `POST`   | `/payments/razorpay/verify`     | 🔒   | Verify Razorpay payment signature |
+| `GET`    | `/payments/razorpay/status`     | 🔒   | Check if Razorpay is configured |
 | `GET`    | `/payments/order/:orderId`      | 🔒   | Get all payments for an order  |
 | `GET`    | `/payments/:id`                 | 🔒   | Get payment by ID              |
 
@@ -600,6 +603,31 @@ curl -X POST http://localhost:3008/orders \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your-token>" \
   -d '{ "customerId": 1, "cartId": 1 }'
+```
+
+### Example: Razorpay Payment Flow
+**1. Create Razorpay order** (after order is created):
+```bash
+curl -X POST http://localhost:3008/payments/razorpay/create-order \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
+  -d '{ "orderId": 1 }'
+```
+**Response:** `{ "razorpayOrderId": "order_xxx", "amount": 10000, "currency": "INR", "keyId": "rzp_test_xxx" }`
+
+**2. Frontend:** Use [Razorpay Checkout](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/) with `razorpayOrderId` and `keyId`.
+
+**3. Verify payment** (after checkout success):
+```bash
+curl -X POST http://localhost:3008/payments/razorpay/verify \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-token>" \
+  -d '{
+    "orderId": 1,
+    "razorpayOrderId": "order_xxx",
+    "razorpayPaymentId": "pay_xxx",
+    "razorpaySignature": "signature_from_checkout"
+  }'
 ```
 
 **Response `201`:**

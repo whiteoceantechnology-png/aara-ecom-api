@@ -13,8 +13,6 @@ const mockCategory = {
   name: "Raw Dried Herbs",
   slug: "raw-dried-herbs",
   isActive: true,
-  parent: null,
-  children: [],
   _count: { products: 3 },
 };
 
@@ -51,7 +49,7 @@ describe("AdminCategoriesController", () => {
   // GET /admin/categories
   // ──────────────────────────────────────────────
   describe("findAll()", () => {
-    it("should return all categories with parent/child/count", async () => {
+    it("should return all categories with product count", async () => {
       mockCategoriesService.adminFindAll.mockResolvedValue([mockCategory]);
 
       const result = await controller.findAll();

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import {
@@ -77,15 +73,6 @@ export class CategoriesService {
   }
 
   async create(dto: CreateCategoryDto) {
-    if (dto.parentId) {
-      const parent = await this.prisma.category.findUnique({
-        where: { id: dto.parentId },
-      });
-      if (!parent)
-        throw new BadRequestException(
-          `Parent category #${dto.parentId} not found`,
-        );
-    }
     return this.prisma.category.create({ data: dto });
   }
 
@@ -105,10 +92,6 @@ export class CategoriesService {
   adminFindAll() {
     return this.prisma.category.findMany({
       include: {
-        parent: { select: { id: true, name: true } },
-        children: {
-          select: { id: true, name: true, slug: true, isActive: true },
-        },
         _count: { select: { products: true } },
       },
       orderBy: { name: "asc" },
@@ -119,8 +102,6 @@ export class CategoriesService {
     const category = await this.prisma.category.findUnique({
       where: { id },
       include: {
-        parent: { select: { id: true, name: true } },
-        children: true,
         products: { select: { id: true, name: true, status: true } },
       },
     });
@@ -129,15 +110,6 @@ export class CategoriesService {
   }
 
   async adminCreate(dto: AdminCreateCategoryDto) {
-    if (dto.parentId) {
-      const parent = await this.prisma.category.findUnique({
-        where: { id: dto.parentId },
-      });
-      if (!parent)
-        throw new BadRequestException(
-          `Parent category #${dto.parentId} not found`,
-        );
-    }
     return this.prisma.category.create({ data: dto });
   }
 

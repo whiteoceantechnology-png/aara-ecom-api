@@ -32,8 +32,7 @@ export class AdminCategoriesController {
 
   @Get()
   @ApiOperation({
-    summary:
-      "Get all categories with parent/child relationships and product count",
+    summary: "Get all categories with product count",
   })
   findAll() {
     return this.categoriesService.adminFindAll();

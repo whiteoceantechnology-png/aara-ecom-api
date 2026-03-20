@@ -84,15 +84,6 @@ export class ProductRepository {
   }
 
   async createCategory(dto: CreateCategoryDto) {
-    if (dto.parentId) {
-      const parent = await this.prisma.category.findUnique({
-        where: { id: dto.parentId },
-      });
-      if (!parent)
-        throw new NotFoundException(
-          `Parent category #${dto.parentId} not found`,
-        );
-    }
     return this.prisma.category.create({ data: dto });
   }
 

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsString, IsNotEmpty, IsOptional, IsInt } from "class-validator";
+import { IsString, IsNotEmpty, IsOptional } from "class-validator";
 
 export class CreateCategoryDto {
   @ApiProperty({ example: "Raw Dried Herbs" })
@@ -19,14 +19,6 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   categoryImage?: string;
-
-  @ApiPropertyOptional({
-    example: null,
-    description: "Parent category ID for sub-categories",
-  })
-  @IsOptional()
-  @IsInt()
-  parentId?: number;
 }
 
 export class UpdateCategoryDto {
@@ -44,9 +36,4 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
   categoryImage?: string;
-
-  @ApiPropertyOptional({ example: null })
-  @IsOptional()
-  @IsInt()
-  parentId?: number;
 }

@@ -160,12 +160,6 @@ export class AdminCreateCategoryDto {
   @ApiProperty({ example: "raw-dried-herbs" })
   @IsString()
   slug: string;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  parentId?: number;
 }
 
 export class AdminUpdateCategoryDto {

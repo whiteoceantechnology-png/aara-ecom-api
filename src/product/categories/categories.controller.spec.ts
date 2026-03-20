@@ -9,7 +9,6 @@ const mockCategory = {
   id: 1,
   name: "Raw Dried Herbs",
   slug: "raw-dried-herbs",
-  parentId: null,
   createdAt: new Date(),
 };
 
