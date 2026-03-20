@@ -540,8 +540,7 @@ export class ProductRepository {
         orderId: dto.orderId,
         paymentMethod: dto.paymentMethod,
         transactionId: dto.transactionId,
-        amount: order.totalAmount,
-        status: "success",
+        paymentStatus: "success",
       },
     });
     await this.prisma.order.update({
