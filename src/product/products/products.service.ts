@@ -17,6 +17,7 @@ import {
   UpsertSpecificationDto,
   SpecSectionDto,
 } from "../../admin/dto/admin.dto";
+import { toImageUrl, toImageUrls } from "../../common/image-url";
 
 @Injectable()
 export class ProductsService {
@@ -57,7 +58,9 @@ export class ProductsService {
       },
       orderBy: { id: "asc" },
     });
-    return products.map((p) => this.mapProductName(p));
+    return products.map((p) =>
+      this.mapProductWithImageUrls(this.mapProductName(p)),
+    );
   }
 
   async findOne(id: number) {
@@ -73,7 +76,7 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
-    return this.mapProductName(product);
+    return this.mapProductWithImageUrls(this.mapProductName(product));
   }
 
   async create(dto: CreateProductDto) {
@@ -133,7 +136,7 @@ export class ProductsService {
       productId: v.productId,
       productName: v.product.name,
       variantName: v.variantName,
-      variantImage: v.images.map((img) => img.imageUrl),
+      variantImage: toImageUrls(v.images.map((img) => img.imageUrl)),
       variantColor: v.variantColor,
       isColor: v.isColor,
       actualPrice: v.actualPrice ? Number(v.actualPrice) : Number(v.price),
@@ -360,18 +363,29 @@ export class ProductsService {
     };
   }
 
+  private mapProductWithImageUrls<
+    T extends { images?: { imageUrl: string }[] },
+  >(product: T): T {
+    if (!product.images?.length) return product;
+    return {
+      ...product,
+      images: product.images.map((img) => ({
+        ...img,
+        imageUrl: toImageUrl(img.imageUrl) ?? img.imageUrl,
+      })),
+    };
+  }
+
   private async validateProductRefs(categoryId: number, brandId?: number) {
-    const category = await this.prisma.category.findUnique({
-      where: { id: categoryId },
-    });
+    const [category, brand] = await Promise.all([
+      this.prisma.category.findUnique({ where: { id: categoryId } }),
+      brandId
+        ? this.prisma.brand.findUnique({ where: { id: brandId } })
+        : Promise.resolve(null),
+    ]);
     if (!category)
       throw new BadRequestException(`Category #${categoryId} not found`);
-
-    if (brandId) {
-      const brand = await this.prisma.brand.findUnique({
-        where: { id: brandId },
-      });
-      if (!brand) throw new BadRequestException(`Brand #${brandId} not found`);
-    }
+    if (brandId && !brand)
+      throw new BadRequestException(`Brand #${brandId} not found`);
   }
 }

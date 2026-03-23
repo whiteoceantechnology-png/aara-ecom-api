@@ -48,7 +48,7 @@ describe("MulterExceptionFilter", () => {
     expect(host.res.status).toHaveBeenCalledWith(400);
     expect(host.res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: "Too many files. Only one file allowed",
+        message: "Too many files. Max 20 files per request",
       }),
     );
   });

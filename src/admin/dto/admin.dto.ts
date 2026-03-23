@@ -140,7 +140,11 @@ export class AdminUpdateStockDto {
 }
 
 export class AdminAddImageDto {
-  @ApiProperty({ example: "https://cdn.example.com/product.jpg" })
+  @ApiProperty({
+    example: "2026/03/20/1773990762403-cfbcb565.jpeg",
+    description:
+      "Image path from upload API (POST /admin/images/upload) or full URL",
+  })
   @IsString()
   imageUrl: string;
 
@@ -160,6 +164,14 @@ export class AdminCreateCategoryDto {
   @ApiProperty({ example: "raw-dried-herbs" })
   @IsString()
   slug: string;
+
+  @ApiPropertyOptional({
+    example: "2026/03/20/1773990762403-cfbcb565.jpeg",
+    description: "Image path from upload API (POST /admin/images/upload)",
+  })
+  @IsOptional()
+  @IsString()
+  categoryImage?: string;
 }
 
 export class AdminUpdateCategoryDto {
@@ -172,6 +184,14 @@ export class AdminUpdateCategoryDto {
   @IsOptional()
   @IsString()
   slug?: string;
+
+  @ApiPropertyOptional({
+    example: "2026/03/20/1773990762403-cfbcb565.jpeg",
+    description: "Image path from upload API (POST /admin/images/upload)",
+  })
+  @IsOptional()
+  @IsString()
+  categoryImage?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

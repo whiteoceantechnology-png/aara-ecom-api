@@ -741,6 +741,31 @@ curl -X PUT http://localhost:3008/orders/1/status \
 | `POST`   | `/admin/products/:id/images`      | 🔒   | Add image to product (set isPrimary)           |
 | `DELETE` | `/admin/images/:id`               | 🔒   | Delete a product image                         |
 
+### 🖼️ Admin Images (Upload & Serve)
+
+| Method   | Endpoint                   | Auth | Description                                              |
+|----------|----------------------------|------|----------------------------------------------------------|
+| `POST`   | `/admin/images/upload`     | 🔒   | Upload 1–20 images (multipart, field `files`)           |
+| `GET`    | `/admin/images/serve?path=`| 🔒   | Serve image by path (from upload response)               |
+
+- **Upload**: Use form field `files` for single or multiple images. Max 5MB per file. Allowed: JPEG, PNG, GIF, WebP, SVG.
+- **Response paths**: Use returned `path` in category/product/variant `categoryImage` or `imageUrl`. Frontend receives ready-to-use URLs in list responses.
+
+**Example: Upload images**
+```bash
+curl -X POST http://localhost:3008/admin/images/upload \
+  -H "Authorization: Bearer <admin-token>" \
+  -F "files=@photo1.jpg" \
+  -F "files=@photo2.png"
+```
+**Response `201`:**
+```json
+[
+  { "id": 1, "path": "2026/03/20/1773990762403-abc12345.jpg", "originalName": "photo1.jpg", "mimeType": "image/jpeg", "size": 1024, "createdAt": "2026-03-20T..." },
+  { "id": 2, "path": "2026/03/20/1773990762404-def67890.png", "originalName": "photo2.png", "mimeType": "image/png", "size": 2048, "createdAt": "2026-03-20T..." }
+]
+```
+
 ### 👥 Admin Customers
 
 | Method  | Endpoint                          | Auth | Description                                       |
@@ -967,7 +992,9 @@ src/
 │   ├── admin-dashboard.controller.ts       ← GET /admin/dashboard, /admin/dashboard/sales
 │   ├── admin-dashboard.controller.spec.ts  ← Unit tests (4 tests)
 │   ├── admin-dashboard.service.ts          ← Summary stats, sales report grouped by day
-│   ├── admin-products.controller.ts       ← Brands CRUD + Products CRUD + Stock + Images
+│   ├── admin-images.controller.ts          ← Upload (multipart) + Serve by path
+│   ├── admin-images.service.spec.ts        ← Unit tests (image upload/serve)
+│   ├── admin-products.controller.ts        ← Brands CRUD + Products CRUD + Stock + Images
 │   ├── admin-products.controller.spec.ts  ← Unit tests (14 tests)
 │   ├── admin-categories.controller.ts       ← /admin/categories CRUD → injects CategoriesService
 │   ├── admin-categories.controller.spec.ts  ← Unit tests (8 tests)

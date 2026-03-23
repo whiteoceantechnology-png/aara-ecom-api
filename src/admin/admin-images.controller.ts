@@ -3,12 +3,12 @@ import {
   Post,
   Get,
   UseInterceptors,
-  UploadedFile,
+  UploadedFiles,
   Query,
   BadRequestException,
   StreamableFile,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
+import { FilesInterceptor } from "@nestjs/platform-express";
 import {
   ApiTags,
   ApiOperation,
@@ -19,6 +19,7 @@ import {
   ApiResponse,
 } from "@nestjs/swagger";
 import { AdminImagesService } from "./admin-images.service";
+import { UPLOAD_CONSTANTS } from "../common/constants/upload.constants";
 
 @ApiBearerAuth()
 @ApiTags("Admin — Images")
@@ -28,24 +29,38 @@ export class AdminImagesController {
 
   @Post("upload")
   @UseInterceptors(
-    FileInterceptor("file", {
-      limits: { fileSize: 5 * 1024 * 1024 },
+    FilesInterceptor("files", UPLOAD_CONSTANTS.MAX_FILES_PER_REQUEST, {
+      limits: { fileSize: UPLOAD_CONSTANTS.MAX_FILE_SIZE_BYTES },
     }),
   )
-  @ApiOperation({ summary: "Upload an image (admin only)" })
+  @ApiOperation({
+    summary: "Upload one or more images (admin only)",
+    description:
+      "Accepts 1–20 image files. Use form field name 'files' for multiple uploads.",
+  })
   @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
       type: "object",
       properties: {
-        file: { type: "string", format: "binary" },
+        files: {
+          type: "array",
+          items: { type: "string", format: "binary" },
+        },
       },
     },
   })
-  @ApiResponse({ status: 201, description: "Image uploaded successfully" })
-  @ApiResponse({ status: 400, description: "Invalid file or no file provided" })
-  async upload(@UploadedFile() file: Express.Multer.File) {
-    return this.adminImagesService.upload(file);
+  @ApiResponse({ status: 201, description: "Images uploaded successfully" })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid file or no files provided",
+  })
+  async upload(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files?.length)
+      throw new BadRequestException(
+        "No files provided. Use form field 'files'.",
+      );
+    return this.adminImagesService.uploadMany(files);
   }
 
   @Get("serve")

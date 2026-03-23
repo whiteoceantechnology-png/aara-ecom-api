@@ -38,19 +38,21 @@ describe("CategoriesController", () => {
   });
 
   describe("findAll", () => {
-    it("should return an array of categories", async () => {
-      service.findAll.mockResolvedValue([mockCategory]);
+    it("should return categories with status envelope", async () => {
+      const envelope = { status: true, data: [mockCategory] };
+      service.findAll.mockResolvedValue(envelope);
       const result = await controller.findAll();
-      expect(result).toEqual([mockCategory]);
+      expect(result).toEqual(envelope);
       expect(service.findAll).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("findOne", () => {
-    it("should return a single category by id", async () => {
-      service.findOne.mockResolvedValue(mockCategory);
+    it("should return a single category by id with status envelope", async () => {
+      const envelope = { status: true, data: mockCategory };
+      service.findOne.mockResolvedValue(envelope);
       const result = await controller.findOne(1);
-      expect(result).toEqual(mockCategory);
+      expect(result).toEqual(envelope);
       expect(service.findOne).toHaveBeenCalledWith(1);
     });
 

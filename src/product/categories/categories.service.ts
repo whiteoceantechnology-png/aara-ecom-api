@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { toImageUrl } from "../../common/image-url";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import {
   AdminCreateCategoryDto,
@@ -27,7 +28,7 @@ export class CategoriesService {
       data: categories.map((c) => ({
         id: c.id,
         categoryName: c.name,
-        categoryImage: c.categoryImage,
+        categoryImage: toImageUrl(c.categoryImage),
       })),
     };
   }
@@ -54,12 +55,13 @@ export class CategoriesService {
     });
 
     return {
+      status: true,
       data: products.map((p) => ({
         id: p.id,
         categoryId: p.categoryId,
         categoryName: p.category.name,
         productName: p.name,
-        productImage: p.productImage,
+        productImage: toImageUrl(p.productImage),
         actualPrice: p.actualPrice ? Number(p.actualPrice) : null,
         discountPrice: p.discountPrice ? Number(p.discountPrice) : null,
       })),
@@ -67,9 +69,28 @@ export class CategoriesService {
   }
 
   async findOne(id: number) {
-    const category = await this.prisma.category.findUnique({ where: { id } });
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        categoryImage: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
     if (!category) throw new NotFoundException(`Category #${id} not found`);
-    return category;
+    const { name, categoryImage, ...rest } = category;
+    return {
+      status: true,
+      data: {
+        ...rest,
+        categoryName: name,
+        categoryImage: toImageUrl(categoryImage),
+      },
+    };
   }
 
   async create(dto: CreateCategoryDto) {

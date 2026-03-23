@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Response } from "express";
 import { MulterError } from "multer";
+import { UPLOAD_CONSTANTS } from "../constants/upload.constants";
 
 /**
  * Catches Multer errors (e.g. LIMIT_FILE_SIZE) and returns proper 4xx responses
@@ -22,16 +23,18 @@ export class MulterExceptionFilter implements ExceptionFilter {
 
     const status = HttpStatus.BAD_REQUEST;
     let message: string;
+    const maxSizeMB = UPLOAD_CONSTANTS.MAX_FILE_SIZE_BYTES / 1024 / 1024;
+    const maxFiles = UPLOAD_CONSTANTS.MAX_FILES_PER_REQUEST;
 
     switch (exception.code) {
       case "LIMIT_FILE_SIZE":
-        message = "File too large. Max size: 5MB";
+        message = `File too large. Max size: ${maxSizeMB}MB`;
         break;
       case "LIMIT_FILE_COUNT":
-        message = "Too many files. Only one file allowed";
+        message = `Too many files. Max ${maxFiles} files per request`;
         break;
       case "LIMIT_UNEXPECTED_FILE":
-        message = `Unexpected field. Use field name "file" for upload`;
+        message = `Unexpected field. Use form field "files" for upload`;
         break;
       default:
         message = "File upload error";

@@ -14,7 +14,7 @@ const mockUploadResult = {
 };
 
 const mockAdminImagesService = {
-  upload: jest.fn(),
+  uploadMany: jest.fn(),
   getByPath: jest.fn(),
 };
 
@@ -38,65 +38,104 @@ describe("AdminImagesController", () => {
   });
 
   describe("upload()", () => {
-    it("should upload file and return image metadata", async () => {
-      const mockFile = {
-        buffer: Buffer.from("test"),
-        originalname: "photo.jpg",
-        mimetype: "image/jpeg",
-        size: 1024,
-      } as Express.Multer.File;
+    it("should upload single file and return array of image metadata", async () => {
+      const mockFiles = [
+        {
+          buffer: Buffer.from("test"),
+          originalname: "photo.jpg",
+          mimetype: "image/jpeg",
+          size: 1024,
+        },
+      ] as Express.Multer.File[];
 
-      mockAdminImagesService.upload.mockResolvedValue(mockUploadResult);
+      mockAdminImagesService.uploadMany.mockResolvedValue([mockUploadResult]);
 
-      const result = await controller.upload(mockFile);
+      const result = await controller.upload(mockFiles);
 
-      expect(mockAdminImagesService.upload).toHaveBeenCalledWith(mockFile);
-      expect(result).toEqual(mockUploadResult);
+      expect(mockAdminImagesService.uploadMany).toHaveBeenCalledWith(mockFiles);
+      expect(result).toEqual([mockUploadResult]);
+      expect(result).toHaveLength(1);
     });
 
-    it("should throw BadRequestException when no file provided", async () => {
-      mockAdminImagesService.upload.mockRejectedValue(
-        new BadRequestException("No file provided"),
-      );
+    it("should upload multiple files and return array of metadata", async () => {
+      const mockFiles = [
+        {
+          buffer: Buffer.from("a"),
+          originalname: "a.jpg",
+          mimetype: "image/jpeg",
+          size: 100,
+        },
+        {
+          buffer: Buffer.from("b"),
+          originalname: "b.png",
+          mimetype: "image/png",
+          size: 200,
+        },
+      ] as Express.Multer.File[];
+      const mockResults = [
+        { ...mockUploadResult, id: 1, originalName: "a.jpg" },
+        { ...mockUploadResult, id: 2, originalName: "b.png" },
+      ];
 
+      mockAdminImagesService.uploadMany.mockResolvedValue(mockResults);
+
+      const result = await controller.upload(mockFiles);
+
+      expect(mockAdminImagesService.uploadMany).toHaveBeenCalledWith(mockFiles);
+      expect(result).toEqual(mockResults);
+      expect(result).toHaveLength(2);
+    });
+
+    it("should throw BadRequestException when no files provided", async () => {
+      await expect(controller.upload([])).rejects.toThrow(BadRequestException);
+      await expect(controller.upload([])).rejects.toThrow(
+        "No files provided. Use form field 'files'.",
+      );
+    });
+
+    it("should throw BadRequestException when files is undefined", async () => {
       await expect(controller.upload(undefined)).rejects.toThrow(
         BadRequestException,
       );
       await expect(controller.upload(undefined)).rejects.toThrow(
-        "No file provided",
+        "No files provided. Use form field 'files'.",
       );
     });
 
     it("should throw BadRequestException for invalid file type", async () => {
-      const mockFile = {
-        buffer: Buffer.from("test"),
-        originalname: "doc.pdf",
-        mimetype: "application/pdf",
-        size: 1024,
-      } as Express.Multer.File;
+      const mockFiles = [
+        {
+          buffer: Buffer.from("test"),
+          originalname: "doc.pdf",
+          mimetype: "application/pdf",
+          size: 1024,
+        },
+      ] as Express.Multer.File[];
 
-      mockAdminImagesService.upload.mockRejectedValue(
+      mockAdminImagesService.uploadMany.mockRejectedValue(
         new BadRequestException("Invalid file type. Allowed: image/jpeg, ..."),
       );
 
-      await expect(controller.upload(mockFile)).rejects.toThrow(
+      await expect(controller.upload(mockFiles)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it("should throw BadRequestException for file too large", async () => {
-      const mockFile = {
-        buffer: Buffer.alloc(6 * 1024 * 1024),
-        originalname: "large.jpg",
-        mimetype: "image/jpeg",
-        size: 6 * 1024 * 1024,
-      } as Express.Multer.File;
+      const mockFiles = [
+        {
+          buffer: Buffer.alloc(6 * 1024 * 1024),
+          originalname: "large.jpg",
+          mimetype: "image/jpeg",
+          size: 6 * 1024 * 1024,
+        },
+      ] as Express.Multer.File[];
 
-      mockAdminImagesService.upload.mockRejectedValue(
+      mockAdminImagesService.uploadMany.mockRejectedValue(
         new BadRequestException("File too large. Max size: 5MB"),
       );
 
-      await expect(controller.upload(mockFile)).rejects.toThrow(
+      await expect(controller.upload(mockFiles)).rejects.toThrow(
         BadRequestException,
       );
     });

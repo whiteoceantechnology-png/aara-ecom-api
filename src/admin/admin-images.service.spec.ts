@@ -10,8 +10,20 @@ const mockPrisma = {
   uploadedImage: {
     create: jest.fn(),
     findUnique: jest.fn(),
+    delete: jest.fn(),
   },
 };
+
+/** Creates a valid Multer file for testing */
+function createMockFile(overrides: Partial<Express.Multer.File> = {}) {
+  return {
+    buffer: Buffer.from("test"),
+    originalname: "photo.jpg",
+    mimetype: "image/jpeg",
+    size: 1024,
+    ...overrides,
+  } as Express.Multer.File;
+}
 
 describe("AdminImagesService", () => {
   let service: AdminImagesService;
@@ -26,56 +38,91 @@ describe("AdminImagesService", () => {
 
     service = module.get<AdminImagesService>(AdminImagesService);
     jest.clearAllMocks();
+    (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
+    (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
   });
 
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
-  describe("upload()", () => {
+  describe("uploadOne()", () => {
     it("should throw BadRequestException when no file provided", async () => {
-      await expect(service.upload(undefined)).rejects.toThrow(
+      await expect(service.uploadOne(undefined)).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.upload(undefined)).rejects.toThrow(
+      await expect(service.uploadOne(undefined)).rejects.toThrow(
         "No file provided",
       );
     });
 
+    it("should throw BadRequestException when file has no buffer", async () => {
+      const file = createMockFile({ buffer: Buffer.alloc(0) });
+
+      await expect(service.uploadOne(file)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.uploadOne(file)).rejects.toThrow(
+        "File has no content",
+      );
+    });
+
     it("should throw BadRequestException for invalid file type", async () => {
-      const file = {
-        buffer: Buffer.from("test"),
+      const file = createMockFile({
         originalname: "doc.pdf",
         mimetype: "application/pdf",
-        size: 1024,
-      } as Express.Multer.File;
+      });
 
-      await expect(service.upload(file)).rejects.toThrow(BadRequestException);
-      await expect(service.upload(file)).rejects.toThrow("Invalid file type");
+      await expect(service.uploadOne(file)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.uploadOne(file)).rejects.toThrow(
+        "Invalid file type",
+      );
     });
 
     it("should throw BadRequestException for file too large", async () => {
-      const file = {
+      const file = createMockFile({
         buffer: Buffer.alloc(6 * 1024 * 1024),
         originalname: "large.jpg",
-        mimetype: "image/jpeg",
         size: 6 * 1024 * 1024,
-      } as Express.Multer.File;
+      });
 
-      await expect(service.upload(file)).rejects.toThrow(BadRequestException);
-      await expect(service.upload(file)).rejects.toThrow("File too large");
+      await expect(service.uploadOne(file)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.uploadOne(file)).rejects.toThrow("File too large");
+    });
+
+    it("should accept all allowed MIME types (JPEG, PNG, GIF, WebP, SVG)", async () => {
+      const types = [
+        ["image/jpeg", "photo.jpg"],
+        ["image/png", "photo.png"],
+        ["image/gif", "photo.gif"],
+        ["image/webp", "photo.webp"],
+        ["image/svg+xml", "photo.svg"],
+      ] as const;
+
+      for (const [mimetype, originalname] of types) {
+        mockPrisma.uploadedImage.create.mockResolvedValue({
+          id: 1,
+          path: "2026/03/18/x.jpg",
+          originalName: originalname,
+          mimeType: mimetype,
+          size: 1024,
+          createdAt: new Date(),
+        });
+
+        const result = await service.uploadOne(
+          createMockFile({ mimetype, originalname }),
+        );
+        expect(result.mimeType).toBe(mimetype);
+        expect(result.originalName).toBe(originalname);
+      }
     });
 
     it("should upload valid image and return metadata", async () => {
-      const file = {
-        buffer: Buffer.from("test"),
-        originalname: "photo.jpg",
-        mimetype: "image/jpeg",
-        size: 1024,
-      } as Express.Multer.File;
-
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+      const file = createMockFile();
 
       mockPrisma.uploadedImage.create.mockResolvedValue({
         id: 1,
@@ -86,7 +133,7 @@ describe("AdminImagesService", () => {
         createdAt: new Date(),
       });
 
-      const result = await service.upload(file);
+      const result = await service.uploadOne(file);
 
       expect(fs.mkdir).toHaveBeenCalled();
       expect(fs.writeFile).toHaveBeenCalled();
@@ -97,16 +144,131 @@ describe("AdminImagesService", () => {
         mimeType: "image/jpeg",
         size: 1024,
       });
-      expect(result.path).toMatch(/^\d{4}\/\d{2}\/\d{2}\/\d+-[a-f0-9]+\.jpg$/);
+      expect(result.path).toMatch(
+        /^\d{4}\/\d{2}\/\d{2}\/\d+-\d+-[a-f0-9]+\.jpg$/,
+      );
+    });
+  });
+
+  describe("uploadMany()", () => {
+    it("should upload multiple files and return array of metadata", async () => {
+      const files = [
+        createMockFile({
+          originalname: "photo1.jpg",
+          mimetype: "image/jpeg",
+        }),
+        createMockFile({
+          buffer: Buffer.from("test2"),
+          originalname: "photo2.png",
+          mimetype: "image/png",
+          size: 2048,
+        }),
+      ];
+
+      mockPrisma.uploadedImage.create
+        .mockResolvedValueOnce({
+          id: 1,
+          path: "2026/03/18/111-abc.jpg",
+          originalName: "photo1.jpg",
+          mimeType: "image/jpeg",
+          size: 1024,
+          createdAt: new Date(),
+        })
+        .mockResolvedValueOnce({
+          id: 2,
+          path: "2026/03/18/222-def.png",
+          originalName: "photo2.png",
+          mimeType: "image/png",
+          size: 2048,
+          createdAt: new Date(),
+        });
+
+      const result = await service.uploadMany(files);
+
+      expect(mockPrisma.uploadedImage.create).toHaveBeenCalledTimes(2);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ id: 1, originalName: "photo1.jpg" });
+      expect(result[1]).toMatchObject({ id: 2, originalName: "photo2.png" });
+    });
+
+    it("should process files in parallel (Promise.all)", async () => {
+      const files = [
+        createMockFile({ originalname: "a.jpg" }),
+        createMockFile({ originalname: "b.jpg" }),
+        createMockFile({ originalname: "c.jpg" }),
+      ];
+      mockPrisma.uploadedImage.create.mockImplementation((args) =>
+        Promise.resolve({
+          id: 1,
+          path: "2026/03/18/x.jpg",
+          originalName: args.data.originalName,
+          mimeType: "image/jpeg",
+          size: 1024,
+          createdAt: new Date(),
+        }),
+      );
+
+      const result = await service.uploadMany(files);
+
+      expect(result).toHaveLength(3);
+      expect(mockPrisma.uploadedImage.create).toHaveBeenCalledTimes(3);
+    });
+
+    it("should reject entire batch when one file fails", async () => {
+      const files = [
+        createMockFile({ originalname: "valid.jpg" }),
+        createMockFile({
+          originalname: "invalid.pdf",
+          mimetype: "application/pdf",
+        }),
+      ];
+
+      (fs.unlink as jest.Mock).mockResolvedValue(undefined);
+      mockPrisma.uploadedImage.create.mockResolvedValue({
+        id: 1,
+        path: "2026/03/18/valid.jpg",
+        originalName: "valid.jpg",
+        mimeType: "image/jpeg",
+        size: 1024,
+        createdAt: new Date(),
+      });
+
+      await expect(service.uploadMany(files)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.uploadMany(files)).rejects.toThrow(
+        "Invalid file type",
+      );
+
+      expect(mockPrisma.uploadedImage.delete).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
     });
   });
 
   describe("getByPath()", () => {
+    it("should throw BadRequestException for empty or whitespace path", async () => {
+      await expect(service.getByPath("")).rejects.toThrow(BadRequestException);
+      await expect(service.getByPath("")).rejects.toThrow("Path is required");
+      await expect(service.getByPath("   ")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it("should throw BadRequestException for path traversal", async () => {
       await expect(service.getByPath("../../../etc/passwd")).rejects.toThrow(
         BadRequestException,
       );
       await expect(service.getByPath("../../../etc/passwd")).rejects.toThrow(
+        "Invalid path",
+      );
+    });
+
+    it("should throw BadRequestException for absolute path", async () => {
+      await expect(service.getByPath("/etc/passwd")).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.getByPath("/etc/passwd")).rejects.toThrow(
         "Invalid path",
       );
     });
@@ -158,6 +320,49 @@ describe("AdminImagesService", () => {
         mimeType: "image/jpeg",
         originalName: "photo.jpg",
       });
+    });
+
+    it("integration: upload then getByPath returns same file", async () => {
+      const file = createMockFile({ originalname: "integration.jpg" });
+      const uploadedContent = Buffer.from("uploaded-content");
+      mockPrisma.uploadedImage.create.mockImplementation(
+        (args: {
+          data: {
+            path: string;
+            originalName: string;
+            mimeType: string;
+            size: number;
+          };
+        }) =>
+          Promise.resolve({
+            id: 99,
+            path: args.data.path,
+            originalName: args.data.originalName,
+            mimeType: args.data.mimeType,
+            size: args.data.size,
+            createdAt: new Date(),
+          }),
+      );
+      mockPrisma.uploadedImage.findUnique.mockImplementation(
+        (args: { where: { path: string } }) =>
+          args.where.path
+            ? Promise.resolve({
+                id: 99,
+                path: args.where.path,
+                originalName: "integration.jpg",
+                mimeType: "image/jpeg",
+                size: 1024,
+              })
+            : Promise.resolve(null),
+      );
+      (fs.readFile as jest.Mock).mockResolvedValue(uploadedContent);
+
+      const uploadResult = await service.uploadOne(file);
+      const serveResult = await service.getByPath(uploadResult.path);
+
+      expect(uploadResult.path).toMatch(/^\d{4}\/\d{2}\/\d{2}\//);
+      expect(serveResult.buffer).toEqual(uploadedContent);
+      expect(serveResult.mimeType).toBe("image/jpeg");
     });
 
     it("should accept Windows-style paths (backslashes) and normalize to forward slashes", async () => {
