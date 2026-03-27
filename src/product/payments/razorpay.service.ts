@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OrdersService } from "../orders/orders.service";
 import Razorpay from "razorpay";
 import * as crypto from "crypto";
 import {
@@ -21,6 +22,7 @@ export class RazorpayService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly ordersService: OrdersService,
   ) {
     this.keyId = this.config.get<string>("RAZORPAY_KEY_ID") ?? "";
     this.keySecret = this.config.get<string>("RAZORPAY_KEY_SECRET") ?? "";
@@ -118,10 +120,7 @@ export class RazorpayService {
       },
     });
 
-    await this.prisma.order.update({
-      where: { id: dto.orderId },
-      data: { paymentStatus: "paid" },
-    });
+    await this.ordersService.applyPaymentSuccess(dto.orderId);
 
     return {
       success: true,

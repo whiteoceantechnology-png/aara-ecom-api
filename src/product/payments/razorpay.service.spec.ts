@@ -3,6 +3,11 @@ import { ConfigService } from "@nestjs/config";
 import { NotFoundException, BadRequestException } from "@nestjs/common";
 import { RazorpayService } from "./razorpay.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { OrdersService } from "../orders/orders.service";
+
+const mockOrdersService = {
+  applyPaymentSuccess: jest.fn().mockResolvedValue({ id: 1, paymentStatus: "paid" }),
+};
 
 const mockConfig = {
   get: jest.fn((key: string) => {
@@ -50,6 +55,7 @@ describe("RazorpayService", () => {
         RazorpayService,
         { provide: ConfigService, useValue: mockConfig },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: OrdersService, useValue: mockOrdersService },
       ],
     }).compile();
 
@@ -72,6 +78,7 @@ describe("RazorpayService", () => {
           RazorpayService,
           { provide: ConfigService, useValue: mockConfig },
           { provide: PrismaService, useValue: mockPrisma },
+          { provide: OrdersService, useValue: mockOrdersService },
         ],
       }).compile();
       const svc = mod.get<RazorpayService>(RazorpayService);

@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import { ProductsController } from "./products.controller";
 import { ProductsService } from "./products.service";
+import { ReviewsService } from "../reviews/reviews.service";
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -36,18 +37,27 @@ const mockProductsService = {
   findVariants: jest.fn(),
 };
 
+const mockReviewsService = {
+  findByProduct: jest.fn(),
+};
+
 describe("ProductsController", () => {
   let controller: ProductsController;
   let service: typeof mockProductsService;
+  let reviewsService: typeof mockReviewsService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProductsController],
-      providers: [{ provide: ProductsService, useValue: mockProductsService }],
+      providers: [
+        { provide: ProductsService, useValue: mockProductsService },
+        { provide: ReviewsService, useValue: mockReviewsService },
+      ],
     }).compile();
 
     controller = module.get<ProductsController>(ProductsController);
     service = module.get(ProductsService);
+    reviewsService = module.get(ReviewsService);
     jest.clearAllMocks();
   });
 
@@ -145,6 +155,23 @@ describe("ProductsController", () => {
     });
   });
 
+  describe("getReviews", () => {
+    it("should return reviews aggregate and list", async () => {
+      const payload = {
+        productId: 1,
+        avgRating: 4.5,
+        totalReviews: 2,
+        reviews: [],
+      };
+      reviewsService.findByProduct.mockResolvedValue(payload);
+
+      const result = await controller.getReviews(1);
+
+      expect(reviewsService.findByProduct).toHaveBeenCalledWith(1);
+      expect(result).toEqual(payload);
+    });
+  });
+
   // ──────────────────────────────────────────────
   // Authentication decorators
   // ──────────────────────────────────────────────
@@ -177,6 +204,14 @@ describe("ProductsController", () => {
       const isPublic = Reflect.getMetadata(
         IS_PUBLIC_KEY,
         ProductsController.prototype.findVariants,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should mark getReviews as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.getReviews,
       );
       expect(isPublic).toBe(true);
     });

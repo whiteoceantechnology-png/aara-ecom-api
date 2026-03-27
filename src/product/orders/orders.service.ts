@@ -2,96 +2,268 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateOrderDto } from "../dto/order.dto";
 import { AdminUpdateOrderDto } from "../../admin/dto/admin.dto";
+import { OrderStatus } from "../constants/order-status";
+import {
+  computeCheckoutTotals,
+  toCartLineInputs,
+} from "../checkout/checkout-pricing.util";
+import { assertCouponUsable } from "../checkout/assert-coupon-usable";
+import { DEFAULT_CHECKOUT_SHIPPING_FLAT } from "../checkout/checkout.constants";
+
+/** Standard relation graph for storefront order responses. */
+const orderDetailInclude = {
+  items: true,
+  payments: true,
+  shipments: true,
+} as const;
+
+const cartForPlaceOrderInclude = {
+  items: {
+    include: {
+      variant: { include: { packSize: true, product: true } },
+    },
+  },
+} as const;
+
+export type PlaceOrderParams = {
+  customerId: number;
+  cartId: number;
+  shippingAddressId?: number;
+  couponCode?: string | null;
+  /** ONLINE = reserve stock until payment; COD = deduct immediately */
+  paymentMethod: "ONLINE" | "COD";
+  idempotencyKey?: string | null;
+  shippingFlat: number;
+  /** Snapshot from checkout when DB row is not loaded in this call */
+  couponPricing?: {
+    percentOff: Prisma.Decimal | null;
+    maxDiscountAmount: Prisma.Decimal | null;
+    minOrderAmount: Prisma.Decimal | null;
+  } | null;
+};
+
+type CartForPlaceOrder = Prisma.CartGetPayload<{
+  include: typeof cartForPlaceOrderInclude;
+}>;
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ─── Public ──────────────────────────────────────────────────────────────────
+  // ─── Public API ────────────────────────────────────────────────────────────
 
+  /**
+   * Legacy: create order from cart (server-priced, ONLINE checkout with reservation).
+   */
   async create(dto: CreateOrderDto) {
-    const cart = await this.prisma.cart.findUnique({
-      where: { id: dto.cartId },
-      include: {
-        items: {
-          include: {
-            variant: { include: { packSize: true, product: true } },
+    return this.placeOrder({
+      customerId: dto.customerId,
+      cartId: dto.cartId,
+      paymentMethod: "ONLINE",
+      shippingFlat: this.getShippingFlat(),
+      couponPricing: null,
+    });
+  }
+
+  async placeOrder(params: PlaceOrderParams) {
+    const {
+      customerId,
+      cartId,
+      shippingAddressId,
+      couponCode,
+      paymentMethod,
+      idempotencyKey,
+      shippingFlat,
+      couponPricing: couponPricingFromCaller,
+    } = params;
+
+    const idempotentHit = await this.findOrderByIdempotencyKey(
+      customerId,
+      idempotencyKey,
+    );
+    if (idempotentHit) {
+      return idempotentHit;
+    }
+
+    const cart = await this.loadCartForPlaceOrder(cartId, customerId);
+
+    const couponRow = await this.loadCouponRowIfCodePresent(couponCode);
+    const pricingSource = couponRow ?? couponPricingFromCaller;
+
+    const lines = toCartLineInputs(cart.items);
+    const totals = computeCheckoutTotals(lines, {
+      shippingFlat,
+      discountPercent: decimalToNumberOrUndefined(pricingSource?.percentOff),
+      maxDiscountAmount: decimalToNumberOrNull(pricingSource?.maxDiscountAmount),
+      minOrderAmount: decimalToNumberOrNull(pricingSource?.minOrderAmount),
+    });
+
+    this.assertSubtotalMeetsCouponMinimum(totals.subtotal, pricingSource);
+
+    await this.validateStockForCheckout(cart.items, paymentMethod);
+
+    const { snapshot, shippingId } = await this.resolveShippingSnapshot(
+      shippingAddressId,
+      customerId,
+    );
+
+    const orderNumber = this.generateOrderNumber();
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.applyInventoryForPaymentMode(tx, cart.items, paymentMethod);
+
+      const created = await tx.order.create({
+        data: {
+          customerId,
+          orderNumber,
+          status:
+            paymentMethod === "COD"
+              ? OrderStatus.PROCESSING
+              : OrderStatus.PENDING_PAYMENT,
+          totalAmount: totals.total,
+          taxAmount: totals.tax,
+          shippingAmount: totals.shipping,
+          discountAmount: totals.discount,
+          couponCode:
+            couponCode?.trim().toUpperCase() ?? couponRow?.code ?? null,
+          paymentStatus: "pending",
+          shippingAddressId: shippingId ?? null,
+          ...(snapshot !== undefined ? { addressSnapshot: snapshot } : {}),
+          items: {
+            create: totals.items.map((pl) => ({
+              variantId: pl.variantId,
+              productName: pl.productName,
+              sizeLabel: pl.sizeLabel,
+              price: pl.unitPrice,
+              quantity: pl.quantity,
+              subtotal: pl.lineSubtotal,
+            })),
           },
         },
-      },
+        include: orderDetailInclude,
+      });
+
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+      if (idempotencyKey) {
+        await tx.checkoutIdempotency.create({
+          data: {
+            customerId,
+            key: idempotencyKey,
+            orderId: created.id,
+          },
+        });
+      }
+
+      await tx.checkoutSession.deleteMany({ where: { customerId } });
+
+      return created;
     });
+  }
 
-    if (!cart || cart.customerId !== dto.customerId) {
-      throw new NotFoundException("Cart not found");
-    }
-    if (cart.items.length === 0) {
-      throw new BadRequestException("Cart is empty");
-    }
+  /**
+   * After a successful payment: commit reserved units to stock for ONLINE orders,
+   * or only flip payment flags for COD / already-deducted flows.
+   */
+  async applyPaymentSuccess(orderId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+      if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+      if (order.paymentStatus === "paid") {
+        return tx.order.findUnique({
+          where: { id: orderId },
+          include: orderDetailInclude,
+        });
+      }
 
-    // Validate stock availability for all items
-    const outOfStock = cart.items.filter(
-      (item) => item.variant.stockQuantity < item.quantity,
-    );
-    if (outOfStock.length > 0) {
-      const details = outOfStock.map(
-        (item) =>
-          `${item.variant.product.name} (requested: ${item.quantity}, available: ${item.variant.stockQuantity})`,
-      );
-      throw new BadRequestException(
-        `Insufficient stock for: ${details.join("; ")}`,
-      );
-    }
+      if (order.status === OrderStatus.PENDING_PAYMENT) {
+        for (const item of order.items) {
+          const rowsAffected = await tx.$executeRaw`
+            UPDATE "ProductVariant"
+            SET "stockQuantity" = "stockQuantity" - ${item.quantity},
+                "reservedQuantity" = "reservedQuantity" - ${item.quantity}
+            WHERE id = ${item.variantId}
+            AND "reservedQuantity" >= ${item.quantity}
+          `;
+          if (rowsAffected !== 1) {
+            throw new BadRequestException(
+              `Inventory commit failed for variant #${item.variantId}`,
+            );
+          }
+        }
+        return tx.order.update({
+          where: { id: orderId },
+          data: { status: OrderStatus.PROCESSING, paymentStatus: "paid" },
+          include: orderDetailInclude,
+        });
+      }
 
-    const orderNumber = `ORD-${Date.now()}`;
-    let total = 0;
-
-    const orderItems = cart.items.map((item) => {
-      const subtotal = Number(item.price) * item.quantity;
-      total += subtotal;
-      return {
-        variantId: item.variantId,
-        productName: item.variant.product.name,
-        sizeLabel: item.variant.packSize.label,
-        price: item.price,
-        quantity: item.quantity,
-        subtotal,
-      };
+      return tx.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: "paid" },
+        include: orderDetailInclude,
+      });
     });
+  }
 
-    const order = await this.prisma.order.create({
-      data: {
-        customerId: dto.customerId,
-        orderNumber,
-        totalAmount: total,
-        items: { create: orderItems },
-      },
+  async cancel(orderId: number, customerId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
       include: { items: true },
     });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+    if (order.customerId !== customerId) {
+      throw new ForbiddenException("Not your order");
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      return order;
+    }
+    if (order.status !== OrderStatus.PENDING_PAYMENT) {
+      throw new BadRequestException(
+        "Only orders awaiting payment can be cancelled by customer",
+      );
+    }
+    if (order.paymentStatus === "paid") {
+      throw new BadRequestException("Paid orders cannot use this cancel flow");
+    }
 
-    // Deduct stock for each variant
-    await Promise.all(
-      cart.items.map((item) =>
-        this.prisma.productVariant.update({
-          where: { id: item.variantId },
-          data: { stockQuantity: { decrement: item.quantity } },
-        }),
-      ),
-    );
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        const rowsAffected = await tx.$executeRaw`
+          UPDATE "ProductVariant"
+          SET "reservedQuantity" = "reservedQuantity" - ${item.quantity}
+          WHERE id = ${item.variantId}
+          AND "reservedQuantity" >= ${item.quantity}
+        `;
+        if (rowsAffected !== 1) {
+          throw new BadRequestException(
+            `Failed to release reservation for variant #${item.variantId}`,
+          );
+        }
+      }
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.CANCELLED },
+      });
+    });
 
-    // Clear the cart
-    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-
-    return order;
+    return this.findOne(orderId);
   }
 
   findAll(customerId?: number) {
     return this.prisma.order.findMany({
       where: customerId ? { customerId } : {},
-      include: { items: true, payments: true, shipments: true },
+      include: orderDetailInclude,
       orderBy: { createdAt: "desc" },
     });
   }
@@ -99,9 +271,17 @@ export class OrdersService {
   async findOne(id: number) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { items: true, payments: true, shipments: true },
+      include: orderDetailInclude,
     });
     if (!order) throw new NotFoundException(`Order #${id} not found`);
+    return order;
+  }
+
+  async findOneForCustomer(id: number, customerId: number) {
+    const order = await this.findOne(id);
+    if (order.customerId !== customerId) {
+      throw new ForbiddenException("Not your order");
+    }
     return order;
   }
 
@@ -110,7 +290,14 @@ export class OrdersService {
     return this.prisma.order.update({ where: { id }, data: { status } });
   }
 
-  // ─── Admin ───────────────────────────────────────────────────────────────────
+  getShippingFlat(): number {
+    const raw = process.env.CHECKOUT_SHIPPING_FLAT;
+    if (raw == null || raw === "") return DEFAULT_CHECKOUT_SHIPPING_FLAT;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : DEFAULT_CHECKOUT_SHIPPING_FLAT;
+  }
+
+  // ─── Admin ─────────────────────────────────────────────────────────────────
 
   adminFindAll(params: {
     status?: string;
@@ -226,4 +413,193 @@ export class OrdersService {
 
     return [headers, ...rows].join("\n");
   }
+
+  // ─── Internals ─────────────────────────────────────────────────────────────
+
+  private generateOrderNumber(): string {
+    return `ORD-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  }
+
+  private async findOrderByIdempotencyKey(
+    customerId: number,
+    idempotencyKey: string | null | undefined,
+  ) {
+    if (!idempotencyKey) {
+      return null;
+    }
+    const record = await this.prisma.checkoutIdempotency.findUnique({
+      where: { customerId_key: { customerId, key: idempotencyKey } },
+      include: { order: { include: orderDetailInclude } },
+    });
+    return record?.order ?? null;
+  }
+
+  private async loadCartForPlaceOrder(
+    cartId: number,
+    customerId: number,
+  ): Promise<CartForPlaceOrder> {
+    const cart = await this.prisma.cart.findUnique({
+      where: { id: cartId },
+      include: cartForPlaceOrderInclude,
+    });
+    if (!cart || cart.customerId !== customerId) {
+      throw new NotFoundException("Cart not found");
+    }
+    if (cart.items.length === 0) {
+      throw new BadRequestException("Cart is empty");
+    }
+    return cart;
+  }
+
+  /**
+   * When the client sends a coupon code, load the row and validate.
+   * No code → no DB call.
+   */
+  private async loadCouponRowIfCodePresent(
+    couponCode: string | null | undefined,
+  ) {
+    const trimmed = couponCode?.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const row = await this.prisma.coupon.findUnique({
+      where: { code: trimmed.toUpperCase() },
+    });
+    assertCouponUsable(row);
+    return row;
+  }
+
+  private assertSubtotalMeetsCouponMinimum(
+    subtotal: number,
+    pricingSource: PlaceOrderParams["couponPricing"] | NonNullable<Awaited<ReturnType<OrdersService["loadCouponRowIfCodePresent"]>>>,
+  ) {
+    if (pricingSource?.minOrderAmount == null) {
+      return;
+    }
+    if (subtotal < Number(pricingSource.minOrderAmount)) {
+      throw new BadRequestException("Order subtotal is below coupon minimum");
+    }
+  }
+
+  private async resolveShippingSnapshot(
+    shippingAddressId: number | undefined,
+    customerId: number,
+  ): Promise<{
+    snapshot: Prisma.InputJsonValue | undefined;
+    shippingId: number | undefined;
+  }> {
+    if (shippingAddressId == null) {
+      return { snapshot: undefined, shippingId: undefined };
+    }
+    const addr = await this.prisma.customerAddress.findFirst({
+      where: { id: shippingAddressId, customerId },
+    });
+    if (!addr) throw new BadRequestException("Shipping address not found");
+    return {
+      shippingId: shippingAddressId,
+      snapshot: {
+        name: addr.name,
+        phone: addr.phone,
+        addressLine1: addr.addressLine1,
+        addressLine2: addr.addressLine2,
+        city: addr.city,
+        state: addr.state,
+        postalCode: addr.postalCode,
+        country: addr.country,
+      },
+    };
+  }
+
+  private async applyInventoryForPaymentMode(
+    tx: Prisma.TransactionClient,
+    items: CartForPlaceOrder["items"],
+    paymentMethod: "ONLINE" | "COD",
+  ) {
+    if (paymentMethod === "COD") {
+      await this.deductStockImmediate(tx, items);
+    } else {
+      await this.reserveStockForOnlineCheckout(tx, items);
+    }
+  }
+
+  /** COD: permanently reduce on-hand quantity. */
+  private async deductStockImmediate(
+    tx: Prisma.TransactionClient,
+    items: CartForPlaceOrder["items"],
+  ) {
+    for (const item of items) {
+      const updated = await tx.productVariant.updateMany({
+        where: {
+          id: item.variantId,
+          stockQuantity: { gte: item.quantity },
+        },
+        data: { stockQuantity: { decrement: item.quantity } },
+      });
+      if (updated.count !== 1) {
+        throw new BadRequestException(
+          `Insufficient stock for variant #${item.variantId}`,
+        );
+      }
+    }
+  }
+
+  /** ONLINE: hold units until payment clears or the customer cancels. */
+  private async reserveStockForOnlineCheckout(
+    tx: Prisma.TransactionClient,
+    items: CartForPlaceOrder["items"],
+  ) {
+    for (const item of items) {
+      const rowsAffected = await tx.$executeRaw`
+        UPDATE "ProductVariant"
+        SET "reservedQuantity" = "reservedQuantity" + ${item.quantity}
+        WHERE id = ${item.variantId}
+        AND ("stockQuantity" - "reservedQuantity") >= ${item.quantity}
+      `;
+      if (rowsAffected !== 1) {
+        throw new BadRequestException(
+          `Insufficient stock to reserve for variant #${item.variantId}`,
+        );
+      }
+    }
+  }
+
+  private async validateStockForCheckout(
+    items: Array<{ variantId: number; quantity: number }>,
+    paymentMethod: "ONLINE" | "COD",
+  ) {
+    for (const item of items) {
+      const v = await this.prisma.productVariant.findUnique({
+        where: { id: item.variantId },
+      });
+      if (!v) {
+        throw new NotFoundException(`Variant #${item.variantId} not found`);
+      }
+      if (paymentMethod === "COD") {
+        if (v.stockQuantity < item.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for variant #${item.variantId}`,
+          );
+        }
+      } else {
+        const sellable = v.stockQuantity - v.reservedQuantity;
+        if (sellable < item.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock to reserve for variant #${item.variantId}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+function decimalToNumberOrUndefined(
+  d: Prisma.Decimal | null | undefined,
+): number | undefined {
+  return d != null ? Number(d) : undefined;
+}
+
+function decimalToNumberOrNull(
+  d: Prisma.Decimal | null | undefined,
+): number | null {
+  return d != null ? Number(d) : null;
 }

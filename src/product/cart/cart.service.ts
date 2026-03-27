@@ -9,8 +9,12 @@ import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 const cartInclude = {
   items: {
     include: {
-      variant: { include: { packSize: true } },
-      product: { select: { id: true, name: true } },
+      variant: {
+        include: {
+          packSize: true,
+          product: { select: { id: true, name: true, taxPercent: true } },
+        },
+      },
     },
   },
 };

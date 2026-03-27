@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ProductsService } from "./products.service";
+import { ReviewsService } from "../reviews/reviews.service";
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -32,7 +33,10 @@ import { Public } from "../../auth/public.decorator";
 @ApiTags("Products")
 @Controller("products")
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly reviewsService: ReviewsService,
+  ) {}
 
   @Public()
   @Get()
@@ -44,6 +48,15 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: "List of products with variants" })
   findAll(@Query() filter: ProductFilterDto) {
     return this.productsService.findAll(filter);
+  }
+
+  @Public()
+  @Get(":id/reviews")
+  @ApiOperation({ summary: "List reviews and rating aggregate for a product" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiResponse({ status: 200, description: "Reviews and aggregate" })
+  getReviews(@Param("id", ParseIntPipe) id: number) {
+    return this.reviewsService.findByProduct(id);
   }
 
   @Public()

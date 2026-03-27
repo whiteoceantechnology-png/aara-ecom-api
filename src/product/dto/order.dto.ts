@@ -16,8 +16,18 @@ export class CreateOrderDto {
 
 export class UpdateOrderStatusDto {
   @ApiProperty({
-    example: "shipped",
-    enum: ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+    example: "SHIPPED",
+    description:
+      "Fulfillment status. Use PROCESSING, SHIPPED, DELIVERED, CANCELLED, FAILED (legacy rows may still show pending).",
+    enum: [
+      "pending",
+      "PENDING_PAYMENT",
+      "PROCESSING",
+      "SHIPPED",
+      "DELIVERED",
+      "CANCELLED",
+      "FAILED",
+    ],
   })
   @IsString()
   status: string;

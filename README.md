@@ -23,7 +23,7 @@
 
 ## Description
 
-**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants, brands), cart, orders, payments, customer management, and a complete **Admin panel** (dashboard, product/category/brand management, customer moderation, order management with CSV export).
+**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants, brands), cart, **checkout** (server-side pricing, coupons, idempotent place-order, inventory reservation), orders, payments, **product reviews** (verified purchase), customer management, and a complete **Admin panel** (dashboard, product/category/brand management, customer moderation, order management with CSV export).
 
 ---
 
@@ -273,6 +273,7 @@ The following routes are accessible **without** a token:
 | `GET /categories/:id/products` | Products by category |
 | `GET /products` | List products |
 | `GET /products/:id` | Product detail |
+| `GET /products/:id/reviews` | Product reviews + rating aggregate |
 | `GET /products/:id/variants` | Variants for a product |
 | `POST /product/variant` | Product variant lookup |
 | `POST /product/specification` | Product specification lookup |
@@ -456,6 +457,7 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | `GET`    | `/products?search=ashwagandha` | 🔓   | Search products by name              |
 | `GET`    | `/products?specKey=Fabric&specValue=Cotton` | 🔓 | Filter by spec (Amazon-style) |
 | `GET`    | `/products/:id`                | 🔓   | Get product by ID (includes variants)|
+| `GET`    | `/products/:id/reviews`       | 🔓   | Reviews list + `avgRating` / `totalReviews` |
 | `GET`    | `/products/:id/variants`       | 🔓   | Get all variants for a product       |
 | `POST`   | `/products`                    | 🔒   | Create a product                     |
 | `PUT`    | `/products/:id`                | 🔒   | Update a product                     |
@@ -493,21 +495,44 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | `PUT`    | `/cart/update`                  | 🔒   | Update cart item quantity      |
 | `DELETE` | `/cart/remove/:cartItemId`      | 🔒   | Remove item from cart          |
 
+### 🧾 Checkout (customer JWT)
+
+Uses the same **customer** token as `/customers/login` (`payload.customerId`). Prices are **always recomputed** on the server from live variant prices (cart line prices are not trusted).
+
+| Method   | Endpoint                    | Auth | Description |
+|----------|-----------------------------|------|-------------|
+| `GET`    | `/checkout/summary`         | 🔒   | Subtotal, discount, tax, shipping, total; optional session coupon |
+| `POST`   | `/checkout/apply-coupon`    | 🔒   | Store coupon on checkout session (24h TTL) |
+| `POST`   | `/checkout/place-order`     | 🔒   | Create order; optional header `Idempotency-Key` for safe retries |
+
+**Place-order body:** `addressId?`, `paymentMethod` (`CARD` \| `UPI` \| `NETBANKING` \| `COD`), `couponCode?`.  
+**Non-COD:** stock is **reserved** until payment succeeds (Razorpay verify or `POST /payments`). **COD:** stock is reduced immediately.
+
+**Env:** `CHECKOUT_SHIPPING_FLAT` (optional; default `50`).
+
 ### 📋 Orders
 
 | Method   | Endpoint                  | Auth | Description                          |
 |----------|---------------------------|------|--------------------------------------|
-| `POST`   | `/orders`                 | 🔒   | Create order from cart               |
-| `GET`    | `/orders`                 | 🔒   | Get all orders                       |
-| `GET`    | `/orders?customerId=1`    | 🔒   | Get orders filtered by customer      |
-| `GET`    | `/orders/:id`             | 🔒   | Get order by ID                      |
+| `POST`   | `/orders`                 | 🔒   | Legacy create from cart — **`customerId` in body must match JWT** |
+| `GET`    | `/orders`                 | 🔒   | List orders for the **authenticated customer** only |
+| `GET`    | `/orders/:id`             | 🔒   | Order detail — only if it belongs to the customer |
+| `POST`   | `/orders/:id/cancel`      | 🔒   | Cancel while `PENDING_PAYMENT` (releases reservation) |
 | `PUT`    | `/orders/:id/status`      | 🔒   | Update order status                  |
+
+### ⭐ Reviews (customer JWT for write; public read on product)
+
+| Method   | Endpoint              | Auth | Description |
+|----------|-----------------------|------|-------------|
+| `POST`   | `/reviews`            | 🔒   | Create review — requires `orderId`; order must be **DELIVERED** and contain the product |
+| `DELETE` | `/reviews/:id`        | 🔒   | Delete own review |
+| `GET`    | `/products/:id/reviews` | 🔓 | List reviews + aggregates (see Products) |
 
 ### 💳 Payments
 
 | Method   | Endpoint                        | Auth | Description                    |
 |----------|---------------------------------|------|--------------------------------|
-| `POST`   | `/payments`                     | 🔒   | Create payment (COD, manual)   |
+| `POST`   | `/payments`                     | 🔒   | Record payment — marks order paid and **commits** reserved stock (online orders) |
 | `POST`   | `/payments/razorpay/create-order` | 🔒 | Create Razorpay order for checkout |
 | `POST`   | `/payments/razorpay/verify`     | 🔒   | Verify Razorpay payment signature |
 | `GET`    | `/payments/razorpay/status`     | 🔒   | Check if Razorpay is configured |
@@ -597,12 +622,39 @@ curl -X POST http://localhost:3008/cart/add \
   -d '{ "customerId": 1, "variantId": 1, "quantity": 2 }'
 ```
 
-### Example: Create Order (from cart)
+### Example: Checkout summary (customer token)
+```bash
+curl http://localhost:3008/checkout/summary \
+  -H "Authorization: Bearer <customer-jwt>"
+```
+
+### Example: Place order (recommended)
+```bash
+curl -X POST http://localhost:3008/checkout/place-order \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <customer-jwt>" \
+  -H "Idempotency-Key: checkout-attempt-001" \
+  -d '{ "addressId": 1, "paymentMethod": "CARD", "couponCode": "SAVE10" }'
+```
+
+### Example: Create Order (legacy — customer JWT; `customerId` must match token)
 ```bash
 curl -X POST http://localhost:3008/orders \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your-token>" \
+  -H "Authorization: Bearer <customer-jwt>" \
   -d '{ "customerId": 1, "cartId": 1 }'
+```
+
+**Typical `201` body (online checkout — unpaid, stock reserved):**
+```json
+{
+  "id": 1,
+  "orderNumber": "ORD-abc123def4567890",
+  "status": "PENDING_PAYMENT",
+  "totalAmount": "130",
+  "paymentStatus": "pending",
+  "items": []
+}
 ```
 
 ### Example: Razorpay Payment Flow
@@ -630,24 +682,11 @@ curl -X POST http://localhost:3008/payments/razorpay/verify \
   }'
 ```
 
-**Response `201`:**
-```json
-{
-  "id": 1,
-  "orderNumber": "ORD-1741700835000",
-  "status": "pending",
-  "totalAmount": "62",
-  "paymentStatus": "pending",
-  "items": [
-    {
-      "productName": "Ashwagandha Root",
-      "sizeLabel": "25 g",
-      "price": "31",
-      "quantity": 2,
-      "subtotal": "62"
-    }
-  ]
-}
+**Verify response:** `{ "success": true, "payment": { "id": 1, "orderId": 1, "paymentMethod": "razorpay", ... } }` — order moves to **`PROCESSING`** with **`paymentStatus: paid`** and reserved stock is **committed**.
+
+### Example: Product reviews (public)
+```bash
+curl http://localhost:3008/products/1/reviews
 ```
 
 ### Example: Create Payment
@@ -885,27 +924,17 @@ $ npm run test:cov
 
 ### Test Coverage
 
-| Spec File                                          | Tests | What's Covered                                                       |
-|----------------------------------------------------|-------|----------------------------------------------------------------------|
-| `auth/auth.service.spec.ts`                        | 16    | All service methods with edge cases                                  |
-| `auth/auth.controller.spec.ts`                     | 5     | All auth controller endpoints                                        |
-| `auth/user.repository.spec.ts`                     | 10    | All repository database operations                                   |
-| `product/categories/categories.controller.spec.ts` | 7     | CRUD + NotFoundException cases                                       |
-| `product/products/products.controller.spec.ts`     | 9     | CRUD + filter/search + variants endpoint                             |
-| `product/variants/variants.controller.spec.ts`     | 5     | Create, update, delete + NotFoundException                           |
-| `product/customers/customers.controller.spec.ts`   | 6     | Register, login (JWT), getById + error cases                         |
-| `product/cart/cart.controller.spec.ts`             | 8     | Get, add, update, remove + edge cases                                |
-| `product/orders/orders.controller.spec.ts`         | 7     | Create, findAll (with filter), findOne, updateStatus                 |
-| `product/payments/payments.controller.spec.ts`     | 6     | Create, findByOrder, findOne + NotFoundException                     |
-| `admin/admin-auth.controller.spec.ts`              | 4     | Register (conflict), login (valid + invalid credentials)             |
-| `admin/admin-dashboard.controller.spec.ts`         | 4     | Summary stats, sales report (default + custom days)                  |
-| `admin/admin-categories.controller.spec.ts`        | 8     | Admin CRUD + NotFoundException + empty list                          |
-| `admin/admin-products.controller.spec.ts`          | 14    | Brand CRUD, product CRUD, stock update, image add/delete             |
-| `admin/admin-customers.controller.spec.ts`         | 6     | List (filter, search), detail (totalSpent), toggle-block             |
-| `admin/admin-orders.controller.spec.ts`            | 7     | List (filters), findOne, update, CSV export with correct headers     |
-| `app.controller.spec.ts`                           | 1     | App health check                                                     |
+| Spec File | What's covered |
+|-----------|----------------|
+| `product/checkout/checkout.controller.spec.ts` | Checkout summary, apply-coupon, place-order, idempotency header |
+| `product/checkout/checkout-pricing.util.spec.ts` | Server-side totals, discounts, tax, `toCartLineInputs` |
+| `product/reviews/reviews.controller.spec.ts` | Create / delete review |
+| `product/orders/orders.controller.spec.ts` | Orders + cancel + customer JWT checks |
+| `product/payments/payments.service.spec.ts` | Payment create + inventory commit via `OrdersService` |
+| `product/products/products.controller.spec.ts` | Products CRUD + **`getReviews`** (`/products/:id/reviews`) |
+| *(plus existing suites under `auth/`, `admin/`, `common/`, …)* | — |
 
-**Total: 144 tests across 17 suites — all passing ✅**
+Run **`npm test`** for the full suite (for example **32** suites / **313** tests after checkout & reviews coverage). Use **`npm run test:cov`** for coverage reports.
 
 ---
 
@@ -944,7 +973,20 @@ src/
 │   │   ├── variant.dto.ts          ← Variant create/update DTOs
 │   │   ├── customer.dto.ts         ← Customer register/login DTOs
 │   │   ├── cart.dto.ts             ← Cart add/update/remove DTOs
+│   │   ├── checkout.dto.ts         ← Checkout apply-coupon / place-order
+│   │   ├── review.dto.ts           ← Product reviews
 │   │   └── order.dto.ts            ← Order/payment DTOs
+│   ├── decorators/
+│   │   └── current-customer.decorator.ts  ← @CurrentCustomerId() (customer JWT)
+│   ├── checkout/
+│   │   ├── checkout.controller.ts / .spec.ts
+│   │   ├── checkout.service.ts
+│   │   ├── checkout-pricing.util.ts / .spec.ts
+│   │   └── checkout.module.ts
+│   ├── reviews/
+│   │   ├── reviews.controller.ts / .spec.ts
+│   │   ├── reviews.service.ts
+│   │   └── reviews.module.ts
 │   ├── product-lookup.controller.ts ← POST /product/variant, /product/specification
 │   ├── categories/
 │   │   ├── categories.controller.ts       ← /categories endpoints + Swagger
@@ -953,7 +995,7 @@ src/
 │   │   └── categories.module.ts
 │   ├── products/
 │   │   ├── products.controller.ts         ← /products endpoints + Swagger
-│   │   ├── products.controller.spec.ts    ← Unit tests (9 tests)
+│   │   ├── products.controller.spec.ts    ← Unit tests (incl. getReviews)
 │   │   ├── products.service.ts            ← Business logic (public + admin methods with brand/image support)
 │   │   └── products.module.ts
 │   ├── variants/
@@ -973,13 +1015,14 @@ src/
 │   │   └── cart.module.ts
 │   ├── orders/
 │   │   ├── orders.controller.ts           ← /orders endpoints + Swagger
-│   │   ├── orders.controller.spec.ts      ← Unit tests (7 tests)
+│   │   ├── orders.controller.spec.ts      ← Unit tests (orders + cancel + JWT)
 │   │   ├── orders.service.ts              ← Business logic (cart → order) + admin methods (findAll/findOne/update/exportCsv)
 │   │   └── orders.module.ts
 │   ├── payments/
 │   │   ├── payments.controller.ts         ← /payments endpoints + Swagger
-│   │   ├── payments.controller.spec.ts    ← Unit tests (6 tests)
+│   │   ├── payments.controller.spec.ts    ← Controller unit tests
 │   │   ├── payments.service.ts            ← Business logic
+│   │   ├── payments.service.spec.ts       ← Payment + order commit
 │   │   └── payments.module.ts
 │   └── product.module.ts           ← Root module — aggregates all sub-modules
 ├── admin/
@@ -1011,10 +1054,8 @@ src/
 ├── app.module.ts
 └── main.ts                         ← Swagger + ValidationPipe bootstrap
 prisma/
-├── schema.prisma                   ← DB schema (User, UserProfile, UserAddress, Category,
-│                                     Product, PackSize, ProductVariant, ProductImage,
-│                                     Customer, CustomerAddress, Cart, CartItem,
-│                                     Order, OrderItem, Payment, Shipment)
+├── schema.prisma                   ← DB schema (+ Coupon, CheckoutSession, CheckoutIdempotency,
+│                                     ProductReview, Product.avgRating / Variant.reservedQuantity, …)
 ├── prisma.config.ts                ← Prisma 7 config
 └── migrations/                     ← Migration history
 scripts/
@@ -1031,9 +1072,9 @@ scripts/
 | `UserAddress`    | User delivery addresses                                       |
 | `Brand`          | Product brands (name, slug, logo, isActive)                   |
 | `Category`       | Product categories — supports parent/child hierarchy          |
-| `Product`        | Products with HSN code, tax, brand, category, status          |
+| `Product`        | Products with HSN code, tax, brand, category, status; `avgRating`, `reviewCount` |
 | `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                              |
-| `ProductVariant` | Product + pack size combination with price, SKU, stock        |
+| `ProductVariant` | Product + pack size combination with price, SKU, stock, `reservedQuantity` |
 | `ProductImage`   | Product images (with isPrimary flag)                          |
 | `VariantImage`   | Multiple images per product variant                           |
 | `ProductSpecification` | Product specs (JSON), shortDescription, longDescription, moreInfo |
@@ -1042,7 +1083,11 @@ scripts/
 | `CustomerAddress`| Customer delivery addresses                                   |
 | `Cart`           | Customer cart                                                 |
 | `CartItem`       | Items in a cart                                               |
-| `Order`          | Orders with status, trackingId, notes, paymentStatus          |
+| `Coupon`         | Promo codes (`percentOff`, caps, min order, expiry)            |
+| `CheckoutSession` | Per-customer checkout coupon session (TTL)                  |
+| `CheckoutIdempotency` | Maps customer + idempotency key → order (retries)        |
+| `ProductReview`  | Rating + comment; unique per customer+product; optional `orderId` |
+| `Order`          | Orders: status, address snapshot, discount, coupon, shipping, payment |
 | `OrderItem`      | Line items in an order                                        |
 | `Payment`        | Payment records (paymentMethod, paymentStatus, paymentDate)   |
 | `Shipment`       | Shipment tracking                                             |

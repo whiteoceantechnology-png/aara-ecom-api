@@ -1,5 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from "@nestjs/common";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
 import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
@@ -7,8 +11,9 @@ import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 const mockOrdersService = {
   create: jest.fn(),
   findAll: jest.fn(),
-  findOne: jest.fn(),
+  findOneForCustomer: jest.fn(),
   updateStatus: jest.fn(),
+  cancel: jest.fn(),
 };
 
 describe("OrdersController", () => {
@@ -28,19 +33,23 @@ describe("OrdersController", () => {
     expect(controller).toBeDefined();
   });
 
-  // ──────────────────────────────────────────────
-  // POST /orders
-  // ──────────────────────────────────────────────
   describe("create()", () => {
     it("should create an order from a cart", async () => {
       const dto = { customerId: 1, cartId: 2 };
-      const order = { id: 10, orderNumber: "ORD-123456", status: "pending" };
+      const order = { id: 10, orderNumber: "ORD-123456", status: "PENDING_PAYMENT" };
       mockOrdersService.create.mockResolvedValue(order);
 
-      const result = await controller.create(dto as any);
+      const result = await controller.create(dto as any, 1);
 
       expect(mockOrdersService.create).toHaveBeenCalledWith(dto);
       expect(result).toEqual(order);
+    });
+
+    it("should reject customerId mismatch", () => {
+      expect(() =>
+        controller.create({ customerId: 2, cartId: 1 } as any, 1),
+      ).toThrow(ForbiddenException);
+      expect(mockOrdersService.create).not.toHaveBeenCalled();
     });
 
     it("should throw BadRequestException when cart is empty", async () => {
@@ -49,72 +58,65 @@ describe("OrdersController", () => {
       );
 
       await expect(
-        controller.create({ customerId: 1, cartId: 99 } as any),
+        controller.create({ customerId: 1, cartId: 99 } as any, 1),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // GET /orders
-  // ──────────────────────────────────────────────
   describe("findAll()", () => {
-    it("should return all orders when no customerId provided", async () => {
+    it("should return orders for the authenticated customer", async () => {
       const orders = [{ id: 1 }, { id: 2 }];
       mockOrdersService.findAll.mockResolvedValue(orders);
 
-      const result = await controller.findAll(undefined);
-
-      expect(mockOrdersService.findAll).toHaveBeenCalledWith(undefined);
-      expect(result).toEqual(orders);
-    });
-
-    it("should return orders filtered by customerId", async () => {
-      const orders = [{ id: 1, customerId: 5 }];
-      mockOrdersService.findAll.mockResolvedValue(orders);
-
-      const result = await controller.findAll("5");
+      const result = await controller.findAll(5);
 
       expect(mockOrdersService.findAll).toHaveBeenCalledWith(5);
       expect(result).toEqual(orders);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // GET /orders/:id
-  // ──────────────────────────────────────────────
   describe("findOne()", () => {
     it("should return an order by ID", async () => {
       const order = { id: 1, orderNumber: "ORD-111", items: [] };
-      mockOrdersService.findOne.mockResolvedValue(order);
+      mockOrdersService.findOneForCustomer.mockResolvedValue(order);
 
-      const result = await controller.findOne(1);
+      const result = await controller.findOne(1, 5);
 
-      expect(mockOrdersService.findOne).toHaveBeenCalledWith(1);
+      expect(mockOrdersService.findOneForCustomer).toHaveBeenCalledWith(1, 5);
       expect(result).toEqual(order);
     });
 
     it("should throw NotFoundException for a non-existent order", async () => {
-      mockOrdersService.findOne.mockRejectedValue(
+      mockOrdersService.findOneForCustomer.mockRejectedValue(
         new NotFoundException("Order not found"),
       );
 
-      await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(999, 5)).rejects.toThrow(NotFoundException);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // PUT /orders/:id/status
-  // ──────────────────────────────────────────────
+  describe("cancel()", () => {
+    it("should cancel an order", async () => {
+      const cancelled = { id: 1, status: "CANCELLED" };
+      mockOrdersService.cancel.mockResolvedValue(cancelled);
+
+      const result = await controller.cancel(1, 5);
+
+      expect(mockOrdersService.cancel).toHaveBeenCalledWith(1, 5);
+      expect(result).toEqual(cancelled);
+    });
+  });
+
   describe("updateStatus()", () => {
     it("should update the order status", async () => {
-      const updated = { id: 1, status: "shipped" };
+      const updated = { id: 1, status: "SHIPPED" };
       mockOrdersService.updateStatus.mockResolvedValue(updated);
 
       const result = await controller.updateStatus(1, {
-        status: "shipped",
+        status: "SHIPPED",
       } as any);
 
-      expect(mockOrdersService.updateStatus).toHaveBeenCalledWith(1, "shipped");
+      expect(mockOrdersService.updateStatus).toHaveBeenCalledWith(1, "SHIPPED");
       expect(result).toEqual(updated);
     });
 
@@ -124,14 +126,11 @@ describe("OrdersController", () => {
       );
 
       await expect(
-        controller.updateStatus(999, { status: "shipped" } as any),
+        controller.updateStatus(999, { status: "SHIPPED" } as any),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
-  // ──────────────────────────────────────────────
-  // Authentication decorators
-  // ──────────────────────────────────────────────
   describe("auth decorators", () => {
     it("should have @ApiBearerAuth() on the controller", () => {
       const metadata = Reflect.getMetadata(
