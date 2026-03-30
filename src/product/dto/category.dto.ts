@@ -7,11 +7,6 @@ export class CreateCategoryDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: "raw-dried-herbs" })
-  @IsString()
-  @IsNotEmpty()
-  slug: string;
-
   @ApiPropertyOptional({
     example: "/images/category/sample.png",
     description: "Category image URL",

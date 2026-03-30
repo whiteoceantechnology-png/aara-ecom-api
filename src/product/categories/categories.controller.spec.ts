@@ -66,7 +66,6 @@ describe("CategoriesController", () => {
     it("should create and return a category", async () => {
       const dto: CreateCategoryDto = {
         name: "Raw Dried Herbs",
-        slug: "raw-dried-herbs",
       };
       service.create.mockResolvedValue(mockCategory);
       const result = await controller.create(dto);

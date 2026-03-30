@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
+import { uniqueCategorySlug } from "../common/category-slug.util";
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -86,7 +87,14 @@ export class ProductRepository {
   }
 
   async createCategory(dto: CreateCategoryDto) {
-    return this.prisma.category.create({ data: dto });
+    const slug = await uniqueCategorySlug(this.prisma, dto.name);
+    return this.prisma.category.create({
+      data: {
+        name: dto.name,
+        slug,
+        ...(dto.categoryImage != null && { categoryImage: dto.categoryImage }),
+      },
+    });
   }
 
   async updateCategory(id: number, dto: UpdateCategoryDto) {
