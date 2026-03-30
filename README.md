@@ -276,7 +276,8 @@ The following routes are accessible **without** a token:
 | `GET /products/:id/reviews` | Product reviews + rating aggregate |
 | `GET /products/:id/variants` | Variants for a product |
 | `POST /product/variant` | Product variant lookup |
-| `POST /product/specification` | Product specification lookup |
+| `GET /product/specification/:id` | Product specification (read by product ID) |
+| `POST /product/specification/:id` | Create/update product specification (auth) |
 
 > All other routes return `401 Unauthorized` without a valid token.
 
@@ -467,8 +468,9 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 
 | Method   | Endpoint                  | Auth | Description                                    |
 |----------|---------------------------|------|------------------------------------------------|
-| `POST`   | `/product/variant`        | 🔓   | Get variants with images, colors, stock, price |
-| `POST`   | `/product/specification`  | 🔓   | Get product specification (shortDescription, longDescription, moreInfoHtml) |
+| `POST`   | `/product/variant`              | 🔓   | Get variants with images, colors, stock, price |
+| `GET`    | `/product/specification/:id`    | 🔓   | Get specification JSON + description (`longDescription` / `productDescription`, `moreInfoHtml` / `moreInfo`, `categoryName`) |
+| `POST`   | `/product/specification/:id`    | 🔒   | Create/update specification (same body as admin `PUT /admin/products/:id/specification`) |
 
 ### 🔢 Variants
 
@@ -987,7 +989,7 @@ src/
 │   │   ├── reviews.controller.ts / .spec.ts
 │   │   ├── reviews.service.ts
 │   │   └── reviews.module.ts
-│   ├── product-lookup.controller.ts ← POST /product/variant, /product/specification
+│   ├── product-lookup.controller.ts ← POST /product/variant; GET/POST /product/specification/:id
 │   ├── categories/
 │   │   ├── categories.controller.ts       ← /categories endpoints + Swagger
 │   │   ├── categories.controller.spec.ts  ← Unit tests (7 tests)

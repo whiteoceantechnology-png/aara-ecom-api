@@ -363,6 +363,10 @@ describe("ProductsService", () => {
       const result = await service.findSpecification(1);
 
       expect(result.specification).toBeNull();
+      expect(result.description?.longDescription).toBe("D");
+      expect(result.description?.productDescription).toBe("D");
+      expect(result.description?.moreInfo).toBeNull();
+      expect(result.description?.moreInfoHtml).toBeNull();
       expect(result.description?.categoryName).toBe("Cat");
     });
 
@@ -385,7 +389,10 @@ describe("ProductsService", () => {
 
       expect(result.specification).not.toBeNull();
       expect(result.description?.shortDescription).toBe("S");
+      expect(result.description?.longDescription).toBe("P");
+      expect(result.description?.productDescription).toBe("P");
       expect(result.description?.moreInfoHtml).toBe("<p>x</p>");
+      expect(result.description?.moreInfo).toBe("<p>x</p>");
     });
   });
 
@@ -521,10 +528,24 @@ describe("ProductsService", () => {
 
   describe("upsertSpecification", () => {
     it("should run transaction with upsert, deleteMany, createMany", async () => {
-      prisma.product.findUnique.mockResolvedValue(productRow);
+      prisma.product.findUnique
+        .mockResolvedValueOnce(productRow)
+        .mockResolvedValueOnce({
+          id: 1,
+          description: "l",
+          category: { name: "Herbs" },
+        });
       prisma.productSpecification.upsert.mockResolvedValue({ id: 1 });
       prisma.productSpecItem.deleteMany.mockResolvedValue({ count: 0 });
       prisma.productSpecItem.createMany.mockResolvedValue({ count: 2 });
+      prisma.productSpecification.findFirst.mockResolvedValue({
+        id: 1,
+        productId: 1,
+        productSpecification: [{ title: "T", items: [{ key: "k", value: "v" }] }],
+        shortDescription: "s",
+        productDescription: "l",
+        moreInfo: "m",
+      });
 
       const dto = {
         productId: 1,
@@ -541,7 +562,7 @@ describe("ProductsService", () => {
         },
       };
 
-      await service.upsertSpecification(dto as any);
+      const result = await service.upsertSpecification(dto as any);
 
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(prisma.productSpecification.upsert).toHaveBeenCalled();
@@ -555,6 +576,51 @@ describe("ProductsService", () => {
           }),
         ],
       });
+      expect(result.specification?.productId).toBe(1);
+      expect(result.description?.categoryName).toBe("Herbs");
+    });
+
+    it("should map productDescription and moreInfo aliases onto DB fields", async () => {
+      prisma.product.findUnique
+        .mockResolvedValueOnce(productRow)
+        .mockResolvedValueOnce({
+          id: 1,
+          description: null,
+          category: { name: "Cat" },
+        });
+      prisma.productSpecification.upsert.mockResolvedValue({ id: 1 });
+      prisma.productSpecItem.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.productSpecItem.createMany.mockResolvedValue({ count: 0 });
+      prisma.productSpecification.findFirst.mockResolvedValue({
+        id: 1,
+        productId: 1,
+        productSpecification: [],
+        shortDescription: null,
+        productDescription: "PD",
+        moreInfo: "<ul></ul>",
+      });
+
+      await service.upsertSpecification({
+        productId: 1,
+        specification: [],
+        description: {
+          productDescription: "PD",
+          moreInfo: "<ul></ul>",
+        },
+      } as any);
+
+      expect(prisma.productSpecification.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            productDescription: "PD",
+            moreInfo: "<ul></ul>",
+          }),
+          create: expect.objectContaining({
+            productDescription: "PD",
+            moreInfo: "<ul></ul>",
+          }),
+        }),
+      );
     });
   });
 

@@ -370,12 +370,22 @@ describe("AdminProductsController", () => {
           moreInfoHtml: "<ul><li>Feature 1</li></ul>",
         },
       };
-      const spec = {
-        id: 1,
-        productId: 7,
-        productSpecification: dto.specification,
+      const payload = {
+        specification: {
+          id: 1,
+          productId: 7,
+          productSpecification: dto.specification,
+        },
+        description: {
+          shortDescription: "Brief summary",
+          longDescription: "Full description",
+          productDescription: "Full description",
+          moreInfoHtml: "<ul><li>Feature 1</li></ul>",
+          moreInfo: "<ul><li>Feature 1</li></ul>",
+          categoryName: "Herbs",
+        },
       };
-      mockProductsService.upsertSpecification.mockResolvedValue(spec);
+      mockProductsService.upsertSpecification.mockResolvedValue(payload);
 
       const result = await controller.upsertSpecification(7, dto);
 
@@ -383,7 +393,7 @@ describe("AdminProductsController", () => {
         ...dto,
         productId: 7,
       });
-      expect(result).toEqual(spec);
+      expect(result).toEqual(payload);
     });
   });
 

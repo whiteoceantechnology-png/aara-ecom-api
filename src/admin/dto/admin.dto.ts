@@ -277,12 +277,28 @@ export class SpecificationDescriptionDto {
   @IsString()
   longDescription?: string;
 
+  /** Same as `longDescription` — preferred by some clients */
+  @ApiPropertyOptional({
+    example: "Step up your style game with these classic white trousers...",
+  })
+  @IsOptional()
+  @IsString()
+  productDescription?: string;
+
   @ApiPropertyOptional({
     example: "<ul><li>Feature 1</li><li>Feature 2</li></ul>",
   })
   @IsOptional()
   @IsString()
   moreInfoHtml?: string;
+
+  /** Same as `moreInfoHtml` — preferred by some clients */
+  @ApiPropertyOptional({
+    example: "<ul><li>Premium fabric for comfort & durability</li></ul>",
+  })
+  @IsOptional()
+  @IsString()
+  moreInfo?: string;
 }
 
 export class UpsertSpecificationBodyDto {

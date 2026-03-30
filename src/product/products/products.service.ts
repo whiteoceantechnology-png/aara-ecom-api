@@ -214,6 +214,10 @@ export class ProductsService {
       where: { productId },
     });
 
+    const longText =
+      spec?.productDescription ?? product.description ?? null;
+    const moreHtml = spec?.moreInfo ?? null;
+
     return {
       specification: spec
         ? {
@@ -224,9 +228,10 @@ export class ProductsService {
         : null,
       description: {
         shortDescription: spec?.shortDescription ?? null,
-        longDescription:
-          spec?.productDescription ?? product.description ?? null,
-        moreInfoHtml: spec?.moreInfo ?? null,
+        longDescription: longText,
+        productDescription: longText,
+        moreInfoHtml: moreHtml,
+        moreInfo: moreHtml,
         categoryName: product.category.name,
       },
     };
@@ -338,22 +343,26 @@ export class ProductsService {
     await this.findOne(dto.productId);
 
     const flattened = this.flattenSpecs(dto.productId, dto.specification);
+    const desc = dto.description;
+    const longText =
+      desc?.longDescription ?? desc?.productDescription ?? null;
+    const moreHtml = desc?.moreInfoHtml ?? desc?.moreInfo ?? null;
 
-    const [spec] = await this.prisma.$transaction([
+    await this.prisma.$transaction([
       this.prisma.productSpecification.upsert({
         where: { productId: dto.productId },
         update: {
           productSpecification: dto.specification as object,
-          shortDescription: dto.description?.shortDescription ?? null,
-          productDescription: dto.description?.longDescription ?? null,
-          moreInfo: dto.description?.moreInfoHtml ?? null,
+          shortDescription: desc?.shortDescription ?? null,
+          productDescription: longText,
+          moreInfo: moreHtml,
         },
         create: {
           productId: dto.productId,
           productSpecification: dto.specification as object,
-          shortDescription: dto.description?.shortDescription ?? null,
-          productDescription: dto.description?.longDescription ?? null,
-          moreInfo: dto.description?.moreInfoHtml ?? null,
+          shortDescription: desc?.shortDescription ?? null,
+          productDescription: longText,
+          moreInfo: moreHtml,
         },
       }),
       this.prisma.productSpecItem.deleteMany({
@@ -364,7 +373,7 @@ export class ProductsService {
       }),
     ]);
 
-    return spec;
+    return this.findSpecification(dto.productId);
   }
 
   async deleteSpecification(productId: number) {
