@@ -44,7 +44,15 @@ async function bootstrap() {
   // Swagger setup
   const config = new DocumentBuilder()
     .setTitle("Aara API")
-    .setDescription("Aara API - Authentication Endpoints")
+    .setDescription(
+      [
+        "E‑commerce REST API: **customers**, **products** (variants, images, reviews), **cart**, **checkout** (coupons, idempotent orders), **payments**, **wishlist**.",
+        "",
+        "**Categories:** `POST /categories` / `POST /admin/categories` use **`name`** and optional **`categoryImage`** only (no slug field — categories use numeric `id`).",
+        "",
+        "**Tax:** `GET /taxes` (public) lists rates; use returned **`id`** as **`taxId`** on product create/update. `POST /taxes` creates a new rate (authenticated).",
+      ].join("\n"),
+    )
     .setVersion("1.0")
     .addBearerAuth()
     .build();

@@ -30,7 +30,12 @@ export class AdminCategoriesService {
   }
 
   async create(dto: AdminCreateCategoryDto) {
-    return await this.prisma.category.create({ data: dto });
+    return await this.prisma.category.create({
+      data: {
+        name: dto.name,
+        ...(dto.categoryImage != null && { categoryImage: dto.categoryImage }),
+      },
+    });
   }
 
   async update(id: number, dto: AdminUpdateCategoryDto) {

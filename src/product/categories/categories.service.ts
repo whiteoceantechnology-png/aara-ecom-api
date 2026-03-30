@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { toImageUrl } from "../../common/image-url";
-import { uniqueCategorySlug } from "../../common/category-slug.util";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import {
   AdminCreateCategoryDto,
@@ -75,7 +74,6 @@ export class CategoriesService {
       select: {
         id: true,
         name: true,
-        slug: true,
         categoryImage: true,
         isActive: true,
         createdAt: true,
@@ -95,11 +93,9 @@ export class CategoriesService {
   }
 
   async create(dto: CreateCategoryDto) {
-    const slug = await uniqueCategorySlug(this.prisma, dto.name);
     return this.prisma.category.create({
       data: {
         name: dto.name,
-        slug,
         ...(dto.categoryImage != null && { categoryImage: dto.categoryImage }),
       },
     });
@@ -139,7 +135,12 @@ export class CategoriesService {
   }
 
   async adminCreate(dto: AdminCreateCategoryDto) {
-    return this.prisma.category.create({ data: dto });
+    return this.prisma.category.create({
+      data: {
+        name: dto.name,
+        ...(dto.categoryImage != null && { categoryImage: dto.categoryImage }),
+      },
+    });
   }
 
   async adminUpdate(id: number, dto: AdminUpdateCategoryDto) {

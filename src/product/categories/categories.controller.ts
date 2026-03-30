@@ -58,7 +58,10 @@ export class CategoriesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a new category" })
+  @ApiOperation({
+    summary: "Create a category",
+    description: "Body: `name` (required), optional `categoryImage`. Categories are identified by `id` (no URL slug column).",
+  })
   @ApiBody({ type: CreateCategoryDto })
   @ApiResponse({ status: 201, description: "Category created" })
   create(@Body() dto: CreateCategoryDto) {

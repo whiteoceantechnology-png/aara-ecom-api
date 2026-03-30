@@ -47,7 +47,11 @@ export class AdminCategoriesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a category" })
+  @ApiOperation({
+    summary: "Create a category",
+    description:
+      "Send `name` and optional `categoryImage` (same contract as `POST /categories`).",
+  })
   @ApiBody({ type: AdminCreateCategoryDto })
   @ApiResponse({ status: 201, description: "Category created" })
   create(@Body() dto: AdminCreateCategoryDto) {
@@ -55,7 +59,7 @@ export class AdminCategoriesController {
   }
 
   @Put(":id")
-  @ApiOperation({ summary: "Edit category name, slug or active status" })
+  @ApiOperation({ summary: "Edit category name, image, or active status" })
   @ApiParam({ name: "id", type: Number })
   @ApiBody({ type: AdminUpdateCategoryDto })
   update(

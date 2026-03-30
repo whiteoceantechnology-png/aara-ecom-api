@@ -8,7 +8,6 @@ import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 const mockCategory = {
   id: 1,
   name: "Raw Dried Herbs",
-  slug: "raw-dried-herbs",
   createdAt: new Date(),
 };
 
@@ -71,6 +70,14 @@ describe("CategoriesController", () => {
       const result = await controller.create(dto);
       expect(result).toEqual(mockCategory);
       expect(service.create).toHaveBeenCalledWith(dto);
+    });
+
+    it("should document categories use id (no slug) in Swagger operation", () => {
+      const meta = Reflect.getMetadata(
+        "swagger/apiOperation",
+        CategoriesController.prototype.create,
+      );
+      expect(meta?.description).toMatch(/id|slug column/i);
     });
   });
 

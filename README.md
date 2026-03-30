@@ -449,6 +449,43 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | `PUT`    | `/categories/:id`           | 🔒   | Update a category              |
 | `DELETE` | `/categories/:id`           | 🔒   | Delete a category              |
 
+**Create body (`POST /categories`)** — send JSON only:
+
+```json
+{ "name": "Raw Dried Herbs", "categoryImage": "/images/category/sample.png" }
+```
+
+`categoryImage` is optional. Categories are identified by numeric **`id`** in URLs and relations — there is **no category slug** column.
+
+**Update (`PUT /categories/:id`)** — send any subset of:
+
+```json
+{ "name": "Dried Herbs", "categoryImage": "/images/category/updated.png" }
+```
+
+Both fields are optional; include only what you want to change. There is **no `slug`** field on categories.
+
+**Admin (`POST /admin/categories`)** uses the same create body: **`name`** + optional **`categoryImage`**.
+
+**Admin update (`PUT /admin/categories/:id`)** — optional **`name`**, **`categoryImage`**, and **`isActive`** (same as storefront update, plus visibility for the catalogue).
+
+### 💹 Tax
+
+| Method   | Endpoint | Auth | Description |
+|----------|----------|------|-------------|
+| `GET`    | `/taxes` | 🔓   | List tax rates `{ id, name, percent }` |
+| `POST`   | `/taxes` | 🔒   | Body `{ "name": "GST 5%", "percent": 5 }` — create a rate |
+
+**Create tax:** `POST /taxes` with a valid Bearer token (same JWT guard as other protected routes).
+
+```json
+{ "name": "GST 5%", "percent": 5 }
+```
+
+**Products:** optional **`taxId`** on `POST/PUT /products` (and admin product APIs). Use the **`id`** from **`GET /taxes`**. When **`taxId`** is set, the product’s stored **`taxPercent`** is copied from that tax row (master data). Responses include **`tax`: `{ id, name, percent }`** when linked, else **`tax: null`**.
+
+Open **Swagger** at `/api/docs` — the global description summarizes category fields and tax linking.
+
 ### 📦 Products
 
 | Method   | Endpoint                       | Auth | Description                          |
@@ -764,8 +801,8 @@ curl -X PUT http://localhost:3008/orders/1/status \
 |----------|----------------------------|------|----------------------------------------------|
 | `GET`    | `/admin/categories`        | 🔒   | All categories with parent/child & product count |
 | `GET`    | `/admin/categories/:id`    | 🔒   | Category detail with products                |
-| `POST`   | `/admin/categories`        | 🔒   | Create category                              |
-| `PUT`    | `/admin/categories/:id`    | 🔒   | Edit category name, slug, or active status   |
+| `POST`   | `/admin/categories`        | 🔒   | Create category (`name` + optional image) |
+| `PUT`    | `/admin/categories/:id`    | 🔒   | Edit name, image, `isActive`   |
 | `DELETE` | `/admin/categories/:id`    | 🔒   | Delete category                              |
 
 ### 🏷️ Admin Brands
@@ -1083,8 +1120,9 @@ scripts/
 | `UserProfile`    | User profile (name, email, birthdate)                         |
 | `UserAddress`    | User delivery addresses                                       |
 | `Brand`          | Product brands (name, slug, logo, isActive)                   |
-| `Category`       | Product categories — supports parent/child hierarchy          |
-| `Product`        | Products with HSN code, tax, brand, category, status; `avgRating`, `reviewCount` |
+| `Category`       | Categories (name, optional image, optional parent, `isActive`) |
+| `Tax`            | Named tax bands (`name`, `percent`); products link via `taxId`   |
+| `Product`        | HSN, `taxPercent`, optional **`taxId` → Tax**, brand, category; `avgRating`, `reviewCount` |
 | `PackSize`       | Pack sizes (25g, 50g, 1kg, etc.)                              |
 | `ProductVariant` | Product + pack size combination with price, SKU, stock, `reservedQuantity` |
 | `ProductImage`   | Product images (with isPrimary flag)                          |

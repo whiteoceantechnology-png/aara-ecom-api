@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsBoolean,
   IsNumber,
+  IsInt,
   IsArray,
   ValidateNested,
 } from "class-validator";
@@ -85,6 +86,12 @@ export class AdminCreateProductDto {
   @IsNumber()
   @Type(() => Number)
   taxPercent?: number;
+
+  @ApiPropertyOptional({ example: 1, description: "Tax master ID (GET /taxes)" })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  taxId?: number;
 }
 
 export class AdminUpdateProductDto {
@@ -126,6 +133,12 @@ export class AdminUpdateProductDto {
   @Type(() => Number)
   taxPercent?: number;
 
+  @ApiPropertyOptional({ example: 1, description: "Tax master ID (GET /taxes)" })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  taxId?: number;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
@@ -157,13 +170,12 @@ export class AdminAddImageDto {
 // ─── Category DTOs ───────────────────────────────────────────────────────────
 
 export class AdminCreateCategoryDto {
-  @ApiProperty({ example: "Raw Dried Herbs" })
+  @ApiProperty({
+    example: "Raw Dried Herbs",
+    description: "Same fields as storefront `POST /categories`.",
+  })
   @IsString()
   name: string;
-
-  @ApiProperty({ example: "raw-dried-herbs" })
-  @IsString()
-  slug: string;
 
   @ApiPropertyOptional({
     example: "2026/03/20/1773990762403-cfbcb565.jpeg",
@@ -179,11 +191,6 @@ export class AdminUpdateCategoryDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @ApiPropertyOptional({ example: "dried-herbs" })
-  @IsOptional()
-  @IsString()
-  slug?: string;
 
   @ApiPropertyOptional({
     example: "2026/03/20/1773990762403-cfbcb565.jpeg",

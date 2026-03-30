@@ -41,6 +41,16 @@ export class CreateProductDto {
   @Type(() => Number)
   taxPercent?: number;
 
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      "Tax rate ID from GET /taxes — sets product taxPercent from master data",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  taxId?: number;
+
   @ApiPropertyOptional({ example: 1699, description: "Original price" })
   @IsOptional()
   @IsNumber()
@@ -100,6 +110,16 @@ export class UpdateProductDto {
   @IsNumber()
   @Type(() => Number)
   taxPercent?: number;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      "Optional. Tax master row from **GET /taxes**. When set, `taxPercent` on the product is taken from that row (overrides a raw `taxPercent` in the same request).",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  taxId?: number;
 
   @ApiPropertyOptional({ example: 1699 })
   @IsOptional()

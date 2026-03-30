@@ -11,7 +11,6 @@ import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 const mockCategory = {
   id: 1,
   name: "Raw Dried Herbs",
-  slug: "raw-dried-herbs",
   isActive: true,
   _count: { products: 3 },
 };
@@ -100,14 +99,25 @@ describe("AdminCategoriesController", () => {
     it("should create and return a new category", async () => {
       const dto: AdminCreateCategoryDto = {
         name: "Oils & Extracts",
-        slug: "oils-extracts",
       };
-      mockCategoriesService.adminCreate.mockResolvedValue({ id: 2, ...dto });
+      const saved = {
+        id: 2,
+        name: "Oils & Extracts",
+      };
+      mockCategoriesService.adminCreate.mockResolvedValue(saved);
 
       const result = await controller.create(dto);
 
       expect(mockCategoriesService.adminCreate).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({ id: 2, ...dto });
+      expect(result).toEqual(saved);
+    });
+
+    it("should document create contract in Swagger operation", () => {
+      const meta = Reflect.getMetadata(
+        "swagger/apiOperation",
+        AdminCategoriesController.prototype.create,
+      );
+      expect(meta?.description).toMatch(/name|categoryImage|POST \/categories/i);
     });
   });
 

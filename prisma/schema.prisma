@@ -80,10 +80,18 @@ model Brand {
   products  Product[]
 }
 
+model Tax {
+  id        Int       @id @default(autoincrement())
+  name      String
+  percent   Decimal   @db.Decimal(5, 2)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
 model Category {
   id            Int        @id @default(autoincrement())
   name          String
-  slug          String     @unique
   categoryImage String?
   parentId      Int?
   parent        Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
@@ -104,6 +112,8 @@ model Product {
   slug           String                 @unique
   description    String?
   hsnCode        String?
+  taxId          Int?
+  tax            Tax?                   @relation(fields: [taxId], references: [id], onDelete: SetNull)
   taxPercent     Decimal                @default(0) @db.Decimal(5, 2)
   actualPrice    Decimal?               @db.Decimal(10, 2)
   discountPrice  Decimal?               @db.Decimal(10, 2)
@@ -120,6 +130,8 @@ model Product {
   specItems       ProductSpecItem[]
   reviews         ProductReview[]
   wishlists       Wishlist[]
+
+  @@index([taxId])
 }
 
 model PackSize {

@@ -76,6 +76,7 @@ describe("ProductsService", () => {
     slug: "ashwagandha",
     hsnCode: "12119029",
     taxPercent: "5",
+    tax: null as { id: number; name: string; percent: string } | null,
     status: true,
     category: { id: 1, name: "Herbs" },
     variants: [
@@ -159,7 +160,7 @@ describe("ProductsService", () => {
   describe("create", () => {
     it("should validate category and create product", async () => {
       prisma.category.findUnique.mockResolvedValue({ id: 1 });
-      prisma.product.create.mockResolvedValue({ id: 1, name: "New" });
+      prisma.product.create.mockResolvedValue({ id: 1, name: "New", tax: null });
 
       const dto = {
         categoryId: 1,
@@ -172,12 +173,12 @@ describe("ProductsService", () => {
         where: { id: 1 },
       });
       expect(prisma.product.create).toHaveBeenCalled();
-      expect(result.name).toBe("New");
+      expect(result.productName).toBe("New");
     });
 
     it("should persist listing price and image when provided", async () => {
       prisma.category.findUnique.mockResolvedValue({ id: 1 });
-      prisma.product.create.mockResolvedValue({ id: 2 });
+      prisma.product.create.mockResolvedValue({ id: 2, name: "P", tax: null });
 
       await service.create({
         categoryId: 1,
@@ -193,7 +194,12 @@ describe("ProductsService", () => {
           actualPrice: 1699,
           discountPrice: 1455,
           productImage: "/images/products/sample.png",
+          taxId: null,
+          taxPercent: 0,
         }),
+        include: {
+          tax: { select: { id: true, name: true, percent: true } },
+        },
       });
     });
 
@@ -224,11 +230,13 @@ describe("ProductsService", () => {
 
       const result = await service.update(1, { name: "Up" } as any);
 
-      expect(prisma.product.update).toHaveBeenCalledWith({
-        where: { id: 1 },
-        data: { name: "Up" },
-      });
-      expect(result.name).toBe("Up");
+      expect(prisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1 },
+          data: { name: "Up" },
+        }),
+      );
+      expect(result.productName).toBe("Up");
     });
   });
 

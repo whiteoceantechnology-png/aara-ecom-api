@@ -61,7 +61,11 @@ export class ProductsController {
 
   @Public()
   @Get(":id")
-  @ApiOperation({ summary: "Get product by ID with variants and images" })
+  @ApiOperation({
+    summary: "Get product by ID with variants and images",
+    description:
+      "Includes **`tax`**: `{ id, name, percent }` when `taxId` is set, else `tax: null`. Root `taxPercent` is always stored for pricing.",
+  })
   @ApiParam({ name: "id", type: Number })
   @ApiResponse({ status: 200, description: "Product details" })
   @ApiResponse({ status: 404, description: "Product not found" })
@@ -71,9 +75,13 @@ export class ProductsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "Create a product" })
+  @ApiOperation({
+    summary: "Create a product",
+    description:
+      "Optional **`taxId`** (from **GET /taxes**): links product to that tax band; server sets **`taxPercent`** from the tax row. You can still send **`taxPercent`** alone (legacy) when `taxId` is omitted.",
+  })
   @ApiBody({ type: CreateProductDto })
-  @ApiResponse({ status: 201, description: "Product created" })
+  @ApiResponse({ status: 201, description: "Product created (see `tax` in body when linked)" })
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }

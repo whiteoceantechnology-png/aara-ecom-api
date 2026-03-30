@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateProductDto,
@@ -44,6 +45,7 @@ export class ProductsService {
       },
       include: {
         category: { select: { id: true, name: true } },
+        tax: { select: { id: true, name: true, percent: true } },
         variants: {
           where: { status: true },
           select: {
@@ -59,9 +61,7 @@ export class ProductsService {
       },
       orderBy: { id: "asc" },
     });
-    return products.map((p) =>
-      this.mapProductWithImageUrls(this.mapProductName(p)),
-    );
+    return products.map((p) => this.formatStorefrontProduct(p));
   }
 
   async findOne(id: number) {
@@ -69,6 +69,7 @@ export class ProductsService {
       where: { id },
       include: {
         category: { select: { id: true, name: true } },
+        tax: { select: { id: true, name: true, percent: true } },
         variants: {
           where: { status: true },
           include: { packSize: { select: { label: true } } },
@@ -77,32 +78,60 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
-    return this.mapProductWithImageUrls(this.mapProductName(product));
+    return this.formatStorefrontProduct(product);
   }
 
   async create(dto: CreateProductDto) {
     await this.validateProductRefs(dto.categoryId);
-    return this.prisma.product.create({
+    const taxFields = await this.resolveProductTaxForCreate(dto);
+    const created = await this.prisma.product.create({
       data: {
         categoryId: dto.categoryId,
         name: dto.name,
         slug: dto.slug,
         description: dto.description,
         hsnCode: dto.hsnCode,
-        taxPercent: dto.taxPercent ?? 0,
         status: dto.status ?? true,
+        ...taxFields,
         ...(dto.actualPrice != null ? { actualPrice: dto.actualPrice } : {}),
         ...(dto.discountPrice != null
           ? { discountPrice: dto.discountPrice }
           : {}),
         ...(dto.productImage != null ? { productImage: dto.productImage } : {}),
       },
+      include: {
+        tax: { select: { id: true, name: true, percent: true } },
+      },
     });
+    return this.formatStorefrontProduct(created);
   }
 
   async update(id: number, dto: UpdateProductDto) {
     await this.findOne(id);
-    return this.prisma.product.update({ where: { id }, data: dto });
+    const { taxId, taxPercent, ...rest } = dto;
+    const data: Prisma.ProductUpdateInput = { ...rest };
+    if (taxId !== undefined) {
+      Object.assign(
+        data,
+        await this.resolveProductTaxForCreate({ taxId, taxPercent }),
+      );
+    } else if (taxPercent !== undefined) {
+      data.taxPercent = taxPercent;
+    }
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data,
+      include: {
+        category: { select: { id: true, name: true } },
+        tax: { select: { id: true, name: true, percent: true } },
+        variants: {
+          where: { status: true },
+          include: { packSize: { select: { label: true } } },
+        },
+        images: { select: { id: true, imageUrl: true, isPrimary: true } },
+      },
+    });
+    return this.formatStorefrontProduct(updated);
   }
 
   async remove(id: number) {
@@ -277,6 +306,7 @@ export class ProductsService {
       include: {
         category: true,
         brand: true,
+        tax: true,
         variants: { include: { packSize: true } },
         images: true,
         specifications: true,
@@ -289,18 +319,30 @@ export class ProductsService {
 
   async adminCreate(dto: AdminCreateProductDto) {
     await this.validateProductRefs(dto.categoryId, dto.brandId);
+    const { taxId, taxPercent, ...rest } = dto;
+    const taxFields = await this.resolveProductTaxForCreate({ taxId, taxPercent });
     return this.prisma.product.create({
-      data: dto,
-      include: { category: true, brand: true },
+      data: { ...rest, ...taxFields },
+      include: { category: true, brand: true, tax: true },
     });
   }
 
   async adminUpdate(id: number, dto: AdminUpdateProductDto) {
     await this.findOne(id);
+    const { taxId, taxPercent, ...rest } = dto;
+    const data: Prisma.ProductUpdateInput = { ...rest };
+    if (taxId !== undefined) {
+      Object.assign(
+        data,
+        await this.resolveProductTaxForCreate({ taxId, taxPercent }),
+      );
+    } else if (taxPercent !== undefined) {
+      data.taxPercent = taxPercent;
+    }
     return this.prisma.product.update({
       where: { id },
-      data: dto,
-      include: { category: true, brand: true, variants: true, images: true },
+      data,
+      include: { category: true, brand: true, variants: true, images: true, tax: true },
     });
   }
 
@@ -409,6 +451,40 @@ export class ProductsService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  /** When `taxId` is set, `taxPercent` is taken from the Tax row (master data). */
+  private async resolveProductTaxForCreate(dto: {
+    taxId?: number;
+    taxPercent?: number;
+  }): Promise<{ taxId: number | null; taxPercent: number }> {
+    if (dto.taxId != null) {
+      const tax = await this.prisma.tax.findUnique({ where: { id: dto.taxId } });
+      if (!tax) {
+        throw new BadRequestException(`Tax #${dto.taxId} not found`);
+      }
+      return { taxId: dto.taxId, taxPercent: Number(tax.percent) };
+    }
+    return { taxId: null, taxPercent: dto.taxPercent ?? 0 };
+  }
+
+  private formatStorefrontProduct<
+    T extends {
+      name: string;
+      images?: { imageUrl: string }[];
+      tax?: { id: number; name: string; percent: unknown } | null;
+    },
+  >(product: T) {
+    const mapped = this.mapProductWithImageUrls(this.mapProductName(product));
+    const tax = mapped.tax
+      ? {
+          id: mapped.tax.id,
+          name: mapped.tax.name,
+          percent: Number(mapped.tax.percent),
+        }
+      : null;
+    const { tax: _omit, ...rest } = mapped;
+    return { ...rest, tax };
+  }
 
   private mapProductName<T extends { name: string }>(product: T) {
     const { name, ...rest } = product;

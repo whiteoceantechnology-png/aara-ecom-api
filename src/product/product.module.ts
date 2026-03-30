@@ -8,6 +8,7 @@ import { OrdersModule } from "./orders/orders.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { CheckoutModule } from "./checkout/checkout.module";
 import { WishlistModule } from "./wishlist/wishlist.module";
+import { TaxModule } from "./tax/tax.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WishlistModule } from "./wishlist/wishlist.module";
     PaymentsModule,
     CheckoutModule,
     WishlistModule,
+    TaxModule,
   ],
 })
 export class ProductModule {}
