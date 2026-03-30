@@ -488,6 +488,16 @@ curl -X DELETE http://localhost:3008/user/1/address/1 \
 | `POST`   | `/customers/login`        | 🔓   | Customer login (JWT)     |
 | `GET`    | `/customers/:id`          | 🔒   | Get customer by ID       |
 
+### ❤️ Wishlist (customer JWT)
+
+`customerId` comes from the token only—**no** `customerId` in the body.
+
+| Method   | Endpoint                 | Auth | Description |
+|----------|--------------------------|------|-------------|
+| `POST`   | `/wishlist`              | 🔒   | Body `{ "productId": 7 }` → `{ message: "Product added to wishlist" }` or *already in wishlist* |
+| `GET`    | `/wishlist?page=1&limit=10` | 🔒 | Paginated list: `productId`, `name`, `price`, `image` |
+| `DELETE` | `/wishlist/:productId`   | 🔒   | Remove item |
+
 ### 🛒 Cart
 
 | Method   | Endpoint                        | Auth | Description                    |
