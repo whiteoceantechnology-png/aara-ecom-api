@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import type { Coupon } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateOrderDto } from "../dto/order.dto";
@@ -53,6 +54,11 @@ type CartForPlaceOrder = Prisma.CartGetPayload<{
   include: typeof cartForPlaceOrderInclude;
 }>;
 
+/** DB coupon row or checkout snapshot — both expose pricing fields for totals. */
+type OrderPricingSource =
+  | Coupon
+  | NonNullable<PlaceOrderParams["couponPricing"]>;
+
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -95,7 +101,8 @@ export class OrdersService {
     const cart = await this.loadCartForPlaceOrder(cartId, customerId);
 
     const couponRow = await this.loadCouponRowIfCodePresent(couponCode);
-    const pricingSource = couponRow ?? couponPricingFromCaller;
+    const pricingSource: OrderPricingSource | null =
+      couponRow ?? couponPricingFromCaller ?? null;
 
     const lines = toCartLineInputs(cart.items);
     const totals = computeCheckoutTotals(lines, {
@@ -457,7 +464,7 @@ export class OrdersService {
    */
   private async loadCouponRowIfCodePresent(
     couponCode: string | null | undefined,
-  ) {
+  ): Promise<Coupon | null> {
     const trimmed = couponCode?.trim();
     if (!trimmed) {
       return null;
@@ -471,7 +478,7 @@ export class OrdersService {
 
   private assertSubtotalMeetsCouponMinimum(
     subtotal: number,
-    pricingSource: PlaceOrderParams["couponPricing"] | NonNullable<Awaited<ReturnType<OrdersService["loadCouponRowIfCodePresent"]>>>,
+    pricingSource: OrderPricingSource | null,
   ) {
     if (pricingSource?.minOrderAmount == null) {
       return;

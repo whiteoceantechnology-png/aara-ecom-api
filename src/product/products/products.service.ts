@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
@@ -90,6 +91,11 @@ export class ProductsService {
         hsnCode: dto.hsnCode,
         taxPercent: dto.taxPercent ?? 0,
         status: dto.status ?? true,
+        ...(dto.actualPrice != null ? { actualPrice: dto.actualPrice } : {}),
+        ...(dto.discountPrice != null
+          ? { discountPrice: dto.discountPrice }
+          : {}),
+        ...(dto.productImage != null ? { productImage: dto.productImage } : {}),
       },
     });
   }
@@ -100,9 +106,54 @@ export class ProductsService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
-    await this.prisma.product.delete({ where: { id } });
+    await this.deleteProductById(id);
     return { message: "Product deleted successfully" };
+  }
+
+  /**
+   * Deletes a product and non-order dependencies (cart lines, images, variants).
+   * Throws {@link ConflictException} if any order line references the product's variants.
+   */
+  async adminDelete(id: number) {
+    await this.deleteProductById(id);
+    return { message: `Product #${id} deleted` };
+  }
+
+  private async deleteProductById(id: number): Promise<void> {
+    await this.findOne(id);
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: { productId: id },
+      select: { id: true },
+    });
+    const variantIds = variants.map((v) => v.id);
+
+    if (variantIds.length > 0) {
+      const orderLineCount = await this.prisma.orderItem.count({
+        where: { variantId: { in: variantIds } },
+      });
+      if (orderLineCount > 0) {
+        throw new ConflictException(
+          "Cannot delete this product because it appears on existing orders. Deactivate it or archive it instead.",
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cartItem.deleteMany({
+        where: {
+          OR: [
+            { productId: id },
+            ...(variantIds.length > 0
+              ? [{ variantId: { in: variantIds } }]
+              : []),
+          ],
+        },
+      });
+      await tx.productImage.deleteMany({ where: { productId: id } });
+      await tx.productVariant.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
+    });
   }
 
   async findVariants(productId: number) {
@@ -246,12 +297,6 @@ export class ProductsService {
       data: dto,
       include: { category: true, brand: true, variants: true, images: true },
     });
-  }
-
-  async adminDelete(id: number) {
-    await this.findOne(id);
-    await this.prisma.product.delete({ where: { id } });
-    return { message: `Product #${id} deleted` };
   }
 
   async updateStock(variantId: number, dto: AdminUpdateStockDto) {

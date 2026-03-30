@@ -1,18 +1,14 @@
 import { BadRequestException } from "@nestjs/common";
-
-/** Minimal shape for validating a coupon row from Prisma (or null when code unknown). */
-export type CouponUsableFields = {
-  active: boolean;
-  expiresAt: Date | null;
-};
+import type { Coupon } from "@prisma/client";
 
 /**
  * Ensures the coupon exists, is active, and has not expired.
  * Call after `findUnique` — pass `null` if no row was found for the code.
+ * Narrows to full {@link Coupon} so callers can use `code`, `percentOff`, etc.
  */
 export function assertCouponUsable(
-  coupon: CouponUsableFields | null,
-): asserts coupon is CouponUsableFields {
+  coupon: Coupon | null,
+): asserts coupon is Coupon {
   if (!coupon?.active) {
     throw new BadRequestException("Invalid or inactive coupon");
   }

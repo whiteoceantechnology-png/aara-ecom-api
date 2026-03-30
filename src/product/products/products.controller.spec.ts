@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import { NotFoundException, ConflictException } from "@nestjs/common";
 import { ProductsController } from "./products.controller";
 import { ProductsService } from "./products.service";
 import { ReviewsService } from "../reviews/reviews.service";
@@ -143,6 +143,15 @@ describe("ProductsController", () => {
     it("should throw NotFoundException when product not found", async () => {
       service.remove.mockRejectedValue(new NotFoundException());
       await expect(controller.remove(99)).rejects.toThrow(NotFoundException);
+    });
+
+    it("should propagate ConflictException when product is on orders", async () => {
+      service.remove.mockRejectedValue(
+        new ConflictException(
+          "Cannot delete this product because it appears on existing orders. Deactivate it or archive it instead.",
+        ),
+      );
+      await expect(controller.remove(1)).rejects.toThrow(ConflictException);
     });
   });
 

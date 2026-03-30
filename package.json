@@ -29,7 +29,8 @@
     "db:generate": "npx prisma generate",
     "db:reset": "npx prisma migrate reset --schema=prisma/schema.prisma --config=prisma/prisma.config.ts --force",
     "db:seed": "node prisma/seed.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "npx prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
