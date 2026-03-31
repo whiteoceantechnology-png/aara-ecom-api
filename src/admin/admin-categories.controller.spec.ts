@@ -117,7 +117,9 @@ describe("AdminCategoriesController", () => {
         "swagger/apiOperation",
         AdminCategoriesController.prototype.create,
       );
-      expect(meta?.description).toMatch(/name|categoryImage|POST \/categories/i);
+      expect(meta?.description).toMatch(
+        /name|categoryImage|POST \/categories/i,
+      );
     });
   });
 

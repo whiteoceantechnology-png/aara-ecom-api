@@ -20,6 +20,10 @@ import {
   SpecSectionDto,
 } from "../../admin/dto/admin.dto";
 import { toImageUrl, toImageUrls } from "../../common/image-url";
+import {
+  stringContainsFilter,
+  stringEqualsInsensitiveFilter,
+} from "../../common/database-provider.util";
 
 @Injectable()
 export class ProductsService {
@@ -29,15 +33,13 @@ export class ProductsService {
     const products = await this.prisma.product.findMany({
       where: {
         ...(filter.category ? { categoryId: filter.category } : {}),
-        ...(filter.search
-          ? { name: { contains: filter.search, mode: "insensitive" } }
-          : {}),
+        ...(filter.search ? { name: stringContainsFilter(filter.search) } : {}),
         ...(filter.specKey && filter.specValue
           ? {
               specItems: {
                 some: {
                   key: filter.specKey,
-                  value: { equals: filter.specValue, mode: "insensitive" },
+                  value: stringEqualsInsensitiveFilter(filter.specValue),
                 },
               },
             }
@@ -243,8 +245,7 @@ export class ProductsService {
       where: { productId },
     });
 
-    const longText =
-      spec?.productDescription ?? product.description ?? null;
+    const longText = spec?.productDescription ?? product.description ?? null;
     const moreHtml = spec?.moreInfo ?? null;
 
     return {
@@ -277,7 +278,7 @@ export class ProductsService {
   ) {
     return this.prisma.product.findMany({
       where: {
-        ...(search && { name: { contains: search, mode: "insensitive" } }),
+        ...(search && { name: stringContainsFilter(search) }),
         ...(categoryId && { categoryId }),
         ...(brandId && { brandId }),
         ...(specKey &&
@@ -285,7 +286,7 @@ export class ProductsService {
             specItems: {
               some: {
                 key: specKey,
-                value: { equals: specValue, mode: "insensitive" },
+                value: stringEqualsInsensitiveFilter(specValue),
               },
             },
           }),
@@ -320,7 +321,10 @@ export class ProductsService {
   async adminCreate(dto: AdminCreateProductDto) {
     await this.validateProductRefs(dto.categoryId, dto.brandId);
     const { taxId, taxPercent, ...rest } = dto;
-    const taxFields = await this.resolveProductTaxForCreate({ taxId, taxPercent });
+    const taxFields = await this.resolveProductTaxForCreate({
+      taxId,
+      taxPercent,
+    });
     return this.prisma.product.create({
       data: { ...rest, ...taxFields },
       include: { category: true, brand: true, tax: true },
@@ -342,7 +346,13 @@ export class ProductsService {
     return this.prisma.product.update({
       where: { id },
       data,
-      include: { category: true, brand: true, variants: true, images: true, tax: true },
+      include: {
+        category: true,
+        brand: true,
+        variants: true,
+        images: true,
+        tax: true,
+      },
     });
   }
 
@@ -386,8 +396,7 @@ export class ProductsService {
 
     const flattened = this.flattenSpecs(dto.productId, dto.specification);
     const desc = dto.description;
-    const longText =
-      desc?.longDescription ?? desc?.productDescription ?? null;
+    const longText = desc?.longDescription ?? desc?.productDescription ?? null;
     const moreHtml = desc?.moreInfoHtml ?? desc?.moreInfo ?? null;
 
     await this.prisma.$transaction([
@@ -458,7 +467,9 @@ export class ProductsService {
     taxPercent?: number;
   }): Promise<{ taxId: number | null; taxPercent: number }> {
     if (dto.taxId != null) {
-      const tax = await this.prisma.tax.findUnique({ where: { id: dto.taxId } });
+      const tax = await this.prisma.tax.findUnique({
+        where: { id: dto.taxId },
+      });
       if (!tax) {
         throw new BadRequestException(`Tax #${dto.taxId} not found`);
       }
@@ -482,7 +493,8 @@ export class ProductsService {
           percent: Number(mapped.tax.percent),
         }
       : null;
-    const { tax: _omit, ...rest } = mapped;
+    const { tax: previousTax, ...rest } = mapped;
+    void previousTax;
     return { ...rest, tax };
   }
 

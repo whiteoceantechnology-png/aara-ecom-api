@@ -87,7 +87,10 @@ export class AdminCreateProductDto {
   @Type(() => Number)
   taxPercent?: number;
 
-  @ApiPropertyOptional({ example: 1, description: "Tax master ID (GET /taxes)" })
+  @ApiPropertyOptional({
+    example: 1,
+    description: "Tax master ID (GET /taxes)",
+  })
   @IsOptional()
   @IsInt()
   @Type(() => Number)
@@ -133,7 +136,10 @@ export class AdminUpdateProductDto {
   @Type(() => Number)
   taxPercent?: number;
 
-  @ApiPropertyOptional({ example: 1, description: "Tax master ID (GET /taxes)" })
+  @ApiPropertyOptional({
+    example: 1,
+    description: "Tax master ID (GET /taxes)",
+  })
   @IsOptional()
   @IsInt()
   @Type(() => Number)

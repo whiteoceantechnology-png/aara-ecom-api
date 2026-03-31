@@ -81,7 +81,10 @@ export class ProductsController {
       "Optional **`taxId`** (from **GET /taxes**): links product to that tax band; server sets **`taxPercent`** from the tax row. You can still send **`taxPercent`** alone (legacy) when `taxId` is omitted.",
   })
   @ApiBody({ type: CreateProductDto })
-  @ApiResponse({ status: 201, description: "Product created (see `tax` in body when linked)" })
+  @ApiResponse({
+    status: 201,
+    description: "Product created (see `tax` in body when linked)",
+  })
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }

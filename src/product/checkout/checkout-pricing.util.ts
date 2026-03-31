@@ -9,7 +9,11 @@ export function toCartLineInputs(
     variant: {
       id: number;
       price: { toString(): string } | string | number;
-      product: { id: number; name: string; taxPercent: { toString(): string } | string | number };
+      product: {
+        id: number;
+        name: string;
+        taxPercent: { toString(): string } | string | number;
+      };
       packSize: { label: string };
     };
   }>,

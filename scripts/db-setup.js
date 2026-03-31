@@ -266,7 +266,7 @@ async function main() {
   log('📦  Step 4: Running Prisma migrations...');
   try {
     execSync(
-      'npx prisma migrate deploy --schema=prisma/schema.prisma --config=prisma/prisma.config.ts',
+      'npx prisma migrate deploy --config=prisma/prisma.config.ts',
       {
         stdio: 'inherit',
         cwd: path.join(__dirname, '..'),

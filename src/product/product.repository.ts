@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { stringContainsFilter } from "../common/database-provider.util";
 import { CreateCategoryDto, UpdateCategoryDto } from "./dto/category.dto";
 import {
   CreateProductDto,
@@ -111,9 +112,7 @@ export class ProductRepository {
     return await this.prisma.product.findMany({
       where: {
         ...(filter.category ? { categoryId: filter.category } : {}),
-        ...(filter.search
-          ? { name: { contains: filter.search, mode: "insensitive" } }
-          : {}),
+        ...(filter.search ? { name: stringContainsFilter(filter.search) } : {}),
       },
       include: {
         category: { select: { id: true, name: true } },

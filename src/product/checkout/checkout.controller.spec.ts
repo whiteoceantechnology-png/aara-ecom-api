@@ -15,9 +15,7 @@ describe("CheckoutController", () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CheckoutController],
-      providers: [
-        { provide: CheckoutService, useValue: mockCheckoutService },
-      ],
+      providers: [{ provide: CheckoutService, useValue: mockCheckoutService }],
     }).compile();
 
     controller = module.get<CheckoutController>(CheckoutController);
@@ -68,7 +66,11 @@ describe("CheckoutController", () => {
 
   describe("placeOrder()", () => {
     it("should place order with optional idempotency header", async () => {
-      const order = { id: 42, orderNumber: "ORD-abc", status: "PENDING_PAYMENT" };
+      const order = {
+        id: 42,
+        orderNumber: "ORD-abc",
+        status: "PENDING_PAYMENT",
+      };
       mockCheckoutService.placeOrder.mockResolvedValue(order);
 
       const dto = {

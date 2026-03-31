@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { stringContainsFilter } from "../common/database-provider.util";
 import { AdminCustomerFilterDto } from "./dto/admin.dto";
 
 @Injectable()
@@ -11,9 +12,9 @@ export class AdminCustomersService {
       where: {
         ...(filter.search && {
           OR: [
-            { name: { contains: filter.search, mode: "insensitive" } },
-            { email: { contains: filter.search, mode: "insensitive" } },
-            { phone: { contains: filter.search, mode: "insensitive" } },
+            { name: stringContainsFilter(filter.search) },
+            { email: stringContainsFilter(filter.search) },
+            { phone: stringContainsFilter(filter.search) },
           ],
         }),
         ...(filter.isBlocked !== undefined && { isBlocked: filter.isBlocked }),

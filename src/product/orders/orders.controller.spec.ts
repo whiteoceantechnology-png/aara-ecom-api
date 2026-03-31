@@ -36,7 +36,11 @@ describe("OrdersController", () => {
   describe("create()", () => {
     it("should create an order from a cart", async () => {
       const dto = { customerId: 1, cartId: 2 };
-      const order = { id: 10, orderNumber: "ORD-123456", status: "PENDING_PAYMENT" };
+      const order = {
+        id: 10,
+        orderNumber: "ORD-123456",
+        status: "PENDING_PAYMENT",
+      };
       mockOrdersService.create.mockResolvedValue(order);
 
       const result = await controller.create(dto as any, 1);
@@ -91,7 +95,9 @@ describe("OrdersController", () => {
         new NotFoundException("Order not found"),
       );
 
-      await expect(controller.findOne(999, 5)).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(999, 5)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

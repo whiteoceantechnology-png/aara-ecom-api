@@ -1,20 +1,82 @@
-const { Pool } = require("pg");
 require("dotenv/config");
+const { PrismaClient } = require("@prisma/client");
+const { Pool } = require("pg");
+const { PrismaPg } = require("@prisma/adapter-pg");
+const { PrismaMariaDb } = require("@prisma/adapter-mariadb");
+
+function normalizeNodeDatabaseUrl(url) {
+  if (/^jdbc:mariadb:\/\//i.test(url)) {
+    return `mariadb://${url.slice("jdbc:mariadb://".length)}`;
+  }
+  if (/^jdbc:mysql:\/\//i.test(url)) {
+    return `mysql://${url.slice("jdbc:mysql://".length)}`;
+  }
+  return url;
+}
+
+function toMariadbAdapterUrl(url) {
+  const n = normalizeNodeDatabaseUrl(url);
+  if (/^mysql:\/\//i.test(n)) {
+    return `mariadb://${n.slice("mysql://".length)}`;
+  }
+  return n;
+}
+
+function assertUrlMatchesProvider(url, provider) {
+  const isPg = /^postgresql?:\/\//i.test(url);
+  const isMy = /^(mysql|mariadb):\/\//i.test(url);
+  if (provider === "mariadb" && isPg) {
+    throw new Error(
+      "DATABASE_PROVIDER is mariadb but DATABASE_URL is PostgreSQL. Use mysql:// or mariadb:// for MariaDB.",
+    );
+  }
+  if (provider === "postgres" && isMy) {
+    throw new Error(
+      "DATABASE_PROVIDER is postgres but DATABASE_URL is MySQL/MariaDB. Use postgresql:// or DATABASE_PROVIDER=mariadb.",
+    );
+  }
+}
+
+function resolveProvider() {
+  const explicit = (process.env.DATABASE_PROVIDER || "").toLowerCase().trim();
+  if (explicit === "mariadb" || explicit === "mysql") return "mariadb";
+  if (explicit === "postgres" || explicit === "postgresql") return "postgres";
+  const url = process.env.DATABASE_URL
+    ? normalizeNodeDatabaseUrl(process.env.DATABASE_URL)
+    : "";
+  if (/^(mysql|mariadb):\/\//i.test(url)) return "mariadb";
+  return "postgres";
+}
+
+function createPrismaClient() {
+  const raw =
+    process.env.DATABASE_URL ||
+    "postgresql://admin:admin@localhost:5432/ecomdb";
+  const url = normalizeNodeDatabaseUrl(raw);
+  const provider = resolveProvider();
+  assertUrlMatchesProvider(url, provider);
+  process.env.DATABASE_URL = url;
+
+  if (provider === "mariadb") {
+    return new PrismaClient({
+      adapter: new PrismaMariaDb(toMariadbAdapterUrl(url)),
+    });
+  }
+
+  const pool = new Pool({ connectionString: url });
+  const adapter = new PrismaPg(pool);
+  return new PrismaClient({ adapter });
+}
 
 /**
  * Prisma seed script — runs automatically after `prisma migrate reset`.
  * Seeds essential lookup data that the application needs to function.
  */
 async function main() {
-  const pool = new Pool({
-    connectionString:
-      process.env.DATABASE_URL ||
-      "postgresql://admin:admin@localhost:5432/ecomdb",
-  });
+  const prisma = createPrismaClient();
 
   console.log("🌱 Seeding database...");
 
-  // ─── Pack Sizes ────────────────────────────────────────────────────────────
   const packSizes = [
     { size: 25, unit: "g", label: "25 g" },
     { size: 50, unit: "g", label: "50 g" },
@@ -29,39 +91,41 @@ async function main() {
     { size: 1000, unit: "ml", label: "1 L" },
   ];
 
-  const existingCount = await pool.query('SELECT count(*)::int AS cnt FROM "PackSize"');
-  if (existingCount.rows[0].cnt === 0) {
-    for (const ps of packSizes) {
-      await pool.query(
-        'INSERT INTO "PackSize" (size, unit, label) VALUES ($1, $2, $3)',
-        [ps.size, ps.unit, ps.label],
-      );
-    }
+  const existingPackSizes = await prisma.packSize.count();
+  if (existingPackSizes === 0) {
+    await prisma.packSize.createMany({
+      data: packSizes.map((ps) => ({
+        size: ps.size,
+        unit: ps.unit,
+        label: ps.label,
+      })),
+    });
     console.log(`  ✅ Inserted ${packSizes.length} pack sizes`);
   } else {
     console.log(
-      `  ⏭️  PackSize table already has ${existingCount.rows[0].cnt} rows — skipped`,
+      `  ⏭️  PackSize table already has ${existingPackSizes} rows — skipped`,
     );
   }
 
-  // ─── Admin User ────────────────────────────────────────────────────────────
   const bcrypt = require("bcrypt");
-  const adminExists = await pool.query(
-    'SELECT count(*)::int AS cnt FROM "Admin" WHERE username = $1',
-    ["admin"],
-  );
-  if (adminExists.rows[0].cnt === 0) {
+  const adminCount = await prisma.admin.count({
+    where: { username: "admin" },
+  });
+  if (adminCount === 0) {
     const passwordHash = await bcrypt.hash("Admin@123", 10);
-    await pool.query(
-      'INSERT INTO "Admin" (username, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW())',
-      ["admin", passwordHash, "superadmin"],
-    );
+    await prisma.admin.create({
+      data: {
+        username: "admin",
+        password: passwordHash,
+        role: "superadmin",
+      },
+    });
     console.log("  ✅ Created default admin (admin / Admin@123)");
   } else {
     console.log("  ⏭️  Admin user already exists — skipped");
   }
 
-  await pool.end();
+  await prisma.$disconnect();
   console.log("🌱 Seeding complete!");
 }
 

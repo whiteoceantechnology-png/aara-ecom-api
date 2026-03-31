@@ -27,7 +27,8 @@ export class CheckoutController {
 
   @Get("summary")
   @ApiOperation({
-    summary: "Checkout summary — server-calculated prices, tax, shipping, coupon",
+    summary:
+      "Checkout summary — server-calculated prices, tax, shipping, coupon",
   })
   @ApiResponse({ status: 200, description: "Pricing breakdown" })
   getSummary(@CurrentCustomerId() customerId: number) {
@@ -56,7 +57,8 @@ export class CheckoutController {
   @ApiHeader({
     name: "idempotency-key",
     required: false,
-    description: "Stable key for safe retries (same customer + key returns same order)",
+    description:
+      "Stable key for safe retries (same customer + key returns same order)",
   })
   @ApiBody({ type: PlaceOrderDto })
   @ApiResponse({ status: 201, description: "Order created" })

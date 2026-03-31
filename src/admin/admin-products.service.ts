@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { stringContainsFilter } from "../common/database-provider.util";
 import {
   AdminCreateProductDto,
   AdminUpdateProductDto,
@@ -49,7 +50,7 @@ export class AdminProductsService {
   async getProducts(search?: string, categoryId?: number, brandId?: number) {
     return await this.prisma.product.findMany({
       where: {
-        ...(search && { name: { contains: search, mode: "insensitive" } }),
+        ...(search && { name: stringContainsFilter(search) }),
         ...(categoryId && { categoryId }),
         ...(brandId && { brandId }),
       },

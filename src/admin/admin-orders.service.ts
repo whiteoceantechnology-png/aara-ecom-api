@@ -1,6 +1,21 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { stringContainsFilter } from "../common/database-provider.util";
 import { AdminUpdateOrderDto } from "./dto/admin.dto";
+
+/** `findMany` + `include.customer` — Prisma MariaDB typings omit nested includes on some models. */
+type AdminOrderCsvRow = {
+  orderNumber: string;
+  customer: { name: string; email: string; phone: string | null };
+  status: string;
+  paymentStatus: string;
+  totalAmount: unknown;
+  taxAmount: unknown;
+  shippingAmount: unknown;
+  trackingId: string | null;
+  notes: string | null;
+  createdAt: Date;
+};
 
 @Injectable()
 export class AdminOrdersService {
@@ -21,9 +36,9 @@ export class AdminOrdersService {
         ...(paymentStatus && { paymentStatus }),
         ...(search && {
           OR: [
-            { orderNumber: { contains: search, mode: "insensitive" } },
-            { customer: { name: { contains: search, mode: "insensitive" } } },
-            { customer: { email: { contains: search, mode: "insensitive" } } },
+            { orderNumber: stringContainsFilter(search) },
+            { customer: { name: stringContainsFilter(search) } },
+            { customer: { email: stringContainsFilter(search) } },
           ],
         }),
         ...(from || to
@@ -85,7 +100,7 @@ export class AdminOrdersService {
     from?: string;
     to?: string;
   }): Promise<string> {
-    const orders = await this.findAll(params);
+    const orders = (await this.findAll(params)) as AdminOrderCsvRow[];
 
     const headers = [
       "Order Number",

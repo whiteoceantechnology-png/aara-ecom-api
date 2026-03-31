@@ -29,7 +29,8 @@ export class ReviewsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: "Add a product review (verified purchase: order must be DELIVERED)",
+    summary:
+      "Add a product review (verified purchase: order must be DELIVERED)",
   })
   @ApiBody({ type: CreateReviewDto })
   @ApiResponse({ status: 201, description: "Review created" })

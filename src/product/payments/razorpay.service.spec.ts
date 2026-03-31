@@ -6,7 +6,9 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 
 const mockOrdersService = {
-  applyPaymentSuccess: jest.fn().mockResolvedValue({ id: 1, paymentStatus: "paid" }),
+  applyPaymentSuccess: jest
+    .fn()
+    .mockResolvedValue({ id: 1, paymentStatus: "paid" }),
 };
 
 const mockConfig = {

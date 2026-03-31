@@ -51,7 +51,8 @@ export class ReviewsService {
       where: { id: productId },
       select: { id: true, avgRating: true, reviewCount: true },
     });
-    if (!product) throw new NotFoundException(`Product #${productId} not found`);
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
 
     const reviews = await this.prisma.productReview.findMany({
       where: { productId },
@@ -95,7 +96,8 @@ export class ReviewsService {
       where: { id: productId },
       select: { id: true },
     });
-    if (!product) throw new NotFoundException(`Product #${productId} not found`);
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
   }
 
   private async assertNoDuplicateReview(customerId: number, productId: number) {

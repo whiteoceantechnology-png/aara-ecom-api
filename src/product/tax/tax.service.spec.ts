@@ -20,9 +20,13 @@ describe("TaxService", () => {
   });
 
   it("findAll should return ordered taxes", async () => {
-    prisma.tax.findMany.mockResolvedValue([{ id: 1, name: "GST 5%", percent: 5 }]);
+    prisma.tax.findMany.mockResolvedValue([
+      { id: 1, name: "GST 5%", percent: 5 },
+    ]);
     const rows = await service.findAll();
-    expect(prisma.tax.findMany).toHaveBeenCalledWith({ orderBy: { id: "asc" } });
+    expect(prisma.tax.findMany).toHaveBeenCalledWith({
+      orderBy: { id: "asc" },
+    });
     expect(rows).toHaveLength(1);
   });
 

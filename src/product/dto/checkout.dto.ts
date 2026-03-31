@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsInt, IsOptional, IsString, MinLength } from "class-validator";
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MinLength,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export class ApplyCouponDto {
@@ -18,7 +24,8 @@ export enum CheckoutPaymentMethod {
 
 export class PlaceOrderDto {
   @ApiPropertyOptional({
-    description: "Customer address ID (must belong to the authenticated customer)",
+    description:
+      "Customer address ID (must belong to the authenticated customer)",
     example: 1,
   })
   @IsOptional()
@@ -28,7 +35,8 @@ export class PlaceOrderDto {
 
   @ApiProperty({
     enum: CheckoutPaymentMethod,
-    description: "COD deducts stock immediately; CARD/UPI/NETBANKING reserve until payment",
+    description:
+      "COD deducts stock immediately; CARD/UPI/NETBANKING reserve until payment",
   })
   @IsEnum(CheckoutPaymentMethod)
   paymentMethod: CheckoutPaymentMethod;

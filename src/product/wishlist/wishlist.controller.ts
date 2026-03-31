@@ -41,10 +41,7 @@ export class WishlistController {
     },
   })
   @ApiResponse({ status: 404, description: "Product not found" })
-  add(
-    @CurrentCustomerId() customerId: number,
-    @Body() dto: AddToWishlistDto,
-  ) {
+  add(@CurrentCustomerId() customerId: number, @Body() dto: AddToWishlistDto) {
     return this.wishlistService.add(customerId, dto.productId);
   }
 

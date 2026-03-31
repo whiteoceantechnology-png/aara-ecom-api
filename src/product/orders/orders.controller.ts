@@ -5,7 +5,6 @@ import {
   Put,
   Body,
   Param,
-  Query,
   HttpCode,
   HttpStatus,
   ParseIntPipe,
@@ -17,7 +16,6 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
-  ApiQuery,
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { OrdersService } from "./orders.service";
@@ -33,18 +31,18 @@ export class OrdersController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: "Create order from cart (legacy) — same rules as checkout (server pricing, stock reserve)",
+    summary:
+      "Create order from cart (legacy) — same rules as checkout (server pricing, stock reserve)",
   })
   @ApiBody({ type: CreateOrderDto })
   @ApiResponse({ status: 201, description: "Order created successfully" })
   @ApiResponse({ status: 400, description: "Cart is empty" })
   @ApiResponse({ status: 404, description: "Cart not found" })
-  create(
-    @Body() dto: CreateOrderDto,
-    @CurrentCustomerId() customerId: number,
-  ) {
+  create(@Body() dto: CreateOrderDto, @CurrentCustomerId() customerId: number) {
     if (dto.customerId !== customerId) {
-      throw new ForbiddenException("customerId does not match authenticated customer");
+      throw new ForbiddenException(
+        "customerId does not match authenticated customer",
+      );
     }
     return this.ordersService.create(dto);
   }
@@ -61,7 +59,8 @@ export class OrdersController {
   @Post(":id/cancel")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Cancel order (only PENDING_PAYMENT — releases inventory reservation)",
+    summary:
+      "Cancel order (only PENDING_PAYMENT — releases inventory reservation)",
   })
   @ApiParam({ name: "id", type: Number })
   @ApiResponse({ status: 200, description: "Order cancelled" })

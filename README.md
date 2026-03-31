@@ -23,14 +23,14 @@
 
 ## Description
 
-**Aara API** — A NestJS REST API with PostgreSQL (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants, brands), cart, **checkout** (server-side pricing, coupons, idempotent place-order, inventory reservation), orders, payments, **product reviews** (verified purchase), customer management, and a complete **Admin panel** (dashboard, product/category/brand management, customer moderation, order management with CSV export).
+**Aara API** — A NestJS REST API with **PostgreSQL** or **MariaDB** (via Prisma) for an e-commerce platform. Provides full authentication, user profile & address management, product catalogue (categories, products, variants, brands), cart, **checkout** (server-side pricing, coupons, idempotent place-order, inventory reservation), orders, payments, **product reviews** (verified purchase), customer management, and a complete **Admin panel** (dashboard, product/category/brand management, customer moderation, order management with CSV export).
 
 ---
 
 ## Tech Stack
 
 - **Framework**: [NestJS](https://nestjs.com/)
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL or MariaDB (choose via `DATABASE_PROVIDER` + `DATABASE_URL`; see [Fresh install](#fresh-install-postgresql-or-mariadb))
 - **ORM**: Prisma v7
 - **Auth**: JWT + bcrypt
 - **Docs**: Swagger UI (`/api/docs`)
@@ -185,41 +185,99 @@ npm install
 
 ### 2. Configure Environment Variables
 
+Copy the example that matches the database you will use:
+
+| Database    | Copy this file           |
+|-------------|--------------------------|
+| PostgreSQL  | `cp env.postgres.example .env` |
+| MariaDB     | `cp env.mariadb.example .env`  |
+
+You can also start from `.env.example` (see `DATABASE_PROVIDER` there). Edit `.env` and set **`DATABASE_URL`** (and **`JWT_SECRET`**, **`PORT`** as needed).
+
+> ⚠️ If your password contains special characters like `@`, URL-encode them in `DATABASE_URL`.
+> For example, `abc@123` becomes `abc%40123`.
+
+---
+
+### Fresh install: PostgreSQL or MariaDB
+
+Prisma uses **`prisma/schema.prisma`** + **`prisma/migrations/`** for PostgreSQL, and **`prisma/schema.mariadb.prisma`** + **`prisma/migrations_mariadb/`** for MariaDB. The active schema is chosen from **`DATABASE_PROVIDER`** and your URL (see `prisma/prisma.config.ts`).
+
+**Always run `npm run db:generate` after changing `.env`** so the generated client matches your database.
+
+#### PostgreSQL (fresh)
+
+1. Install and start PostgreSQL locally; create nothing manually if you will use the helper below.
+2. In `.env`: **`DATABASE_PROVIDER=postgres`** (or omit it if `DATABASE_URL` starts with `postgresql://`).
+3. Set `DATABASE_URL`, e.g.  
+   `DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/ecomdb"`
+4. From the project root:
+
 ```bash
-cp .env.example .env
+npm install
+npm run db:setup
 ```
 
-Edit `.env` — for macOS with trust auth (no password), use:
+`db:setup` creates the user/database (when possible), applies migrations from **`prisma/migrations/`**, and runs **`db:generate`**.
 
-```env
-DATABASE_URL="postgresql://admin@localhost:5432/ecomdb"
-JWT_SECRET="your_jwt_secret_here"
-PORT=3008
+If you prefer to apply migrations only (database already exists):
+
+```bash
+npm install
+npm run db:generate
+npm run db:migrate
 ```
 
-> ⚠️ If your password contains special characters like `@`, URL-encode them.
-> For example, `abc@123` becomes `abc%40123` in the `DATABASE_URL`.
+Optional seed:
 
-### 3. Database Setup (Single Command)
+```bash
+npm run db:seed
+```
 
-Run the following command to automatically:
-- ✅ Create the PostgreSQL user (if not exists)
-- ✅ Create the database (if not exists)
-- ✅ Grant all required privileges
-- ✅ Run all Prisma migrations
-- ✅ Generate the Prisma client
+#### MariaDB (fresh)
+
+1. Install and start **MariaDB** (or MySQL). Create an empty database, e.g.  
+   `CREATE DATABASE IF NOT EXISTS ecomdb;`
+2. In `.env`: **`DATABASE_PROVIDER=mariadb`** and a Node-style URL (not JDBC), e.g.  
+   `DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/ecomdb"`  
+   (`mariadb://` is also supported.)
+3. From the project root:
+
+```bash
+npm install
+npm run db:generate
+npx prisma migrate dev --config=prisma/prisma.config.ts --name init
+```
+
+That creates and applies the first migration under **`prisma/migrations_mariadb/`**. Do **not** run the PostgreSQL SQL migrations on MariaDB.
+
+Optional seed:
+
+```bash
+npm run db:seed
+```
+
+**Switching engines later:** Change `.env`, then run **`npm run db:generate`** again (and use the correct migration folder for `db:migrate`).
+
+---
+
+### 3. Database Setup (PostgreSQL — automated helper)
+
+On macOS/Linux/Windows you can use the all-in-one script (PostgreSQL **only**):
 
 ```bash
 npm run db:setup
 ```
 
+This uses `scripts/db-setup.js` with **`pg`**: it creates user/DB when possible, runs **`prisma/migrations/`**, and **`db:generate`**. For MariaDB, use the [MariaDB (fresh)](#mariadb-fresh) steps instead.
+
 ### 4. Generate Prisma Client (if needed)
 
-If you encounter a `Cannot find module '.prisma/client/default'` error:
-
 ```bash
-npx prisma generate
+npm run db:generate
 ```
+
+If you see a missing Prisma client error, ensure `.env` is set and run the command above (it uses `prisma/prisma.config.ts`).
 
 ### 5. Run the Application
 
@@ -298,6 +356,8 @@ npm run db:migrate
 npm run db:generate
 npm run start:dev
 ```
+
+Your **`DATABASE_PROVIDER`** and **`DATABASE_URL`** in `.env` must match the database you use (PostgreSQL vs MariaDB). After `git pull`, if migrations failed, confirm you are on the right engine and run **`npm run db:generate`** so the Prisma client matches `.env`.
 
 ---
 
@@ -948,10 +1008,13 @@ curl -X PUT http://localhost:3008/admin/variants/1/stock \
 
 | Command              | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `npm run db:setup`   | Full setup — create user, DB, grants, migrate, generate  |
-| `npm run db:migrate` | Run pending migrations only                              |
-| `npm run db:generate`| Regenerate Prisma client only                            |
+| `npm run db:setup`   | **PostgreSQL only** — create user/DB when possible, migrate, generate |
+| `npm run db:migrate` | Apply pending migrations (`prisma/migrations/` or `migrations_mariadb/` per `prisma.config.ts`) |
+| `npm run db:generate`| Regenerate Prisma client (must match `DATABASE_PROVIDER` / URL in `.env`) |
+| `npm run db:seed`    | Seed pack sizes + default admin (uses `.env`)            |
 | `npm run db:reset`   | ⚠️ Drop and recreate DB (deletes all data)               |
+
+**MariaDB fresh:** use `npm run db:generate` then `npx prisma migrate dev --config=prisma/prisma.config.ts --name <name>` (see [Fresh install](#fresh-install-postgresql-or-mariadb)).
 
 ---
 
@@ -1103,12 +1166,14 @@ src/
 ├── app.module.ts
 └── main.ts                         ← Swagger + ValidationPipe bootstrap
 prisma/
-├── schema.prisma                   ← DB schema (+ Coupon, CheckoutSession, CheckoutIdempotency,
-│                                     ProductReview, Product.avgRating / Variant.reservedQuantity, …)
-├── prisma.config.ts                ← Prisma 7 config
-└── migrations/                     ← Migration history
+├── schema.prisma                   ← PostgreSQL datasource + models
+├── schema.mariadb.prisma           ← Same models, `mysql` provider (MariaDB / MySQL)
+├── prisma.config.ts                ← Chooses schema + `migrations/` vs `migrations_mariadb/` from `.env`
+├── migrations/                     ← PostgreSQL migration SQL (do not apply on MariaDB)
+├── migrations_mariadb/             ← MariaDB migration SQL (do not mix with Postgres)
+└── seed.js
 scripts/
-└── db-setup.sh                     ← Full DB setup script
+└── db-setup.js                     ← Automated setup (PostgreSQL only; see README)
 ```
 
 ## Database Schema Overview

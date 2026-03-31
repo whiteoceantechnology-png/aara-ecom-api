@@ -51,14 +51,12 @@ describe("ProductsService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prisma.$transaction.mockImplementation(
-      async (arg: unknown) => {
-        if (typeof arg === "function") {
-          return (arg as (t: typeof tx) => Promise<unknown>)(tx);
-        }
-        return Promise.all(arg as Promise<unknown>[]);
-      },
-    );
+    prisma.$transaction.mockImplementation(async (arg: unknown) => {
+      if (typeof arg === "function") {
+        return (arg as (t: typeof tx) => Promise<unknown>)(tx);
+      }
+      return Promise.all(arg as Promise<unknown>[]);
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -160,7 +158,11 @@ describe("ProductsService", () => {
   describe("create", () => {
     it("should validate category and create product", async () => {
       prisma.category.findUnique.mockResolvedValue({ id: 1 });
-      prisma.product.create.mockResolvedValue({ id: 1, name: "New", tax: null });
+      prisma.product.create.mockResolvedValue({
+        id: 1,
+        name: "New",
+        tax: null,
+      });
 
       const dto = {
         categoryId: 1,
@@ -549,7 +551,9 @@ describe("ProductsService", () => {
       prisma.productSpecification.findFirst.mockResolvedValue({
         id: 1,
         productId: 1,
-        productSpecification: [{ title: "T", items: [{ key: "k", value: "v" }] }],
+        productSpecification: [
+          { title: "T", items: [{ key: "k", value: "v" }] },
+        ],
         shortDescription: "s",
         productDescription: "l",
         moreInfo: "m",

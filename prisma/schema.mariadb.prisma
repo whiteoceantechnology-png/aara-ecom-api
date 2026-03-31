@@ -1,0 +1,380 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                Int          @id @default(autoincrement())
+  username          String       @unique
+  password          String
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  profile           UserProfile?
+  addresses         UserAddress[]
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  role      String   @default("admin") // "admin" | "superadmin"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UploadedImage {
+  id           Int      @id @default(autoincrement())
+  path         String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+}
+
+model UserProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName    String
+  lastName     String
+  emailAddress String
+  birthDate    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model UserAddress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  houseNo     String
+  areaStreet  String
+  city        String
+  state       String
+  pincode     String
+  country     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── E-Commerce ───────────────────────────────────────────────────────────────
+
+model Brand {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  logoUrl   String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Tax {
+  id        Int       @id @default(autoincrement())
+  name      String
+  percent   Decimal   @db.Decimal(5, 2)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Category {
+  id            Int        @id @default(autoincrement())
+  name          String
+  categoryImage String?
+  parentId      Int?
+  parent        Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children      Category[] @relation("CategoryChildren")
+  products      Product[]
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Product {
+  id             Int                    @id @default(autoincrement())
+  categoryId     Int
+  category       Category               @relation(fields: [categoryId], references: [id])
+  brandId        Int?
+  brand          Brand?                 @relation(fields: [brandId], references: [id])
+  name           String
+  slug           String                 @unique
+  description    String?
+  hsnCode        String?
+  taxId          Int?
+  tax            Tax?                   @relation(fields: [taxId], references: [id], onDelete: SetNull)
+  taxPercent     Decimal                @default(0) @db.Decimal(5, 2)
+  actualPrice    Decimal?               @db.Decimal(10, 2)
+  discountPrice  Decimal?               @db.Decimal(10, 2)
+  productImage   String?
+  status         Boolean                @default(true)
+  avgRating      Decimal?               @db.Decimal(3, 2)
+  reviewCount    Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  variants        ProductVariant[]
+  images          ProductImage[]
+  cartItems       CartItem[]
+  specifications  ProductSpecification[]
+  specItems       ProductSpecItem[]
+  reviews         ProductReview[]
+  wishlists       Wishlist[]
+
+  @@index([taxId])
+}
+
+model PackSize {
+  id       Int              @id @default(autoincrement())
+  size     Decimal          @db.Decimal(10, 2)
+  unit     String
+  label    String
+  variants ProductVariant[]
+}
+
+model ProductVariant {
+  id            Int        @id @default(autoincrement())
+  productId     Int
+  product       Product    @relation(fields: [productId], references: [id])
+  packSizeId    Int
+  packSize      PackSize   @relation(fields: [packSizeId], references: [id])
+  variantName   String?
+  variantColor  String?
+  isColor       Int        @default(0)
+  price         Decimal    @db.Decimal(10, 2)
+  actualPrice   Decimal?   @db.Decimal(10, 2)
+  discountPrice Decimal?   @db.Decimal(10, 2)
+  sku           String     @unique
+  stockQuantity    Int        @default(0)
+  reservedQuantity Int        @default(0)
+  // MySQL/MariaDB: no native text[] — store string[] as JSON (same shape at runtime as Postgres TEXT[])
+  altTags       Json       @default("[]")
+  favourites    Int        @default(0)
+  status        Boolean    @default(true)
+  images        VariantImage[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+}
+
+model VariantImage {
+  id        Int            @id @default(autoincrement())
+  variantId Int
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  sortOrder Int            @default(0)
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  imageUrl  String
+  isPrimary Boolean @default(false)
+}
+
+model ProductSpecification {
+  id                   Int     @id @default(autoincrement())
+  productId            Int     @unique
+  product              Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productSpecification Json    @default("[]")
+  shortDescription     String?
+  productDescription   String?
+  moreInfo             String?
+}
+
+model ProductSpecItem {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title     String
+  key       String
+  value     String
+
+  @@index([key, value])
+  @@index([productId])
+}
+
+model Cart {
+  id         Int        @id @default(autoincrement())
+  customerId Int
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  createdAt  DateTime   @default(now())
+  items      CartItem[]
+}
+
+model CartItem {
+  id        Int            @id @default(autoincrement())
+  cartId    Int
+  cart      Cart           @relation(fields: [cartId], references: [id])
+  variantId Int
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  productId Int
+  product   Product        @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal        @db.Decimal(10, 2)
+}
+
+model Customer {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  isBlocked    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  addresses    CustomerAddress[]
+  carts        Cart[]
+  orders       Order[]
+  checkoutSessions     CheckoutSession[]
+  checkoutIdempotencies CheckoutIdempotency[]
+  reviews      ProductReview[]
+  wishlists    Wishlist[]
+}
+
+model Wishlist {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@index([productId])
+}
+
+model CustomerAddress {
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  customer     Customer @relation(fields: [customerId], references: [id])
+  name         String
+  phone        String?
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  postalCode   String
+  country      String
+  orders       Order[]
+}
+
+model Coupon {
+  id                 Int       @id @default(autoincrement())
+  code               String    @unique
+  percentOff         Decimal?  @db.Decimal(5, 2)
+  maxDiscountAmount  Decimal?  @db.Decimal(10, 2)
+  minOrderAmount     Decimal?  @db.Decimal(10, 2)
+  active             Boolean   @default(true)
+  expiresAt          DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model CheckoutSession {
+  id          Int      @id @default(autoincrement())
+  customerId  Int      @unique
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  couponCode  String?
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+model CheckoutIdempotency {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  key         String
+  orderId     Int      @unique
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([customerId, key])
+}
+
+model ProductReview {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderId     Int?
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([customerId, productId])
+  @@index([productId])
+}
+
+model Order {
+  id                 Int         @id @default(autoincrement())
+  customerId         Int
+  customer           Customer    @relation(fields: [customerId], references: [id])
+  orderNumber        String      @unique
+  status             String      @default("PENDING_PAYMENT")
+  totalAmount        Decimal     @db.Decimal(10, 2)
+  taxAmount          Decimal     @default(0) @db.Decimal(10, 2)
+  shippingAmount     Decimal     @default(0) @db.Decimal(10, 2)
+  discountAmount     Decimal     @default(0) @db.Decimal(10, 2)
+  couponCode         String?
+  paymentStatus      String      @default("pending")
+  trackingId         String?
+  notes              String?
+  shippingAddressId  Int?
+  shippingAddress    CustomerAddress? @relation(fields: [shippingAddressId], references: [id])
+  addressSnapshot    Json?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  items              OrderItem[]
+  payments           Payment[]
+  shipments          Shipment[]
+  checkoutIdempotency CheckoutIdempotency?
+  reviews            ProductReview[]
+}
+
+model OrderItem {
+  id        Int            @id @default(autoincrement())
+  orderId   Int
+  order     Order          @relation(fields: [orderId], references: [id])
+  variantId Int
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  productName String
+  sizeLabel   String
+  price       Decimal      @db.Decimal(10, 2)
+  quantity    Int
+  subtotal    Decimal      @db.Decimal(10, 2)
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  orderId       Int
+  order         Order    @relation(fields: [orderId], references: [id])
+  paymentMethod String
+  transactionId String?
+  paymentStatus String   @default("pending")
+  paymentDate   DateTime @default(now())
+}
+
+model Shipment {
+  id             Int       @id @default(autoincrement())
+  orderId        Int
+  order          Order     @relation(fields: [orderId], references: [id])
+  courierName    String?
+  trackingNumber String?
+  status         String    @default("pending")
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+}

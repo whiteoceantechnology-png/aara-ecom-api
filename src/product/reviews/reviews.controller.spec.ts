@@ -65,10 +65,7 @@ describe("ReviewsController", () => {
 
     it("should NOT mark create as @Public()", () => {
       expect(
-        Reflect.getMetadata(
-          IS_PUBLIC_KEY,
-          ReviewsController.prototype.create,
-        ),
+        Reflect.getMetadata(IS_PUBLIC_KEY, ReviewsController.prototype.create),
       ).toBeUndefined();
     });
   });

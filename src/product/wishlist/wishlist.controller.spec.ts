@@ -21,7 +21,9 @@ describe("WishlistController", () => {
   });
 
   it("add should forward customer id and product id", async () => {
-    wishlistService.add.mockResolvedValue({ message: "Product added to wishlist" });
+    wishlistService.add.mockResolvedValue({
+      message: "Product added to wishlist",
+    });
 
     const result = await controller.add(5, { productId: 7 });
 
@@ -46,7 +48,9 @@ describe("WishlistController", () => {
   });
 
   it("remove should forward ids", async () => {
-    wishlistService.remove.mockResolvedValue({ message: "Removed from wishlist" });
+    wishlistService.remove.mockResolvedValue({
+      message: "Removed from wishlist",
+    });
 
     await controller.remove(4, 9);
 

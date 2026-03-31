@@ -17,6 +17,11 @@ import {
 } from "../checkout/checkout-pricing.util";
 import { assertCouponUsable } from "../checkout/assert-coupon-usable";
 import { DEFAULT_CHECKOUT_SHIPPING_FLAT } from "../checkout/checkout.constants";
+import {
+  affectedRowsCount,
+  quoteSqlIdentifier,
+  stringContainsFilter,
+} from "../../common/database-provider.util";
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
@@ -24,6 +29,20 @@ const orderDetailInclude = {
   payments: true,
   shipments: true,
 } as const;
+
+/** `adminFindAll` + `include.customer` — Prisma MariaDB typings omit nested includes on some models. */
+type AdminOrderCsvRow = {
+  orderNumber: string;
+  customer: { name: string; email: string; phone: string | null };
+  status: string;
+  paymentStatus: string;
+  totalAmount: unknown;
+  taxAmount: unknown;
+  shippingAmount: unknown;
+  trackingId: string | null;
+  notes: string | null;
+  createdAt: Date;
+};
 
 const cartForPlaceOrderInclude = {
   items: {
@@ -108,7 +127,9 @@ export class OrdersService {
     const totals = computeCheckoutTotals(lines, {
       shippingFlat,
       discountPercent: decimalToNumberOrUndefined(pricingSource?.percentOff),
-      maxDiscountAmount: decimalToNumberOrNull(pricingSource?.maxDiscountAmount),
+      maxDiscountAmount: decimalToNumberOrNull(
+        pricingSource?.maxDiscountAmount,
+      ),
       minOrderAmount: decimalToNumberOrNull(pricingSource?.minOrderAmount),
     });
 
@@ -194,15 +215,18 @@ export class OrdersService {
       }
 
       if (order.status === OrderStatus.PENDING_PAYMENT) {
+        const T = quoteSqlIdentifier("ProductVariant");
+        const sq = quoteSqlIdentifier("stockQuantity");
+        const rq = quoteSqlIdentifier("reservedQuantity");
         for (const item of order.items) {
-          const rowsAffected = await tx.$executeRaw`
-            UPDATE "ProductVariant"
-            SET "stockQuantity" = "stockQuantity" - ${item.quantity},
-                "reservedQuantity" = "reservedQuantity" - ${item.quantity}
-            WHERE id = ${item.variantId}
-            AND "reservedQuantity" >= ${item.quantity}
-          `;
-          if (rowsAffected !== 1) {
+          const rowsAffected = await tx.$executeRawUnsafe(
+            `UPDATE ${T} SET ${sq} = ${sq} - ?, ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
+            item.quantity,
+            item.quantity,
+            item.variantId,
+            item.quantity,
+          );
+          if (affectedRowsCount(rowsAffected) !== 1) {
             throw new BadRequestException(
               `Inventory commit failed for variant #${item.variantId}`,
             );
@@ -244,15 +268,17 @@ export class OrdersService {
       throw new BadRequestException("Paid orders cannot use this cancel flow");
     }
 
+    const T = quoteSqlIdentifier("ProductVariant");
+    const rq = quoteSqlIdentifier("reservedQuantity");
     await this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
-        const rowsAffected = await tx.$executeRaw`
-          UPDATE "ProductVariant"
-          SET "reservedQuantity" = "reservedQuantity" - ${item.quantity}
-          WHERE id = ${item.variantId}
-          AND "reservedQuantity" >= ${item.quantity}
-        `;
-        if (rowsAffected !== 1) {
+        const rowsAffected = await tx.$executeRawUnsafe(
+          `UPDATE ${T} SET ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
+          item.quantity,
+          item.variantId,
+          item.quantity,
+        );
+        if (affectedRowsCount(rowsAffected) !== 1) {
           throw new BadRequestException(
             `Failed to release reservation for variant #${item.variantId}`,
           );
@@ -320,9 +346,9 @@ export class OrdersService {
         ...(paymentStatus && { paymentStatus }),
         ...(search && {
           OR: [
-            { orderNumber: { contains: search, mode: "insensitive" } },
-            { customer: { name: { contains: search, mode: "insensitive" } } },
-            { customer: { email: { contains: search, mode: "insensitive" } } },
+            { orderNumber: stringContainsFilter(search) },
+            { customer: { name: stringContainsFilter(search) } },
+            { customer: { email: stringContainsFilter(search) } },
           ],
         }),
         ...(from || to
@@ -384,7 +410,7 @@ export class OrdersService {
     from?: string;
     to?: string;
   }): Promise<string> {
-    const orders = await this.adminFindAll(params);
+    const orders = (await this.adminFindAll(params)) as AdminOrderCsvRow[];
 
     const headers = [
       "Order Number",
@@ -555,14 +581,17 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     items: CartForPlaceOrder["items"],
   ) {
+    const T = quoteSqlIdentifier("ProductVariant");
+    const sq = quoteSqlIdentifier("stockQuantity");
+    const rq = quoteSqlIdentifier("reservedQuantity");
     for (const item of items) {
-      const rowsAffected = await tx.$executeRaw`
-        UPDATE "ProductVariant"
-        SET "reservedQuantity" = "reservedQuantity" + ${item.quantity}
-        WHERE id = ${item.variantId}
-        AND ("stockQuantity" - "reservedQuantity") >= ${item.quantity}
-      `;
-      if (rowsAffected !== 1) {
+      const rowsAffected = await tx.$executeRawUnsafe(
+        `UPDATE ${T} SET ${rq} = ${rq} + ? WHERE id = ? AND (${sq} - ${rq}) >= ?`,
+        item.quantity,
+        item.variantId,
+        item.quantity,
+      );
+      if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
           `Insufficient stock to reserve for variant #${item.variantId}`,
         );
