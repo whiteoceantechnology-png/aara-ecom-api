@@ -571,11 +571,12 @@ Open **Swagger** at `/api/docs` — the global description summarizes category f
 
 ### 🔢 Variants
 
-| Method   | Endpoint          | Auth | Description             |
-|----------|-------------------|------|-------------------------|
-| `POST`   | `/variants`       | 🔒   | Create a product variant |
-| `PUT`    | `/variants/:id`   | 🔒   | Update a variant        |
-| `DELETE` | `/variants/:id`   | 🔒   | Delete a variant        |
+| Method   | Endpoint               | Auth | Description |
+|----------|------------------------|------|-------------|
+| `GET`    | `/variants`            | 🔓   | List pack sizes + hints (use `packSizeId` when creating variants) |
+| `POST`   | `/admin/variants`      | 🔒   | Create a product variant (**admin JWT** — same as `Admin — Dashboard`) |
+| `PUT`    | `/admin/variants/:id`  | 🔒   | Update a variant (**admin JWT**) |
+| `DELETE` | `/admin/variants/:id`  | 🔒   | Delete a variant (**admin JWT**) |
 
 ### 🧑 Customers
 
@@ -1012,7 +1013,13 @@ curl -X PUT http://localhost:3008/admin/variants/1/stock \
 | `npm run db:migrate` | Apply pending migrations (`prisma/migrations/` or `migrations_mariadb/` per `prisma.config.ts`) |
 | `npm run db:generate`| Regenerate Prisma client (must match `DATABASE_PROVIDER` / URL in `.env`) |
 | `npm run db:seed`    | Seed pack sizes + default admin (uses `.env`)            |
+| `npm run db:fix:pack-size-id1` | Insert `PackSize` **id=1** if missing (fixes Swagger `packSizeId: 1` when other rows exist) |
+| `npm run db:seed:test` | Insert **synthetic e-commerce test data** (category, brand, tax, product, variant, customer, coupon, cart, review) — see `scripts/seed-test-data.js` |
+| `npm run db:clear:test` | Delete all e-commerce rows; **keeps** `User`, `Admin`, and **`PackSize`** (so default pack sizes from `db:seed` stay) |
+| `npm run test:with-db` | `db:seed:test` → `npm test` → `db:clear:test` (handy for a clean local cycle) |
 | `npm run db:reset`   | ⚠️ Drop and recreate DB (deletes all data)               |
+
+Test data is applied with **Node scripts**, not Prisma schema migrations (migrations stay schema-only). Use `DATABASE_URL` / `DATABASE_PROVIDER` the same as for the app.
 
 **MariaDB fresh:** use `npm run db:generate` then `npx prisma migrate dev --config=prisma/prisma.config.ts --name <name>` (see [Fresh install](#fresh-install-postgresql-or-mariadb)).
 
@@ -1111,8 +1118,8 @@ src/
 │   │   ├── products.service.ts            ← Business logic (public + admin methods with brand/image support)
 │   │   └── products.module.ts
 │   ├── variants/
-│   │   ├── variants.controller.ts         ← /variants endpoints + Swagger
-│   │   ├── variants.controller.spec.ts    ← Unit tests (5 tests)
+│   │   ├── variants.controller.ts         ← GET /variants (pack sizes) + Swagger
+│   │   ├── variants.controller.spec.ts    ← Unit tests
 │   │   ├── variants.service.ts            ← Business logic
 │   │   └── variants.module.ts
 │   ├── customers/
@@ -1151,6 +1158,8 @@ src/
 │   ├── admin-images.service.spec.ts        ← Unit tests (image upload/serve)
 │   ├── admin-products.controller.ts        ← Brands CRUD + Products CRUD + Stock + Images
 │   ├── admin-products.controller.spec.ts  ← Unit tests (14 tests)
+│   ├── admin-variants.controller.ts        ← POST/PUT/DELETE /admin/variants (admin JWT)
+│   ├── admin-variants.controller.spec.ts   ← Unit tests
 │   ├── admin-categories.controller.ts       ← /admin/categories CRUD → injects CategoriesService
 │   ├── admin-categories.controller.spec.ts  ← Unit tests (8 tests)
 │   ├── admin-customers.controller.ts       ← List, detail, toggle-block
@@ -1159,7 +1168,7 @@ src/
 │   ├── admin-orders.controller.ts       ← List with filters, update, CSV export → injects OrdersService
 │   ├── admin-orders.controller.spec.ts  ← Unit tests (7 tests)
 │   ├── brands.service.ts           ← Brand CRUD (admin-scoped, injected into AdminProductsController)
-│   └── admin.module.ts             ← Imports CategoriesModule, OrdersModule, ProductsModule
+│   └── admin.module.ts             ← Imports CategoriesModule, OrdersModule, ProductsModule, VariantsModule
 ├── prisma/
 │   ├── prisma.service.ts           ← Prisma injectable service
 │   └── prisma.module.ts

@@ -29,6 +29,10 @@
     "db:generate": "npx prisma generate --config=prisma/prisma.config.ts",
     "db:reset": "npx prisma migrate reset --config=prisma/prisma.config.ts --force",
     "db:seed": "node prisma/seed.js",
+    "db:fix:pack-size-id1": "node scripts/ensure-pack-size-id1.js",
+    "db:seed:test": "node scripts/seed-test-data.js",
+    "db:clear:test": "node scripts/clear-test-data.js",
+    "test:with-db": "npm run db:seed:test && npm test && npm run db:clear:test",
     "prepare": "husky",
     "postinstall": "npx prisma generate --config=prisma/prisma.config.ts"
   },

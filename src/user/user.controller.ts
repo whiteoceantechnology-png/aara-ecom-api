@@ -25,12 +25,35 @@ import {
   CreateAddressDto,
   UpdateAddressDto,
 } from "./dto/user.dto";
+import { CurrentUserId } from "./decorators/current-user-id.decorator";
 
 @ApiBearerAuth()
 @ApiTags("User")
 @Controller("user")
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  // ─── GET /user/me/details (JWT) ──────────────────────────────────────────────
+
+  @Get("me/details")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Get current user profile from token",
+    description:
+      "Same body as GET /user/{id}/details, but the user id is taken from the Bearer token (`userId` claim).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User profile details",
+    type: UserProfileResponseDto,
+  })
+  @ApiResponse({ status: 401, description: "Missing or invalid token" })
+  @ApiResponse({ status: 404, description: "Profile not found" })
+  async getMyProfile(
+    @CurrentUserId() userId: number,
+  ): Promise<UserProfileResponseDto> {
+    return this.userService.getProfile(userId);
+  }
 
   // ─── GET /user/:id/details ─────────────────────────────────────────────────
 

@@ -1,0 +1,8 @@
+-- Test data is intentionally NOT shipped as Prisma schema migrations.
+-- Load / reset flows (PostgreSQL or MariaDB):
+--   npm run db:seed:test
+--   npm run db:clear:test
+-- Full cycle with unit tests:
+--   npm run test:with-db
+--
+-- Implementation: scripts/seed-test-data.js and scripts/clear-test-data.js

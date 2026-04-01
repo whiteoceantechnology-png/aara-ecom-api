@@ -20,6 +20,7 @@ import * as bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
 import { CreateCustomerDto, CustomerLoginDto } from "./dto/customer.dto";
 import { toImageUrl, toImageUrls } from "../common/image-url";
+import { serializeProductVariantForApi } from "./utils/variant-api.util";
 
 @Injectable()
 export class ProductRepository {
@@ -266,30 +267,48 @@ export class ProductRepository {
     const packSize = await this.prisma.packSize.findUnique({
       where: { id: dto.packSizeId },
     });
-    if (!packSize)
-      throw new NotFoundException(`PackSize #${dto.packSizeId} not found`);
+    if (!packSize) {
+      const count = await this.prisma.packSize.count();
+      const suffix =
+        count === 0
+          ? " Seed pack sizes first: `npm run db:seed`. Then GET /variants lists valid IDs."
+          : " Use GET /variants to see valid packSizeId values (create variants via POST /admin/variants).";
+      throw new NotFoundException(
+        `PackSize #${dto.packSizeId} not found.${suffix}`,
+      );
+    }
 
-    return await this.prisma.productVariant.create({
+    const created = await this.prisma.productVariant.create({
       data: {
         productId: dto.productId,
         packSizeId: dto.packSizeId,
         price: dto.price,
+        actualPrice: product.actualPrice,
+        discountPrice: product.discountPrice,
         sku: dto.sku,
         stockQuantity: dto.stockQuantity ?? 0,
         status: dto.status ?? true,
       },
-      include: { packSize: true },
+      include: {
+        packSize: true,
+        product: { select: { id: true, name: true, slug: true } },
+      },
     });
+    return serializeProductVariantForApi(created);
   }
 
   async updateVariant(id: number, dto: UpdateVariantDto) {
     const v = await this.prisma.productVariant.findUnique({ where: { id } });
     if (!v) throw new NotFoundException("Variant not found");
-    return this.prisma.productVariant.update({
+    const updated = await this.prisma.productVariant.update({
       where: { id },
       data: dto,
-      include: { packSize: true },
+      include: {
+        packSize: true,
+        product: { select: { id: true, name: true, slug: true } },
+      },
     });
+    return serializeProductVariantForApi(updated);
   }
 
   async deleteVariant(id: number) {
