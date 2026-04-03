@@ -19,6 +19,8 @@ import { AdminOrdersController } from "./admin-orders.controller";
 import { AdminImagesController } from "./admin-images.controller";
 import { AdminImagesService } from "./admin-images.service";
 import { AdminVariantsController } from "./admin-variants.controller";
+import { AdminMasterdataController } from "./admin-masterdata.controller";
+import { AdminMasterdataService } from "./admin-masterdata.service";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
 
 @Module({
@@ -38,6 +40,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminOrdersController,
     AdminImagesController,
     AdminVariantsController,
+    AdminMasterdataController,
   ],
   providers: [
     AdminAuthService,
@@ -45,6 +48,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminCustomersService,
     BrandsService, // scoped to admin; no public-facing BrandsModule needed
     AdminImagesService,
+    AdminMasterdataService,
     AdminRoleGuard,
   ],
 })

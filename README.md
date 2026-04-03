@@ -890,6 +890,16 @@ curl -X PUT http://localhost:3008/orders/1/status \
 | `POST`   | `/admin/products/:id/images`      | 🔒   | Add image to product (set isPrimary)           |
 | `DELETE` | `/admin/images/:id`               | 🔒   | Delete a product image                         |
 
+### 📥 Admin Master data (Excel)
+
+| Method   | Endpoint                            | Auth | Description |
+|----------|-------------------------------------|------|-------------|
+| `GET`    | `/admin/masterdata/products/template` | 🔒 (admin JWT) | Download **`.xlsx`** template: same columns as import (headers + one example row). |
+| `GET`    | `/admin/masterdata/products/export`   | 🔒 (admin JWT) | Download **`.xlsx`** with **all products** (same columns as template; includes `id`). Edit / copy rows to test import with **new** `slug`s. |
+| `POST`   | `/admin/masterdata/products/import`   | 🔒 (admin JWT) | Multipart field **`file`**: `.xlsx` / `.xls`. Row 1 = headers; from row 2 = data. Columns: `id` (optional, ignored on create), `categoryId`, `name`, `slug`, `brandId`, `description`, `hsnCode`, `taxPercent`, `taxId`. Same create logic as `POST /admin/products`. Max 500 rows; per-row result. |
+
+**Round-trip:** Export → edit → import **new** rows only (duplicate `slug` fails). Use **Template** for a blank/example sheet.
+
 ### 🖼️ Admin Images (Upload & Serve)
 
 | Method   | Endpoint                   | Auth | Description                                              |
@@ -1160,6 +1170,9 @@ src/
 │   ├── admin-products.controller.spec.ts  ← Unit tests (14 tests)
 │   ├── admin-variants.controller.ts        ← POST/PUT/DELETE /admin/variants (admin JWT)
 │   ├── admin-variants.controller.spec.ts   ← Unit tests
+│   ├── admin-masterdata.controller.ts      ← POST /admin/masterdata/products/import (Excel)
+│   ├── admin-masterdata.service.ts         ← Parses xlsx → ProductsService.adminCreate
+│   ├── masterdata-excel.util.ts            ← Row → AdminCreateProductDto
 │   ├── admin-categories.controller.ts       ← /admin/categories CRUD → injects CategoriesService
 │   ├── admin-categories.controller.spec.ts  ← Unit tests (8 tests)
 │   ├── admin-customers.controller.ts       ← List, detail, toggle-block
