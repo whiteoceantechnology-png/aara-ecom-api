@@ -31,9 +31,12 @@ describe("AdminVariantsController", () => {
   it("should create a variant", async () => {
     const dto: CreateVariantDto = {
       productId: 1,
+      variantName: "ruby red shirt",
       packSizeId: 1,
       price: 31,
+      discountedPrice: 28,
       sku: "SKU-1",
+      imagePath: ["/images/products/a.png", "/images/products/b.png"],
     };
     const created = { id: 1, ...dto };
     service.create.mockResolvedValue(created);

@@ -574,9 +574,19 @@ Open **Swagger** at `/api/docs` — the global description summarizes category f
 | Method   | Endpoint               | Auth | Description |
 |----------|------------------------|------|-------------|
 | `GET`    | `/variants`            | 🔓   | List pack sizes + hints (use `packSizeId` when creating variants) |
-| `POST`   | `/admin/variants`      | 🔒   | Create a product variant (**admin JWT** — same as `Admin — Dashboard`) |
+| `POST`   | `/admin/variants`      | 🔒   | Create a product variant (**admin JWT**) |
 | `PUT`    | `/admin/variants/:id`  | 🔒   | Update a variant (**admin JWT**) |
 | `DELETE` | `/admin/variants/:id`  | 🔒   | Delete a variant (**admin JWT**) |
+
+**Create payload (`POST /admin/variants`)**
+
+- Required: `productId`, `packSizeId`, `price`, `sku`
+- Optional: `variantName`, `discountedPrice`, `stockQuantity`, `status`, `imagePath[]`
+
+**Notes**
+
+- `discountedPrice` is stored as `discountPrice` on the variant
+- `imagePath[]` creates variant images (order preserved)
 
 ### 🧑 Customers
 
@@ -894,11 +904,15 @@ curl -X PUT http://localhost:3008/orders/1/status \
 
 | Method   | Endpoint                            | Auth | Description |
 |----------|-------------------------------------|------|-------------|
-| `GET`    | `/admin/masterdata/products/template` | 🔒 (admin JWT) | Download **`.xlsx`** template: same columns as import (headers + one example row). |
-| `GET`    | `/admin/masterdata/products/export`   | 🔒 (admin JWT) | Download **`.xlsx`** with **all products** (same columns as template; includes `id`). Edit / copy rows to test import with **new** `slug`s. |
-| `POST`   | `/admin/masterdata/products/import`   | 🔒 (admin JWT) | Multipart field **`file`**: `.xlsx` / `.xls`. Row 1 = headers; from row 2 = data. Columns: `id` (optional, ignored on create), `categoryId`, `name`, `slug`, `brandId`, `description`, `hsnCode`, `taxPercent`, `taxId`. Same create logic as `POST /admin/products`. Max 500 rows; per-row result. |
+| `GET`    | `/admin/masterdata/products/template` | 🔒 | Download **`.xlsx`** template: same columns as import (headers + one example row). |
+| `GET`    | `/admin/masterdata/products/export`   | 🔒 | Download **`.xlsx`** with **all products** (same columns as template; includes `id`). |
+| `POST`   | `/admin/masterdata/products/import`   | 🔒 | Multipart field **`file`**: `.xlsx` / `.xls`. Row 1 = headers; from row 2 = data. Columns: `id` (optional), `categoryId`, `name`, `slug`, `brandId`, `description`, `hsnCode`, `taxPercent`, `taxId`. Max 500 rows; per-row result. |
 
-**Round-trip:** Export → edit → import **new** rows only (duplicate `slug` fails). Use **Template** for a blank/example sheet.
+**Behavior**
+
+- If `id` is present and exists in DB → **updates** that product
+- If `id` is blank → **creates** a new product
+- Duplicate `slug` on create returns a short, actionable error message
 
 ### 🖼️ Admin Images (Upload & Serve)
 

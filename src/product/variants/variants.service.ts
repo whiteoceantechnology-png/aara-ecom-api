@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateVariantDto, UpdateVariantDto } from "../dto/variant.dto";
 import { serializeProductVariantForApi } from "../utils/variant-api.util";
@@ -42,22 +43,50 @@ export class VariantsService {
       );
     }
 
-    const created = await this.prisma.productVariant.create({
-      data: {
-        productId: dto.productId,
-        packSizeId: dto.packSizeId,
-        price: dto.price,
-        actualPrice: product.actualPrice,
-        discountPrice: product.discountPrice,
-        sku: dto.sku,
-        stockQuantity: dto.stockQuantity ?? 0,
-        status: dto.status ?? true,
-      },
-      include: {
-        packSize: true,
-        product: { select: { id: true, name: true, slug: true } },
-      },
+    const { imagePath, discountedPrice, ...fields } = dto;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.productVariant.create({
+        data: {
+          productId: fields.productId,
+          packSizeId: fields.packSizeId,
+          price: fields.price,
+          actualPrice: product.actualPrice,
+          discountPrice:
+            discountedPrice != null ? discountedPrice : product.discountPrice,
+          sku: fields.sku,
+          stockQuantity: fields.stockQuantity ?? 0,
+          status: fields.status ?? true,
+          ...(fields.variantName !== undefined && fields.variantName !== ""
+            ? { variantName: fields.variantName }
+            : {}),
+        },
+        include: {
+          packSize: true,
+          product: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      if (imagePath?.length) {
+        await tx.variantImage.createMany({
+          data: imagePath.map((imageUrl, sortOrder) => ({
+            variantId: row.id,
+            imageUrl: imageUrl.trim(),
+            sortOrder,
+          })),
+        });
+      }
+
+      return tx.productVariant.findUniqueOrThrow({
+        where: { id: row.id },
+        include: {
+          packSize: true,
+          product: { select: { id: true, name: true, slug: true } },
+          images: { orderBy: { sortOrder: "asc" } },
+        },
+      });
     });
+
     return serializeProductVariantForApi(created);
   }
 
@@ -66,14 +95,51 @@ export class VariantsService {
       where: { id },
     });
     if (!variant) throw new NotFoundException(`Variant #${id} not found`);
-    const updated = await this.prisma.productVariant.update({
-      where: { id },
-      data: dto,
-      include: {
-        packSize: true,
-        product: { select: { id: true, name: true, slug: true } },
-      },
+
+    const { imagePath, discountedPrice, ...rest } = dto;
+    const data: Prisma.ProductVariantUpdateInput = {};
+
+    if (rest.packSizeId !== undefined) {
+      data.packSize = { connect: { id: rest.packSizeId } };
+    }
+    if (rest.price !== undefined) data.price = rest.price;
+    if (rest.sku !== undefined) data.sku = rest.sku;
+    if (rest.stockQuantity !== undefined)
+      data.stockQuantity = rest.stockQuantity;
+    if (rest.status !== undefined) data.status = rest.status;
+    if (rest.variantName !== undefined) {
+      data.variantName = rest.variantName === "" ? null : rest.variantName;
+    }
+    if (discountedPrice !== undefined) {
+      data.discountPrice = discountedPrice;
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.productVariant.update({ where: { id }, data });
+
+      if (imagePath !== undefined) {
+        await tx.variantImage.deleteMany({ where: { variantId: id } });
+        if (imagePath.length > 0) {
+          await tx.variantImage.createMany({
+            data: imagePath.map((imageUrl, sortOrder) => ({
+              variantId: id,
+              imageUrl: imageUrl.trim(),
+              sortOrder,
+            })),
+          });
+        }
+      }
+
+      return tx.productVariant.findUniqueOrThrow({
+        where: { id },
+        include: {
+          packSize: true,
+          product: { select: { id: true, name: true, slug: true } },
+          images: { orderBy: { sortOrder: "asc" } },
+        },
+      });
     });
+
     return serializeProductVariantForApi(updated);
   }
 

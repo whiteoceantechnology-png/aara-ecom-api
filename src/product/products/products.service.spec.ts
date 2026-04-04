@@ -101,6 +101,7 @@ describe("ProductsService", () => {
         productName: "Ashwagandha",
         id: 1,
       });
+      expect(result[0]).not.toHaveProperty("slug");
     });
 
     it("should pass category filter", async () => {
@@ -132,6 +133,32 @@ describe("ProductsService", () => {
             },
           }),
         }),
+      );
+    });
+  });
+
+  describe("findOne", () => {
+    it("should not return slug and should map variant images to imagePath", async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        ...productRow,
+        variants: [
+          {
+            ...productRow.variants[0],
+            images: [{ imageUrl: "/images/products/a.png" }],
+          },
+        ],
+      });
+
+      const result = await service.findOne(1);
+      expect(prisma.product.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 } }),
+      );
+      expect(result).toHaveProperty("productName", "Ashwagandha");
+      expect(result).not.toHaveProperty("slug");
+      expect((result as any).variants?.[0]?.imagePath).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("/images/products/a.png"),
+        ]),
       );
     });
   });

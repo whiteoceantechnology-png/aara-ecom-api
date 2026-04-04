@@ -57,6 +57,10 @@ export class ProductsService {
             stockQuantity: true,
             status: true,
             packSize: { select: { label: true } },
+            images: {
+              select: { imageUrl: true },
+              orderBy: { sortOrder: "asc" },
+            },
           },
         },
         images: { select: { id: true, imageUrl: true, isPrimary: true } },
@@ -74,7 +78,13 @@ export class ProductsService {
         tax: { select: { id: true, name: true, percent: true } },
         variants: {
           where: { status: true },
-          include: { packSize: { select: { label: true } } },
+          include: {
+            packSize: { select: { label: true } },
+            images: {
+              orderBy: { sortOrder: "asc" },
+              select: { imageUrl: true },
+            },
+          },
         },
         images: { select: { id: true, imageUrl: true, isPrimary: true } },
       },
@@ -128,7 +138,13 @@ export class ProductsService {
         tax: { select: { id: true, name: true, percent: true } },
         variants: {
           where: { status: true },
-          include: { packSize: { select: { label: true } } },
+          include: {
+            packSize: { select: { label: true } },
+            images: {
+              orderBy: { sortOrder: "asc" },
+              select: { imageUrl: true },
+            },
+          },
         },
         images: { select: { id: true, imageUrl: true, isPrimary: true } },
       },
@@ -483,6 +499,7 @@ export class ProductsService {
       name: string;
       images?: { imageUrl: string }[];
       tax?: { id: number; name: string; percent: unknown } | null;
+      variants?: unknown;
     },
   >(product: T) {
     const mapped = this.mapProductWithImageUrls(this.mapProductName(product));
@@ -493,14 +510,34 @@ export class ProductsService {
           percent: Number(mapped.tax.percent),
         }
       : null;
-    const { tax: previousTax, ...rest } = mapped;
+    const { tax: previousTax, variants, ...rest } = mapped;
     void previousTax;
-    return { ...rest, tax };
+    const mappedVariants = Array.isArray(variants)
+      ? variants.map((v) => {
+          const row = v as {
+            images?: { imageUrl: string }[];
+            [key: string]: unknown;
+          };
+          const { images, ...vrest } = row;
+          return {
+            ...vrest,
+            imagePath: Array.isArray(images)
+              ? images.map((img) => toImageUrl(img.imageUrl) ?? img.imageUrl)
+              : [],
+          };
+        })
+      : variants;
+    return { ...rest, tax, variants: mappedVariants };
   }
 
   private mapProductName<T extends { name: string }>(product: T) {
-    const { name, ...rest } = product;
-    return { ...rest, productName: name } as Omit<T, "name"> & {
+    const { name, ...rest } = product as T & Record<string, unknown>;
+    // `slug` should not be exposed in the public product response.
+    delete (rest as { slug?: unknown }).slug;
+    return { ...(rest as object), productName: name } as Omit<
+      T,
+      "name" | "slug"
+    > & {
       productName: string;
     };
   }

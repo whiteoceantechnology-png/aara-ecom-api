@@ -1,8 +1,14 @@
-import type { PackSize, Product, ProductVariant } from "@prisma/client";
+import type {
+  PackSize,
+  Product,
+  ProductVariant,
+  VariantImage,
+} from "@prisma/client";
 
 type VariantWithRelations = ProductVariant & {
   packSize: PackSize;
   product?: Pick<Product, "id" | "name" | "slug">;
+  images?: VariantImage[];
 };
 
 /**
@@ -43,5 +49,6 @@ export function serializeProductVariantForApi(
           },
         }
       : {}),
+    imagePath: v.images?.map((img) => img.imageUrl) ?? [],
   };
 }
