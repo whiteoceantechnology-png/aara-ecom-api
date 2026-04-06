@@ -164,8 +164,8 @@ async function main() {
       `;
     }
     // Reset auto-increment so next insert goes after 25
-    await prisma.$executeRaw`ALTER TABLE Category AUTO_INCREMENT = 26`;
-    console.log(`  ✅ Inserted ${categories.length} categories (IDs 1-25)`);
+    await prisma.$executeRaw`ALTER TABLE Category AUTO_INCREMENT = 30`;
+    console.log(`  ✅ Inserted ${categories.length} categories (IDs 1-29)`);
   } else {
     console.log(`  ⏭️  Category table already has ${existingCats} rows — skipped`);
   }
