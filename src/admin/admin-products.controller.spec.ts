@@ -25,7 +25,6 @@ const mockBrand = {
 const mockProduct = {
   id: 1,
   name: "Ashwagandha Root",
-  slug: "ashwagandha-root",
   status: true,
   category: { id: 1, name: "Raw Dried Herbs" },
   brand: mockBrand,
@@ -225,7 +224,6 @@ describe("AdminProductsController", () => {
       const dto: AdminCreateProductDto = {
         categoryId: 1,
         name: "Ashwagandha Root",
-        slug: "ashwagandha-root",
       };
       mockProductsService.adminCreate.mockResolvedValue(mockProduct);
 

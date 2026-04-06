@@ -71,7 +71,6 @@ describe("ProductsService", () => {
   const productRow = {
     id: 1,
     name: "Ashwagandha",
-    slug: "ashwagandha",
     hsnCode: "12119029",
     taxPercent: "5",
     tax: null as { id: number; name: string; percent: string } | null,
@@ -101,7 +100,6 @@ describe("ProductsService", () => {
         productName: "Ashwagandha",
         id: 1,
       });
-      expect(result[0]).not.toHaveProperty("slug");
     });
 
     it("should pass category filter", async () => {
@@ -154,7 +152,6 @@ describe("ProductsService", () => {
         expect.objectContaining({ where: { id: 1 } }),
       );
       expect(result).toHaveProperty("productName", "Ashwagandha");
-      expect(result).not.toHaveProperty("slug");
       expect((result as any).variants?.[0]?.imagePath).toEqual(
         expect.arrayContaining([
           expect.stringContaining("/images/products/a.png"),
@@ -194,7 +191,6 @@ describe("ProductsService", () => {
       const dto = {
         categoryId: 1,
         name: "New",
-        slug: "new",
       };
       const result = await service.create(dto as any);
 
@@ -212,7 +208,6 @@ describe("ProductsService", () => {
       await service.create({
         categoryId: 1,
         name: "P",
-        slug: "p",
         actualPrice: 1699,
         discountPrice: 1455,
         productImage: "/images/products/sample.png",
@@ -239,7 +234,6 @@ describe("ProductsService", () => {
         service.create({
           categoryId: 99,
           name: "X",
-          slug: "x",
         } as any),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.product.create).not.toHaveBeenCalled();
@@ -477,7 +471,6 @@ describe("ProductsService", () => {
         categoryId: 1,
         brandId: 2,
         name: "N",
-        slug: "n",
       } as any);
 
       expect(prisma.product.create).toHaveBeenCalled();
@@ -492,7 +485,6 @@ describe("ProductsService", () => {
           categoryId: 1,
           brandId: 99,
           name: "N",
-          slug: "n",
         } as any),
       ).rejects.toThrow(BadRequestException);
     });

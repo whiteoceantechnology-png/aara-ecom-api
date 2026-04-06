@@ -36,7 +36,7 @@ export class AdminMasterdataController {
     summary: "Download Excel template for product import",
     description:
       "Same columns as `POST .../products/import` and as **Export**. Row 1 = headers; row 2 = example. " +
-      "Leave **id** blank for new products. Use **Export** to pull current DB rows, edit, then import new rows (new slugs).",
+      "Leave **id** blank for new products. Use **Export** to pull current DB rows, edit, then re-import.",
   })
   @ApiProduces(XLSX_MIME)
   @ApiResponse({ status: 200, description: "`.xlsx` file download" })
@@ -52,8 +52,8 @@ export class AdminMasterdataController {
   @ApiOperation({
     summary: "Export all products to Excel",
     description:
-      "Same columns as **Template** / **Import** (`id`, `categoryId`, `name`, `slug`, …). " +
-      "Use to review data or copy rows; re-importing existing slugs will fail — add new rows/slugs to test import.",
+      "Same columns as **Template** / **Import** (`id`, `categoryId`, `name`, …). " +
+      "Use to review data or copy rows; re-importing existing id will update that product.",
   })
   @ApiProduces(XLSX_MIME)
   @ApiResponse({ status: 200, description: "`.xlsx` file download" })
@@ -77,7 +77,7 @@ export class AdminMasterdataController {
     summary: "Bulk import products from Excel",
     description:
       "Upload `.xlsx` or `.xls`. First row: headers. From row 2: one product per row. " +
-      "Required columns: **categoryId** (or category_id), **name**, **slug**. " +
+      "Required columns: **categoryId** (or category_id), **name**. " +
       "Optional: brandId, description, hsnCode, taxPercent, taxId. " +
       "Each row is created via the same logic as `POST /admin/products`. Requires a valid Bearer token.",
   })

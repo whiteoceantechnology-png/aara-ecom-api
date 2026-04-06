@@ -53,7 +53,7 @@ describe("AdminMasterdataController", () => {
     const buf = Buffer.from("x");
     importProductsFromExcel.mockResolvedValue({
       summary: { totalRows: 1, created: 1, updated: 0, failed: 0 },
-      created: [{ row: 2, id: 1, name: "N", slug: "s" }],
+      created: [{ row: 2, id: 1, name: "N" }],
       updated: [],
       failed: [],
     });

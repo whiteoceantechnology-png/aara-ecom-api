@@ -7,13 +7,13 @@ import type {
 
 type VariantWithRelations = ProductVariant & {
   packSize: PackSize;
-  product?: Pick<Product, "id" | "name" | "slug">;
+  product?: Pick<Product, "id" | "name">;
   images?: VariantImage[];
 };
 
 /**
  * Prisma `Decimal` serializes as JSON strings; many clients expect numbers.
- * Ensures `product` (name/slug) is present when included in the query.
+ * Ensures `product` (name) is present when included in the query.
  */
 export function serializeProductVariantForApi(
   v: VariantWithRelations,
@@ -45,7 +45,6 @@ export function serializeProductVariantForApi(
           product: {
             id: v.product.id,
             name: v.product.name,
-            slug: v.product.slug,
           },
         }
       : {}),

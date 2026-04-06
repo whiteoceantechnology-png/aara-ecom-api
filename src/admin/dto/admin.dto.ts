@@ -67,10 +67,6 @@ export class AdminCreateProductDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ example: "ashwagandha-root" })
-  @IsString()
-  slug: string;
-
   @ApiPropertyOptional({ example: "Premium quality ashwagandha root powder" })
   @IsOptional()
   @IsString()
@@ -114,11 +110,6 @@ export class AdminUpdateProductDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @ApiPropertyOptional({ example: "ashwagandha-powder" })
-  @IsOptional()
-  @IsString()
-  slug?: string;
 
   @ApiPropertyOptional({ example: "Updated description" })
   @IsOptional()

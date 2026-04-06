@@ -100,7 +100,6 @@ export class ProductsService {
       data: {
         categoryId: dto.categoryId,
         name: dto.name,
-        slug: dto.slug,
         description: dto.description,
         hsnCode: dto.hsnCode,
         status: dto.status ?? true,
@@ -532,12 +531,7 @@ export class ProductsService {
 
   private mapProductName<T extends { name: string }>(product: T) {
     const { name, ...rest } = product as T & Record<string, unknown>;
-    // `slug` should not be exposed in the public product response.
-    delete (rest as { slug?: unknown }).slug;
-    return { ...(rest as object), productName: name } as Omit<
-      T,
-      "name" | "slug"
-    > & {
+    return { ...(rest as object), productName: name } as Omit<T, "name"> & {
       productName: string;
     };
   }

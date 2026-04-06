@@ -14,7 +14,6 @@ export const MASTERDATA_PRODUCT_COLUMNS = [
   "id",
   "categoryId",
   "name",
-  "slug",
   "brandId",
   "description",
   "hsnCode",
@@ -93,7 +92,7 @@ function optionalString(v: unknown): string | undefined {
 
 /**
  * Maps one sheet row to {@link AdminCreateProductDto}.
- * Headers (case/spacing flexible): categoryId / category_id; name; slug;
+ * Headers (case/spacing flexible): categoryId / category_id; name;
  * optional: brandId, description, hsnCode, taxPercent, taxId.
  */
 export function rowToAdminCreateProductDto(
@@ -107,14 +106,11 @@ export function rowToAdminCreateProductDto(
   );
 
   const name = optionalString(getFirstDefined(r, ["name", "product_name"]));
-  const slug = optionalString(getFirstDefined(r, ["slug", "product_slug"]));
   if (!name) throw new Error("name is required");
-  if (!slug) throw new Error("slug is required");
 
   const dto: AdminCreateProductDto = {
     categoryId,
     name,
-    slug,
   };
 
   const brandRaw = getFirstDefined(r, ["brand_id", "brandid"]);

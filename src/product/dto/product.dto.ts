@@ -20,11 +20,6 @@ export class CreateProductDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: "ashwagandha-root" })
-  @IsString()
-  @IsNotEmpty()
-  slug: string;
-
   @ApiPropertyOptional({ example: "Pure dried Ashwagandha root" })
   @IsOptional()
   @IsString()
@@ -89,11 +84,6 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   name?: string;
-
-  @ApiPropertyOptional({ example: "ashwagandha-root" })
-  @IsOptional()
-  @IsString()
-  slug?: string;
 
   @ApiPropertyOptional({ example: "Pure dried root" })
   @IsOptional()
