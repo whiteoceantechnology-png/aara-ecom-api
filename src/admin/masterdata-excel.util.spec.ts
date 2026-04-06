@@ -8,12 +8,10 @@ describe("masterdata-excel.util", () => {
     const dto = rowToAdminCreateProductDto({
       categoryId: 2,
       name: "Test",
-      slug: "test-slug",
     });
     expect(dto).toEqual({
       categoryId: 2,
       name: "Test",
-      slug: "test-slug",
     });
   });
 
@@ -43,14 +41,12 @@ describe("masterdata-excel.util", () => {
   });
 
   it("rowToProductImportPayload parses id for update path", () => {
-    const { productId, dto } = rowToProductImportPayload({
+    const { productId } = rowToProductImportPayload({
       id: 42,
       categoryId: 1,
       name: "A",
-      slug: "a",
     });
     expect(productId).toBe(42);
-    expect(dto.slug).toBe("a");
   });
 
   it("rowToProductImportPayload omits productId when id blank", () => {

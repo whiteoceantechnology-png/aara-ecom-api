@@ -71,7 +71,6 @@ describe("ProductsService", () => {
   const productRow = {
     id: 1,
     name: "Ashwagandha",
-    slug: "ashwagandha",
     hsnCode: "12119029",
     taxPercent: "5",
     tax: null as { id: number; name: string; percent: string } | null,
