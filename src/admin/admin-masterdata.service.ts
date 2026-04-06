@@ -18,7 +18,6 @@ export interface ProductImportRowResult {
   row: number;
   id: number;
   name: string;
-  slug: string;
 }
 
 export interface ProductImportFailure {
@@ -39,7 +38,7 @@ function createDtoToAdminUpdate(
   const u: AdminUpdateProductDto = {
     categoryId: dto.categoryId,
     name: dto.name,
-    slug: dto.slug,
+    // slug removed
   };
   if (dto.brandId !== undefined) u.brandId = dto.brandId;
   if (dto.description !== undefined) u.description = dto.description;
@@ -116,7 +115,6 @@ export class AdminMasterdataService {
         id: true,
         categoryId: true,
         name: true,
-        slug: true,
         brandId: true,
         description: true,
         hsnCode: true,
@@ -129,7 +127,7 @@ export class AdminMasterdataService {
       id: p.id,
       categoryId: p.categoryId,
       name: p.name,
-      slug: p.slug,
+      // slug removed
       brandId: p.brandId ?? "",
       description: p.description ?? "",
       hsnCode: p.hsnCode ?? "",
@@ -222,7 +220,7 @@ export class AdminMasterdataService {
             row: excelRow,
             id: product.id,
             name: product.name,
-            slug: product.slug,
+            // slug removed
           });
         } else {
           const product = await this.productsService.adminCreate(dto);
@@ -230,7 +228,7 @@ export class AdminMasterdataService {
             row: excelRow,
             id: product.id,
             name: product.name,
-            slug: product.slug,
+            // slug removed
           });
         }
       } catch (e) {

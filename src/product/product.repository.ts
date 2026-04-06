@@ -161,7 +161,6 @@ export class ProductRepository {
       data: {
         categoryId: dto.categoryId,
         name: dto.name,
-        slug: dto.slug,
         description: dto.description,
         hsnCode: dto.hsnCode,
         taxPercent: dto.taxPercent ?? 0,
@@ -291,7 +290,7 @@ export class ProductRepository {
       },
       include: {
         packSize: true,
-        product: { select: { id: true, name: true, slug: true } },
+        product: { select: { id: true, name: true } },
       },
     });
     return serializeProductVariantForApi(created);
@@ -305,7 +304,7 @@ export class ProductRepository {
       data: dto,
       include: {
         packSize: true,
-        product: { select: { id: true, name: true, slug: true } },
+        product: { select: { id: true, name: true } },
       },
     });
     return serializeProductVariantForApi(updated);

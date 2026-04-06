@@ -19,7 +19,7 @@ const mockVariant = {
 const mockProduct = {
   id: 1,
   name: "Ashwagandha Root",
-  slug: "ashwagandha-root",
+  // slug removed
   hsnCode: "12119029",
   taxPercent: "5",
   status: true,
@@ -103,7 +103,7 @@ describe("ProductsController", () => {
       const dto: CreateProductDto = {
         categoryId: 1,
         name: "Ashwagandha Root",
-        slug: "ashwagandha-root",
+        // slug removed
       };
       service.create.mockResolvedValue(mockProduct);
       const result = await controller.create(dto);

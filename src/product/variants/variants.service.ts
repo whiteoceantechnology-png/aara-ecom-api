@@ -63,7 +63,7 @@ export class VariantsService {
         },
         include: {
           packSize: true,
-          product: { select: { id: true, name: true, slug: true } },
+          product: { select: { id: true, name: true } },
         },
       });
 
@@ -81,7 +81,7 @@ export class VariantsService {
         where: { id: row.id },
         include: {
           packSize: true,
-          product: { select: { id: true, name: true, slug: true } },
+          product: { select: { id: true, name: true } },
           images: { orderBy: { sortOrder: "asc" } },
         },
       });
@@ -134,7 +134,7 @@ export class VariantsService {
         where: { id },
         include: {
           packSize: true,
-          product: { select: { id: true, name: true, slug: true } },
+          product: { select: { id: true, name: true } },
           images: { orderBy: { sortOrder: "asc" } },
         },
       });

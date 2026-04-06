@@ -109,7 +109,7 @@ model Product {
   brandId        Int?
   brand          Brand?                 @relation(fields: [brandId], references: [id])
   name           String
-  slug           String                 @unique
+  // slug field removed
   description    String?
   hsnCode        String?
   taxId          Int?

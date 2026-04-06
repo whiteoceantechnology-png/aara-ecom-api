@@ -7,7 +7,7 @@ import type {
 
 type VariantWithRelations = ProductVariant & {
   packSize: PackSize;
-  product?: Pick<Product, "id" | "name" | "slug">;
+  product?: Pick<Product, "id" | "name">;
   images?: VariantImage[];
 };
 
@@ -45,7 +45,6 @@ export function serializeProductVariantForApi(
           product: {
             id: v.product.id,
             name: v.product.name,
-            slug: v.product.slug,
           },
         }
       : {}),
