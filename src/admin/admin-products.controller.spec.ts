@@ -225,7 +225,6 @@ describe("AdminProductsController", () => {
       const dto: AdminCreateProductDto = {
         categoryId: 1,
         name: "Ashwagandha Root",
-        slug: "ashwagandha-root",
       };
       mockProductsService.adminCreate.mockResolvedValue(mockProduct);
 

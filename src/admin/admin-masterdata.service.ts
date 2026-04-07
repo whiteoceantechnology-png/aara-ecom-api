@@ -45,6 +45,9 @@ function createDtoToAdminUpdate(
   if (dto.hsnCode !== undefined) u.hsnCode = dto.hsnCode;
   if (dto.taxPercent !== undefined) u.taxPercent = dto.taxPercent;
   if (dto.taxId !== undefined) u.taxId = dto.taxId;
+  if (dto.actualPrice !== undefined) u.actualPrice = dto.actualPrice;
+  if (dto.discountPrice !== undefined) u.discountPrice = dto.discountPrice;
+  if (dto.productImage !== undefined) u.productImage = dto.productImage;
   return u;
 }
 
@@ -120,6 +123,9 @@ export class AdminMasterdataService {
         hsnCode: true,
         taxPercent: true,
         taxId: true,
+        actualPrice: true,
+        discountPrice: true,
+        productImage: true,
       },
     });
 
@@ -127,12 +133,14 @@ export class AdminMasterdataService {
       id: p.id,
       categoryId: p.categoryId,
       name: p.name,
-      // slug removed
       brandId: p.brandId ?? "",
       description: p.description ?? "",
       hsnCode: p.hsnCode ?? "",
-      taxPercent: Number(p.taxPercent),
+      taxPercent: p.taxPercent !== null ? Number(p.taxPercent) : "",
       taxId: p.taxId ?? "",
+      actualPrice: p.actualPrice !== null ? Number(p.actualPrice) : "",
+      discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : "",
+      productImage: p.productImage ?? "",
     }));
 
     const wb = XLSX.utils.book_new();

@@ -19,6 +19,9 @@ export const MASTERDATA_PRODUCT_COLUMNS = [
   "hsnCode",
   "taxPercent",
   "taxId",
+  "actualPrice",
+  "discountPrice",
+  "productImage",
 ] as const;
 
 function normalizeKey(k: string): string {
@@ -134,6 +137,21 @@ export function rowToAdminCreateProductDto(
 
   const taxId = parseOptionalInt(getFirstDefined(r, ["tax_id", "taxid"]));
   if (taxId !== undefined) dto.taxId = taxId;
+
+  const actualPrice = parseOptionalNumber(
+    getFirstDefined(r, ["actual_price", "actualprice"]),
+  );
+  if (actualPrice !== undefined) dto.actualPrice = actualPrice;
+
+  const discountPrice = parseOptionalNumber(
+    getFirstDefined(r, ["discount_price", "discountprice"]),
+  );
+  if (discountPrice !== undefined) dto.discountPrice = discountPrice;
+
+  const productImage = optionalString(
+    getFirstDefined(r, ["product_image", "productimage", "image"]),
+  );
+  if (productImage !== undefined) dto.productImage = productImage;
 
   return dto;
 }

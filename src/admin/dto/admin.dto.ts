@@ -91,6 +91,23 @@ export class AdminCreateProductDto {
   @IsInt()
   @Type(() => Number)
   taxId?: number;
+
+  @ApiPropertyOptional({ example: 1333 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
+
+  @ApiPropertyOptional({ example: 1239 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPrice?: number;
+
+  @ApiPropertyOptional({ example: "https://cdn.example.com/product.jpg" })
+  @IsOptional()
+  @IsString()
+  productImage?: string;
 }
 
 export class AdminUpdateProductDto {
@@ -140,6 +157,23 @@ export class AdminUpdateProductDto {
   @IsOptional()
   @IsBoolean()
   status?: boolean;
+
+  @ApiPropertyOptional({ example: 1333 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
+
+  @ApiPropertyOptional({ example: 1239 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPrice?: number;
+
+  @ApiPropertyOptional({ example: "https://cdn.example.com/product.jpg" })
+  @IsOptional()
+  @IsString()
+  productImage?: string;
 }
 
 export class AdminUpdateStockDto {
