@@ -13,6 +13,7 @@ import * as jwt from "jsonwebtoken";
 jest.mock("bcrypt");
 jest.mock("jsonwebtoken");
 jest.mock("crypto", () => ({
+  ...jest.requireActual("crypto"),
   randomBytes: jest.fn(() => ({ toString: () => "mock-reset-token-hex" })),
 }));
 
