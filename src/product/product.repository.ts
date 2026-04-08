@@ -403,7 +403,7 @@ export class ProductRepository {
     return cart;
   }
 
-  async addToCart(dto: AddToCartDto) {
+  async addToCart(customerId: number, dto: AddToCartDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
     });
@@ -415,7 +415,7 @@ export class ProductRepository {
       );
     }
 
-    const cart = await this.getOrCreateCart(dto.customerId);
+    const cart = await this.getOrCreateCart(customerId);
 
     const existing = await this.prisma.cartItem.findFirst({
       where: { cartId: cart.id, variantId: dto.variantId },

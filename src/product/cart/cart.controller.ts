@@ -20,6 +20,7 @@ import {
 } from "@nestjs/swagger";
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
+import { CurrentCustomerId } from "../decorators/current-customer.decorator";
 
 @ApiBearerAuth()
 @ApiTags("Cart")
@@ -38,14 +39,16 @@ export class CartController {
   @Post("add")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary:
-      "Add item to cart (auto-increments qty if variant already in cart)",
+    summary: "Add item to cart (customerId resolved from JWT)",
+    description:
+      "Adds the specified variant to the authenticated customer's cart. Auto-increments quantity if the variant already exists in the cart.",
   })
   @ApiBody({ type: AddToCartDto })
   @ApiResponse({ status: 201, description: "Item added to cart" })
+  @ApiResponse({ status: 400, description: "Insufficient stock for variant" })
   @ApiResponse({ status: 404, description: "Variant not found" })
-  addItem(@Body() dto: AddToCartDto) {
-    return this.cartService.addItem(dto);
+  addItem(@CurrentCustomerId() customerId: number, @Body() dto: AddToCartDto) {
+    return this.cartService.addItem(customerId, dto);
   }
 
   @Put("update")

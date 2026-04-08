@@ -3,10 +3,10 @@ import { IsInt } from "class-validator";
 import { Type } from "class-transformer";
 
 export class AddToCartDto {
-  @ApiProperty({ example: 1, description: "Customer ID" })
+  @ApiProperty({ example: 1, description: "Product ID" })
   @IsInt()
   @Type(() => Number)
-  customerId: number;
+  productId: number;
 
   @ApiProperty({ example: 1, description: "Product Variant ID" })
   @IsInt()

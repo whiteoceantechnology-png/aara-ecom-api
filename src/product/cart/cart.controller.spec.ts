@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { CartController } from "./cart.controller";
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
@@ -48,27 +48,39 @@ describe("CartController", () => {
 
   describe("addItem", () => {
     it("should add an item to the cart", async () => {
-      const dto: AddToCartDto = { customerId: 1, variantId: 1, quantity: 2 };
+      const dto: AddToCartDto = { productId: 1, variantId: 1, quantity: 2 };
       service.addItem.mockResolvedValue(mockCartItem);
-      const result = await controller.addItem(dto);
+      const result = await controller.addItem(1, dto);
       expect(result).toEqual(mockCartItem);
-      expect(service.addItem).toHaveBeenCalledWith(dto);
+      expect(service.addItem).toHaveBeenCalledWith(1, dto);
     });
 
     it("should throw NotFoundException when variant not found", async () => {
+      const dto: AddToCartDto = { productId: 1, variantId: 99, quantity: 1 };
       service.addItem.mockRejectedValue(new NotFoundException());
-      await expect(
-        controller.addItem({ customerId: 1, variantId: 99, quantity: 1 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.addItem(1, dto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should throw BadRequestException when stock is insufficient", async () => {
+      const dto: AddToCartDto = { productId: 1, variantId: 1, quantity: 100 };
+      service.addItem.mockRejectedValue(
+        new BadRequestException("Insufficient stock for variant #1"),
+      );
+      await expect(controller.addItem(1, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe("updateItem", () => {
     it("should update the cart item quantity", async () => {
       const dto: UpdateCartItemDto = { cartItemId: 1, quantity: 3 };
-      service.updateItem.mockResolvedValue({ ...mockCartItem, quantity: 3 });
+      const updated = { ...mockCartItem, quantity: 3 };
+      service.updateItem.mockResolvedValue(updated);
       const result = await controller.updateItem(dto);
-      expect(result.quantity).toBe(3);
+      expect((result as unknown as typeof updated).quantity).toBe(3);
       expect(service.updateItem).toHaveBeenCalledWith(dto);
     });
 

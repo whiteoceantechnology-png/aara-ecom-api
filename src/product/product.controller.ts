@@ -36,6 +36,7 @@ import {
   CreatePaymentDto,
 } from "./dto/order.dto";
 import { Public } from "../auth/public.decorator";
+import { CurrentCustomerId } from "./decorators/current-customer.decorator";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORIES
@@ -278,8 +279,11 @@ export class CartController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Add item to cart" })
   @ApiBody({ type: AddToCartDto })
-  addToCart(@Body() dto: AddToCartDto) {
-    return this.service.addToCart(dto);
+  addToCart(
+    @CurrentCustomerId() customerId: number,
+    @Body() dto: AddToCartDto,
+  ) {
+    return this.service.addToCart(customerId, dto);
   }
 
   @Put("update")

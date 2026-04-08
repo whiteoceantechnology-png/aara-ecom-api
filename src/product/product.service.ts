@@ -91,8 +91,8 @@ export class ProductService {
   getCart(customerId: number) {
     return this.repo.getOrCreateCart(customerId);
   }
-  addToCart(dto: AddToCartDto) {
-    return this.repo.addToCart(dto);
+  addToCart(customerId: number, dto: AddToCartDto) {
+    return this.repo.addToCart(customerId, dto);
   }
   updateCartItem(dto: UpdateCartItemDto) {
     return this.repo.updateCartItem(dto);

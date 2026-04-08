@@ -10,7 +10,7 @@ import { toImageUrl } from "../../common/image-url";
 export class WishlistService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async add(customerId: number, productId: number) {
+  async add(userId: number, productId: number) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       select: { id: true, status: true },
@@ -24,7 +24,7 @@ export class WishlistService {
 
     const existing = await this.prisma.wishlist.findUnique({
       where: {
-        customerId_productId: { customerId, productId },
+        userId_productId: { userId, productId },
       },
     });
     if (existing) {
@@ -32,17 +32,17 @@ export class WishlistService {
     }
 
     await this.prisma.wishlist.create({
-      data: { customerId, productId },
+      data: { userId, productId },
     });
     return { message: "Product added to wishlist" };
   }
 
-  async list(customerId: number, page = 1, limit = 10) {
+  async list(userId: number, page = 1, limit = 10) {
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const safePage = Math.max(1, page);
     const skip = (safePage - 1) * safeLimit;
 
-    const where = { customerId };
+    const where = { userId };
 
     const [rows, total] = await Promise.all([
       this.prisma.wishlist.findMany({
@@ -81,9 +81,9 @@ export class WishlistService {
     };
   }
 
-  async remove(customerId: number, productId: number) {
+  async remove(userId: number, productId: number) {
     const result = await this.prisma.wishlist.deleteMany({
-      where: { customerId, productId },
+      where: { userId, productId },
     });
     if (result.count === 0) {
       throw new NotFoundException("Wishlist item not found");

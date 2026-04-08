@@ -21,7 +21,7 @@ import {
 } from "@nestjs/swagger";
 import { WishlistService } from "./wishlist.service";
 import { AddToWishlistDto, WishlistQueryDto } from "../dto/wishlist.dto";
-import { CurrentCustomerId } from "../decorators/current-customer.decorator";
+import { CurrentUserId } from "../../user/decorators/current-user-id.decorator";
 
 @ApiBearerAuth()
 @ApiTags("Wishlist")
@@ -41,8 +41,8 @@ export class WishlistController {
     },
   })
   @ApiResponse({ status: 404, description: "Product not found" })
-  add(@CurrentCustomerId() customerId: number, @Body() dto: AddToWishlistDto) {
-    return this.wishlistService.add(customerId, dto.productId);
+  add(@CurrentUserId() userId: number, @Body() dto: AddToWishlistDto) {
+    return this.wishlistService.add(userId, dto.productId);
   }
 
   @Get()
@@ -50,13 +50,10 @@ export class WishlistController {
   @ApiQuery({ name: "page", required: false, type: Number, example: 1 })
   @ApiQuery({ name: "limit", required: false, type: Number, example: 10 })
   @ApiResponse({ status: 200, description: "Paginated wishlist items" })
-  findAll(
-    @CurrentCustomerId() customerId: number,
-    @Query() query: WishlistQueryDto,
-  ) {
+  findAll(@CurrentUserId() userId: number, @Query() query: WishlistQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    return this.wishlistService.list(customerId, page, limit);
+    return this.wishlistService.list(userId, page, limit);
   }
 
   @Delete(":productId")
@@ -66,9 +63,9 @@ export class WishlistController {
   @ApiResponse({ status: 200, description: "Removed" })
   @ApiResponse({ status: 404, description: "Not in wishlist" })
   remove(
-    @CurrentCustomerId() customerId: number,
+    @CurrentUserId() userId: number,
     @Param("productId", ParseIntPipe) productId: number,
   ) {
-    return this.wishlistService.remove(customerId, productId);
+    return this.wishlistService.remove(userId, productId);
   }
 }

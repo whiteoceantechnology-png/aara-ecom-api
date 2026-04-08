@@ -37,7 +37,7 @@ export class CartService {
     return cart;
   }
 
-  async addItem(dto: AddToCartDto) {
+  async addItem(customerId: number, dto: AddToCartDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
     });
@@ -50,7 +50,7 @@ export class CartService {
       );
     }
 
-    const cart = await this.getOrCreate(dto.customerId);
+    const cart = await this.getOrCreate(customerId);
 
     const existing = await this.prisma.cartItem.findFirst({
       where: { cartId: cart.id, variantId: dto.variantId },
