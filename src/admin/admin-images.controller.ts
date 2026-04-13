@@ -4,7 +4,7 @@ import {
   Get,
   UseInterceptors,
   UploadedFiles,
-  Query,
+  Param,
   BadRequestException,
   StreamableFile,
 } from "@nestjs/common";
@@ -15,11 +15,12 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
-  ApiQuery,
+  ApiParam,
   ApiResponse,
 } from "@nestjs/swagger";
 import { AdminImagesService } from "./admin-images.service";
 import { UPLOAD_CONSTANTS } from "../common/constants/upload.constants";
+import { Public } from "../auth/public.decorator";
 
 @ApiBearerAuth()
 @ApiTags("Admin — Images")
@@ -63,17 +64,18 @@ export class AdminImagesController {
     return this.adminImagesService.uploadMany(files);
   }
 
-  @Get("serve")
-  @ApiOperation({ summary: "Get image by path (admin only)" })
-  @ApiQuery({
-    name: "path",
+  @Get("*")
+  @Public()
+  @ApiOperation({ summary: "Get image by path (public)" })
+  @ApiParam({
+    name: "0",
     required: true,
     type: String,
     description: "Image path (e.g. 2026/03/18/12345678-abc12345.jpg)",
   })
   @ApiResponse({ status: 200, description: "Image file" })
   @ApiResponse({ status: 404, description: "Image not found" })
-  async getByPath(@Query("path") pathParam: string) {
+  async getByPath(@Param("0") pathParam: string) {
     if (!pathParam)
       throw new BadRequestException("path query parameter is required");
     const { buffer, mimeType } =
