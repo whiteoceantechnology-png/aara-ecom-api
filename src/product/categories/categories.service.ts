@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { toImageUrl } from "../../common/image-url";
 import { CreateCategoryDto, UpdateCategoryDto } from "../dto/category.dto";
 import {
   AdminCreateCategoryDto,
@@ -28,7 +27,7 @@ export class CategoriesService {
       data: categories.map((c) => ({
         id: c.id,
         categoryName: c.name,
-        categoryImage: toImageUrl(c.categoryImage),
+        categoryImage: c.categoryImage || null,
       })),
     };
   }
@@ -61,7 +60,7 @@ export class CategoriesService {
         categoryId: p.categoryId,
         categoryName: p.category.name,
         productName: p.name,
-        productImage: toImageUrl(p.productImage),
+        productImage: p.productImage || null,
         actualPrice: p.actualPrice ? Number(p.actualPrice) : null,
         discountPrice: p.discountPrice ? Number(p.discountPrice) : null,
       })),
@@ -87,7 +86,7 @@ export class CategoriesService {
       data: {
         ...rest,
         categoryName: name,
-        categoryImage: toImageUrl(categoryImage),
+        categoryImage: categoryImage || null,
       },
     };
   }
