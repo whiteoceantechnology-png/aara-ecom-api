@@ -43,7 +43,7 @@ export class ProductRepository {
       data: categories.map((c) => ({
         id: c.id,
         categoryName: c.name,
-        categoryImage: toImageUrl(c.categoryImage),
+        categoryImage: c.categoryImage ?? null,
       })),
     };
   }
