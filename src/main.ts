@@ -14,8 +14,19 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS — allow frontend origins
-  app.enableCors();
+  // CORS — allow all origins with full method and header support
+  app.enableCors({
+    origin: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Origin",
+      "X-Requested-With",
+      "Content-Type",
+      "Accept",
+      "Authorization",
+    ],
+    credentials: true,
+  });
 
   // Global interceptors (order: logging → timeout → transform)
   app.useGlobalInterceptors(
