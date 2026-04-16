@@ -14,9 +14,22 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS — allow all origins with full method and header support
+  // CORS — allow configured origins (comma-separated CORS_ORIGIN env var) or all origins
+  const rawOrigins = process.env.CORS_ORIGIN;
+  const allowedOrigins = rawOrigins
+    ? rawOrigins.split(",").map((o) => o.trim())
+    : null;
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins
+      ? (origin, callback) => {
+          if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error(`Origin ${origin} not allowed by CORS`));
+          }
+        }
+      : true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Origin",
@@ -26,6 +39,8 @@ async function bootstrap() {
       "Authorization",
     ],
     credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Global interceptors (order: logging → timeout → transform)
