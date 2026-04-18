@@ -95,22 +95,6 @@ describe("RazorpayService", () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // isConfigured()
-  // ──────────────────────────────────────────────────────────────────────────
-  describe("isConfigured()", () => {
-    it("should return true when both Razorpay keys are present", () => {
-      expect(service.isConfigured()).toBe(true);
-    });
-
-    it("should return false when keys are absent", async () => {
-      const unconfigured = await buildModule({
-        get: () => "",
-      });
-      expect(unconfigured.isConfigured()).toBe(false);
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
   // createOrder()
   // ──────────────────────────────────────────────────────────────────────────
   describe("createOrder()", () => {

@@ -18,7 +18,6 @@ import {
 } from "@nestjs/swagger";
 import { PaymentsService } from "./payments.service";
 import { RazorpayService } from "./razorpay.service";
-import { CreatePaymentDto } from "../dto/order.dto";
 import {
   CreateRazorpayOrderDto,
   VerifyRazorpayPaymentDto,
@@ -32,18 +31,6 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly razorpayService: RazorpayService,
   ) {}
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: "Record a payment for an order (COD, manual, etc.)",
-  })
-  @ApiBody({ type: CreatePaymentDto })
-  @ApiResponse({ status: 201, description: "Payment recorded successfully" })
-  @ApiResponse({ status: 404, description: "Order not found" })
-  create(@Body() dto: CreatePaymentDto) {
-    return this.paymentsService.create(dto);
-  }
 
   // ─── Razorpay ──────────────────────────────────────────────────────────────
 
@@ -88,14 +75,7 @@ export class PaymentsController {
     return this.razorpayService.verifyAndCapturePayment(dto);
   }
 
-  @Get("razorpay/status")
-  @ApiOperation({ summary: "Check if Razorpay is configured" })
-  @ApiResponse({ status: 200, description: "Razorpay configuration status" })
-  razorpayStatus() {
-    return {
-      configured: this.razorpayService.isConfigured(),
-    };
-  }
+  // ─── Lookups ───────────────────────────────────────────────────────────────
 
   @Get("order/:orderId")
   @ApiOperation({ summary: "Get all payments for a specific order" })

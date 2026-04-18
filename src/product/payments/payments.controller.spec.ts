@@ -6,7 +6,6 @@ import { RazorpayService } from "./razorpay.service";
 import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockPaymentsService = {
-  create: jest.fn(),
   findByOrder: jest.fn(),
   findOne: jest.fn(),
 };
@@ -14,7 +13,6 @@ const mockPaymentsService = {
 const mockRazorpayService = {
   createOrder: jest.fn(),
   verifyAndCapturePayment: jest.fn(),
-  isConfigured: jest.fn(),
 };
 
 describe("PaymentsController", () => {
@@ -35,37 +33,6 @@ describe("PaymentsController", () => {
 
   it("should be defined", () => {
     expect(controller).toBeDefined();
-  });
-
-  // ──────────────────────────────────────────────
-  // POST /payments
-  // ──────────────────────────────────────────────
-  describe("create()", () => {
-    it("should record a payment for an order", async () => {
-      const dto = { orderId: 1, paymentMethod: "UPI", transactionId: "TXN123" };
-      const payment = {
-        id: 1,
-        orderId: 1,
-        paymentStatus: "paid",
-        paymentMethod: "UPI",
-      };
-      mockPaymentsService.create.mockResolvedValue(payment);
-
-      const result = await controller.create(dto as any);
-
-      expect(mockPaymentsService.create).toHaveBeenCalledWith(dto);
-      expect(result).toEqual(payment);
-    });
-
-    it("should throw NotFoundException when order does not exist", async () => {
-      mockPaymentsService.create.mockRejectedValue(
-        new NotFoundException("Order #99 not found"),
-      );
-
-      await expect(
-        controller.create({ orderId: 99, paymentMethod: "COD" } as any),
-      ).rejects.toThrow(NotFoundException);
-    });
   });
 
   // ──────────────────────────────────────────────
@@ -120,7 +87,7 @@ describe("PaymentsController", () => {
   });
 
   // ──────────────────────────────────────────────
-  // Razorpay
+  // POST /payments/razorpay/create-order
   // ──────────────────────────────────────────────
   describe("createRazorpayOrder()", () => {
     it("should create Razorpay order and return orderId, amount, keyId", async () => {
@@ -139,6 +106,9 @@ describe("PaymentsController", () => {
     });
   });
 
+  // ──────────────────────────────────────────────
+  // POST /payments/razorpay/verify
+  // ──────────────────────────────────────────────
   describe("verifyRazorpayPayment()", () => {
     it("should verify and capture payment", async () => {
       const dto = {
@@ -162,13 +132,6 @@ describe("PaymentsController", () => {
     });
   });
 
-  describe("razorpayStatus()", () => {
-    it("should return Razorpay configuration status", () => {
-      mockRazorpayService.isConfigured.mockReturnValue(true);
-      expect(controller.razorpayStatus()).toEqual({ configured: true });
-    });
-  });
-
   // ──────────────────────────────────────────────
   // Authentication decorators
   // ──────────────────────────────────────────────
@@ -179,14 +142,6 @@ describe("PaymentsController", () => {
         PaymentsController,
       );
       expect(metadata).toEqual([{ bearer: [] }]);
-    });
-
-    it("should NOT mark create as @Public()", () => {
-      const isPublic = Reflect.getMetadata(
-        IS_PUBLIC_KEY,
-        PaymentsController.prototype.create,
-      );
-      expect(isPublic).toBeUndefined();
     });
 
     it("should NOT mark findByOrder as @Public()", () => {

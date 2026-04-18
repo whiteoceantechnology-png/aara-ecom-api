@@ -1,20 +1,14 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException, BadRequestException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { PaymentsService } from "./payments.service";
 import { PrismaService } from "../../prisma/prisma.service";
-import { OrdersService } from "../orders/orders.service";
 
 const mockPrisma = {
   order: { findUnique: jest.fn() },
   payment: {
-    create: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
   },
-};
-
-const mockOrdersService = {
-  applyPaymentSuccess: jest.fn(),
 };
 
 describe("PaymentsService", () => {
@@ -27,7 +21,6 @@ describe("PaymentsService", () => {
       providers: [
         PaymentsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: OrdersService, useValue: mockOrdersService },
       ],
     }).compile();
 
@@ -36,67 +29,6 @@ describe("PaymentsService", () => {
 
   it("should be defined", () => {
     expect(service).toBeDefined();
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // create()
-  // ──────────────────────────────────────────────────────────────────────────
-  describe("create()", () => {
-    it("should create a payment and mark the order as paid", async () => {
-      mockPrisma.order.findUnique.mockResolvedValue({
-        id: 1,
-        paymentStatus: "pending",
-      });
-      const paymentRow = {
-        id: 10,
-        orderId: 1,
-        paymentMethod: "UPI",
-        paymentStatus: "paid",
-      };
-      mockPrisma.payment.create.mockResolvedValue(paymentRow);
-      mockOrdersService.applyPaymentSuccess.mockResolvedValue({ id: 1 });
-
-      const dto = { orderId: 1, paymentMethod: "UPI", transactionId: "TXN1" };
-      const result = await service.create(dto);
-
-      expect(mockPrisma.payment.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            orderId: 1,
-            paymentMethod: "UPI",
-            transactionId: "TXN1",
-            paymentStatus: "paid",
-          }),
-        }),
-      );
-      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(1);
-      expect(result).toEqual(paymentRow);
-    });
-
-    it("should throw NotFoundException when order does not exist", async () => {
-      mockPrisma.order.findUnique.mockResolvedValue(null);
-
-      await expect(
-        service.create({ orderId: 99, paymentMethod: "COD" } as any),
-      ).rejects.toThrow(NotFoundException);
-
-      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
-      expect(mockOrdersService.applyPaymentSuccess).not.toHaveBeenCalled();
-    });
-
-    it("should throw BadRequestException when the order is already paid", async () => {
-      mockPrisma.order.findUnique.mockResolvedValue({
-        id: 1,
-        paymentStatus: "paid",
-      });
-
-      await expect(
-        service.create({ orderId: 1, paymentMethod: "COD" } as any),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
-      expect(mockOrdersService.applyPaymentSuccess).not.toHaveBeenCalled();
-    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────

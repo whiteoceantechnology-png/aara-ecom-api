@@ -37,10 +37,6 @@ export class RazorpayService {
     }
   }
 
-  isConfigured(): boolean {
-    return !!this.razorpay;
-  }
-
   async createOrder(dto: CreateRazorpayOrderDto) {
     if (!this.razorpay) {
       throw new BadRequestException(

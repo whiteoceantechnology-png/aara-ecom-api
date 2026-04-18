@@ -1,42 +1,9 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CreatePaymentDto } from "../dto/order.dto";
-import { OrdersService } from "../orders/orders.service";
 
 @Injectable()
 export class PaymentsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly ordersService: OrdersService,
-  ) {}
-
-  async create(dto: CreatePaymentDto) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: dto.orderId },
-    });
-    if (!order) throw new NotFoundException(`Order #${dto.orderId} not found`);
-    if (order.paymentStatus === "paid") {
-      throw new BadRequestException("Order is already paid");
-    }
-
-    const payment = await this.prisma.payment.create({
-      data: {
-        orderId: dto.orderId,
-        paymentMethod: dto.paymentMethod,
-        transactionId: dto.transactionId,
-        paymentStatus: "paid",
-        paymentDate: new Date(),
-      },
-    });
-
-    await this.ordersService.applyPaymentSuccess(dto.orderId);
-
-    return payment;
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByOrder(orderId: number) {
     const order = await this.prisma.order.findUnique({

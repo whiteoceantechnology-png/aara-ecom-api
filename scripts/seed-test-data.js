@@ -13,7 +13,7 @@ const { ensurePackSizeId1 } = require("./ensure-pack-size-id1");
 const TEST = {
   brandSlug: "test-brand-ecom",
   categoryName: "Test Category E2E",
-  productSlug: "test-product-ecom-seed",
+  productName: "Test Product E2E",
   variantSku: "TEST-VAR-E2E-001",
   customerEmail: "test.customer@ecom.local",
   customerPassword: "Test@123456",
@@ -100,16 +100,15 @@ async function main() {
     console.log("  ⏭️  Category already present");
   }
 
-  let product = await prisma.product.findUnique({
-    where: { slug: TEST.productSlug },
+  let product = await prisma.product.findFirst({
+    where: { name: TEST.productName },
   });
   if (!product) {
     product = await prisma.product.create({
       data: {
         categoryId: category.id,
         brandId: brand.id,
-        name: "Test Product E2E",
-        slug: TEST.productSlug,
+        name: TEST.productName,
         description: "Synthetic product for frontend / integration checks.",
         hsnCode: "12345678",
         taxId: tax.id,
@@ -269,7 +268,7 @@ async function main() {
   console.log("");
   console.log("  Login (customer):", TEST.customerEmail, "/", TEST.customerPassword);
   console.log("  Coupon:", TEST.couponCode);
-  console.log("  Product slug:", TEST.productSlug);
+  console.log("  Product name:", TEST.productName);
   console.log("  Variant SKU:", TEST.variantSku);
 }
 
