@@ -20,7 +20,10 @@ export class CreateProductDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: "Pure dried Ashwagandha root" })
+  @ApiPropertyOptional({
+    example: "Pure dried Ashwagandha root",
+    description: "Product description (unlimited length)",
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -85,7 +88,10 @@ export class UpdateProductDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ example: "Pure dried root" })
+  @ApiPropertyOptional({
+    example: "Pure dried root",
+    description: "Product description (unlimited length)",
+  })
   @IsOptional()
   @IsString()
   description?: string;

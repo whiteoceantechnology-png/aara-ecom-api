@@ -111,7 +111,7 @@ model Product {
   brand          Brand?                 @relation(fields: [brandId], references: [id])
   name           String
   // slug field removed
-  description    String?
+  description    String?                @db.Text
   hsnCode        String?
   taxId          Int?
   tax            Tax?                   @relation(fields: [taxId], references: [id], onDelete: SetNull)
@@ -187,9 +187,9 @@ model ProductSpecification {
   productId            Int     @unique
   product              Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productSpecification Json    @default("[]")
-  shortDescription     String?
-  productDescription   String?
-  moreInfo             String?
+  shortDescription     String? @db.Text
+  productDescription   String? @db.Text
+  moreInfo             String? @db.Text
 }
 
 model ProductSpecItem {
@@ -376,4 +376,46 @@ model Shipment {
   status         String    @default("pending")
   shippedAt      DateTime?
   deliveredAt    DateTime?
+}
+
+// ─── Admin config (shipping / notifications / store) ─────────────────────────
+
+model ShippingRule {
+  id              Int      @id @default(autoincrement())
+  name            String
+  minOrderAmount  Decimal? @db.Decimal(10, 2)
+  maxOrderAmount  Decimal? @db.Decimal(10, 2)
+  shippingAmount  Decimal  @db.Decimal(10, 2)
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model NotificationSettings {
+  id                 Int      @id @default(1)
+  orderPlacedEmail   Boolean  @default(true)
+  orderShippedEmail  Boolean  @default(true)
+  orderDeliveredEmail Boolean @default(true)
+  lowStockAlert      Boolean  @default(true)
+  lowStockThreshold  Int      @default(10)
+  adminEmail         String?
+  updatedAt          DateTime @updatedAt
+}
+
+model StoreProfile {
+  id           Int      @id @default(1)
+  storeName    String   @default("Aaraa Homecare")
+  email        String?
+  phone        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?  @default("IN")
+  logoUrl      String?
+  currency     String   @default("INR")
+  timezone     String   @default("Asia/Kolkata")
+  updatedAt    DateTime @updatedAt
 }

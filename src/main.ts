@@ -1,5 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import {
@@ -12,7 +13,12 @@ import {
 } from "./common";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+  // Allow large product descriptions / HTML moreInfo payloads
+  app.useBodyParser("json", { limit: "10mb" });
+  app.useBodyParser("urlencoded", { extended: true, limit: "10mb" });
 
   // CORS — allow configured origins (comma-separated CORS_ORIGIN env var) or all origins
   const rawOrigins = process.env.CORS_ORIGIN;

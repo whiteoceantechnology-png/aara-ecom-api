@@ -8,7 +8,7 @@ import {
   IsArray,
   ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 
 // ─── Brand DTOs ───────────────────────────────────────────────────────────────
 
@@ -67,7 +67,10 @@ export class AdminCreateProductDto {
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ example: "Premium quality ashwagandha root powder" })
+  @ApiPropertyOptional({
+    example: "Premium quality ashwagandha root powder",
+    description: "Product description (unlimited length)",
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -128,7 +131,10 @@ export class AdminUpdateProductDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ example: "Updated description" })
+  @ApiPropertyOptional({
+    example: "Updated description",
+    description: "Product description (unlimited length)",
+  })
   @IsOptional()
   @IsString()
   description?: string;
@@ -310,7 +316,10 @@ export class SpecificationDescriptionDto {
   @IsString()
   shortDescription?: string;
 
-  @ApiPropertyOptional({ example: "Full product description with details" })
+  @ApiPropertyOptional({
+    example: "Full product description with details",
+    description: "Long product description (unlimited length)",
+  })
   @IsOptional()
   @IsString()
   longDescription?: string;
@@ -318,6 +327,8 @@ export class SpecificationDescriptionDto {
   /** Same as `longDescription` — preferred by some clients */
   @ApiPropertyOptional({
     example: "Step up your style game with these classic white trousers...",
+    description:
+      "Full product description (unlimited length; same as longDescription)",
   })
   @IsOptional()
   @IsString()
@@ -367,3 +378,183 @@ export class UpsertSpecificationBodyDto {
 export type UpsertSpecificationDto = UpsertSpecificationBodyDto & {
   productId: number;
 };
+
+// ─── Shipping rules ──────────────────────────────────────────────────────────
+
+export class AdminShippingRuleDto {
+  @ApiProperty({ example: "Standard under ₹999" })
+  @IsString()
+  name: string;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  minOrderAmount?: number;
+
+  @ApiPropertyOptional({ example: 999 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  maxOrderAmount?: number;
+
+  @ApiProperty({ example: 50 })
+  @IsNumber()
+  @Type(() => Number)
+  shippingAmount: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: "Lower number = higher priority when multiple rules match",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  priority?: number;
+}
+
+export class AdminUpdateShippingRuleDto {
+  @ApiPropertyOptional({ example: "Free shipping over ₹999" })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 999 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  minOrderAmount?: number | null;
+
+  @ApiPropertyOptional({ example: null })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  maxOrderAmount?: number | null;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  shippingAmount?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  isActive?: boolean;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  priority?: number;
+}
+
+// ─── Notification settings ───────────────────────────────────────────────────
+
+export class AdminUpdateNotificationSettingsDto {
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  orderPlacedEmail?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  orderShippedEmail?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  orderDeliveredEmail?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === "true" || value === true)
+  lowStockAlert?: boolean;
+
+  @ApiPropertyOptional({ example: 10 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  lowStockThreshold?: number;
+
+  @ApiPropertyOptional({ example: "ops@aaraahomecare.com" })
+  @IsOptional()
+  @IsString()
+  adminEmail?: string | null;
+}
+
+// ─── Store profile ───────────────────────────────────────────────────────────
+
+export class AdminUpdateStoreProfileDto {
+  @ApiPropertyOptional({ example: "Aaraa Homecare" })
+  @IsOptional()
+  @IsString()
+  storeName?: string;
+
+  @ApiPropertyOptional({ example: "hello@aaraahomecare.com" })
+  @IsOptional()
+  @IsString()
+  email?: string | null;
+
+  @ApiPropertyOptional({ example: "+91 90000 00000" })
+  @IsOptional()
+  @IsString()
+  phone?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  addressLine1?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  addressLine2?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  state?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  postalCode?: string | null;
+
+  @ApiPropertyOptional({ example: "IN" })
+  @IsOptional()
+  @IsString()
+  country?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logoUrl?: string | null;
+
+  @ApiPropertyOptional({ example: "INR" })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({ example: "Asia/Kolkata" })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+}

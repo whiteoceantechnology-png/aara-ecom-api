@@ -27,6 +27,7 @@ const mockSalesReport = [
 
 const mockAdminDashboardService = {
   getSummary: jest.fn(),
+  getAttention: jest.fn(),
   getSalesReport: jest.fn(),
 };
 
@@ -56,11 +57,23 @@ describe("AdminDashboardController", () => {
     it("should return dashboard summary with all stats", async () => {
       mockAdminDashboardService.getSummary.mockResolvedValue(mockSummary);
 
-      const result = await controller.getSummary();
+      const result = await controller.getSummary("30");
 
-      expect(mockAdminDashboardService.getSummary).toHaveBeenCalledTimes(1);
+      expect(mockAdminDashboardService.getSummary).toHaveBeenCalledWith("30");
       expect(result.summary.totalOrders).toBe(42);
       expect(result.ordersByStatus).toHaveLength(3);
+    });
+  });
+
+  describe("getAttention()", () => {
+    it("should return attention issues", async () => {
+      const attention = { missingAddress: [], counts: { missingAddress: 0 } };
+      mockAdminDashboardService.getAttention.mockResolvedValue(attention);
+
+      const result = await controller.getAttention();
+
+      expect(mockAdminDashboardService.getAttention).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(attention);
     });
   });
 
@@ -115,7 +128,7 @@ describe("AdminDashboardController", () => {
     });
 
     it("should NOT mark any route as @Public() — all require auth", () => {
-      const methods = ["getSummary", "getSalesReport"];
+      const methods = ["getSummary", "getAttention", "getSalesReport"];
       methods.forEach((method) => {
         const isPublic = Reflect.getMetadata(
           IS_PUBLIC_KEY,

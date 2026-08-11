@@ -3,11 +3,17 @@ import { AdminVariantsController } from "./admin-variants.controller";
 import { VariantsService } from "../product/variants/variants.service";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
 import { CreateVariantDto } from "../product/dto/variant.dto";
+import { PrismaService } from "../prisma/prisma.service";
 
 const mockVariantsService = {
   create: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+};
+
+const mockPrisma = {
+  notificationSettings: { findUnique: jest.fn() },
+  productVariant: { findMany: jest.fn() },
 };
 
 describe("AdminVariantsController", () => {
@@ -19,6 +25,7 @@ describe("AdminVariantsController", () => {
       controllers: [AdminVariantsController],
       providers: [
         { provide: VariantsService, useValue: mockVariantsService },
+        { provide: PrismaService, useValue: mockPrisma },
         AdminRoleGuard,
       ],
     }).compile();
