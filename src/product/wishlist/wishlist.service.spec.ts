@@ -38,7 +38,7 @@ describe("WishlistService", () => {
 
       expect(result).toEqual({ message: "Product added to wishlist" });
       expect(prisma.wishlist.create).toHaveBeenCalledWith({
-        data: { userId: 1, productId: 7 },
+        data: { customerId: 1, productId: 7 },
       });
     });
 

@@ -527,7 +527,11 @@ export class OrdersService {
     const addr = await this.prisma.customerAddress.findFirst({
       where: { id: shippingAddressId, customerId },
     });
-    if (!addr) throw new BadRequestException("Shipping address not found");
+    if (!addr) {
+      throw new BadRequestException(
+        `Shipping address #${shippingAddressId} not found for this customer`,
+      );
+    }
     return {
       shippingId: shippingAddressId,
       snapshot: {

@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   HttpCode,
@@ -17,8 +19,14 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { CustomersService } from "./customers.service";
-import { CreateCustomerDto, CustomerLoginDto } from "../dto/customer.dto";
+import {
+  CreateCustomerDto,
+  CustomerLoginDto,
+  CreateCustomerAddressDto,
+  UpdateCustomerAddressDto,
+} from "../dto/customer.dto";
 import { Public } from "../../auth/public.decorator";
+import { CurrentCustomerId } from "../decorators/current-customer.decorator";
 
 @ApiBearerAuth()
 @ApiTags("Customers")
@@ -49,6 +57,58 @@ export class CustomersController {
   @ApiResponse({ status: 400, description: "Invalid credentials" })
   login(@Body() dto: CustomerLoginDto) {
     return this.customersService.login(dto);
+  }
+
+  @Get("me")
+  @ApiOperation({ summary: "Get current customer profile + addresses" })
+  @ApiResponse({ status: 200, description: "Customer profile" })
+  getMe(@CurrentCustomerId() customerId: number) {
+    return this.customersService.getMe(customerId);
+  }
+
+  @Get("me/addresses")
+  @ApiOperation({ summary: "List shipping addresses for current customer" })
+  @ApiResponse({ status: 200, description: "Address list" })
+  listAddresses(@CurrentCustomerId() customerId: number) {
+    return this.customersService.listAddresses(customerId);
+  }
+
+  @Post("me/addresses")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Create a shipping address for current customer" })
+  @ApiBody({ type: CreateCustomerAddressDto })
+  @ApiResponse({ status: 201, description: "Address created" })
+  createAddress(
+    @CurrentCustomerId() customerId: number,
+    @Body() dto: CreateCustomerAddressDto,
+  ) {
+    return this.customersService.createAddress(customerId, dto);
+  }
+
+  @Put("me/addresses/:addressId")
+  @ApiOperation({ summary: "Update a shipping address" })
+  @ApiParam({ name: "addressId", type: Number })
+  @ApiBody({ type: UpdateCustomerAddressDto })
+  @ApiResponse({ status: 200, description: "Address updated" })
+  @ApiResponse({ status: 404, description: "Address not found" })
+  updateAddress(
+    @CurrentCustomerId() customerId: number,
+    @Param("addressId", ParseIntPipe) addressId: number,
+    @Body() dto: UpdateCustomerAddressDto,
+  ) {
+    return this.customersService.updateAddress(customerId, addressId, dto);
+  }
+
+  @Delete("me/addresses/:addressId")
+  @ApiOperation({ summary: "Delete a shipping address" })
+  @ApiParam({ name: "addressId", type: Number })
+  @ApiResponse({ status: 200, description: "Address deleted" })
+  @ApiResponse({ status: 404, description: "Address not found" })
+  removeAddress(
+    @CurrentCustomerId() customerId: number,
+    @Param("addressId", ParseIntPipe) addressId: number,
+  ) {
+    return this.customersService.removeAddress(customerId, addressId);
   }
 
   @Get(":id")
