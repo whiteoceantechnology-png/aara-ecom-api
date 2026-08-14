@@ -13,6 +13,7 @@ import { AdminReportsService } from "./admin-reports.service";
 import { AdminShippingRulesService } from "./admin-shipping-rules.service";
 import { AdminSettingsService } from "./admin-settings.service";
 import { AdminSearchService } from "./admin-search.service";
+import { AdminOrdersService } from "./admin-orders.service";
 
 import { AdminAuthController } from "./admin-auth.controller";
 import { AdminDashboardController } from "./admin-dashboard.controller";
@@ -65,6 +66,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminShippingRulesService,
     AdminSettingsService,
     AdminSearchService,
+    AdminOrdersService,
     AdminRoleGuard,
   ],
 })

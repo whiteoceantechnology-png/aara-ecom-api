@@ -340,6 +340,8 @@ model Order {
   items              OrderItem[]
   payments           Payment[]
   shipments          Shipment[]
+  events             OrderEvent[]
+  refunds            OrderRefund[]
   checkoutIdempotency CheckoutIdempotency?
   reviews            ProductReview[]
 }
@@ -363,6 +365,10 @@ model Payment {
   order         Order    @relation(fields: [orderId], references: [id])
   paymentMethod String
   transactionId String?
+  /** Collected amount (optional for legacy Razorpay rows) */
+  amount        Decimal? @db.Decimal(10, 2)
+  reference     String?
+  notes         String?
   paymentStatus String   @default("pending")
   paymentDate   DateTime @default(now())
 }
@@ -376,6 +382,35 @@ model Shipment {
   status         String    @default("pending")
   shippedAt      DateTime?
   deliveredAt    DateTime?
+}
+
+model OrderEvent {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String
+  label     String
+  detail    String?
+  actorType String   @default("admin") // admin | system | customer
+  actorName String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model OrderRefund {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(10, 2)
+  reason    String
+  status    String   @default("requested") // requested | approved | rejected | completed
+  items     Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
 }
 
 // ─── Admin config (shipping / notifications / store) ─────────────────────────

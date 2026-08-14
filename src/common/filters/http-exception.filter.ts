@@ -34,8 +34,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : ((body as { message?: string | string[] }).message ??
             exception.message);
     } else {
-      status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = "Internal server error";
+      const raw =
+        exception instanceof Error
+          ? `${exception.message}\n${exception.stack ?? ""}`
+          : String(exception);
+      const diskFull =
+        /no space left on device/i.test(raw) ||
+        /errcode:\s*28/i.test(raw) ||
+        /ENOSPC/i.test(raw);
+
+      if (diskFull) {
+        status = HttpStatus.SERVICE_UNAVAILABLE;
+        message =
+          "Server storage is full. Please free disk space and try again.";
+      } else {
+        status = HttpStatus.INTERNAL_SERVER_ERROR;
+        message = "Internal server error";
+      }
 
       // Log unexpected errors with full stack for debugging
       this.logger.error(

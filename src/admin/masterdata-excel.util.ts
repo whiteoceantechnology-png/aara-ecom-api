@@ -1,10 +1,24 @@
+import { BadRequestException } from "@nestjs/common";
 import type { AdminCreateProductDto } from "./dto/admin.dto";
+import type {
+  CreateVariantDto,
+  UpdateVariantDto,
+} from "../product/dto/variant.dto";
 
 /** Max data rows processed per upload (excluding header row). */
 export const MASTERDATA_MAX_ROWS = 2000;
 
-/** First sheet name in template / export workbooks. */
+/** First sheet name in product template / export workbooks. */
 export const MASTERDATA_SHEET_NAME = "Products";
+
+/** Sheet name for variant template / export / upload workbooks. */
+export const MASTERDATA_VARIANT_SHEET_NAME = "Variants";
+
+/** Lookup sheet embedded in the variant template workbook. */
+export const MASTERDATA_PACK_SIZES_SHEET_NAME = "PackSizes";
+
+/** Instructions sheet in the variant template workbook. */
+export const MASTERDATA_VARIANT_HELP_SHEET_NAME = "Instructions";
 
 /**
  * Column order for template + export (matches import). `id` is optional:
@@ -22,6 +36,25 @@ export const MASTERDATA_PRODUCT_COLUMNS = [
   "actualPrice",
   "discountPrice",
   "productImage",
+] as const;
+
+/**
+ * Variant bulk-upload columns.
+ * - `id` optional → update that variant when present
+ * - else match by unique `sku` → update if found, otherwise create
+ * - `productId` + `packSizeId` + `sku` + `price` required for create
+ */
+export const MASTERDATA_VARIANT_COLUMNS = [
+  "id",
+  "productId",
+  "packSizeId",
+  "sku",
+  "price",
+  "discountedPrice",
+  "variantName",
+  "stockQuantity",
+  "status",
+  "imagePath",
 ] as const;
 
 function normalizeKey(k: string): string {
@@ -81,6 +114,17 @@ function parseOptionalInt(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function parseRequiredNumber(v: unknown, field: string): number {
+  if (v === undefined || v === null || v === "") {
+    throw new Error(`${field} is required`);
+  }
+  const n = typeof v === "number" ? v : Number(excelCellToString(v).trim());
+  if (!Number.isFinite(n)) {
+    throw new Error(`${field} must be a valid number`);
+  }
+  return n;
+}
+
 function parseOptionalNumber(v: unknown): number | undefined {
   if (v === undefined || v === null || v === "") return undefined;
   const n = typeof v === "number" ? v : Number(excelCellToString(v).trim());
@@ -91,6 +135,30 @@ function optionalString(v: unknown): string | undefined {
   if (v === undefined || v === null) return undefined;
   const s = excelCellToString(v).trim();
   return s === "" ? undefined : s;
+}
+
+function parseOptionalBoolean(v: unknown): boolean | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") {
+    if (v === 1) return true;
+    if (v === 0) return false;
+  }
+  const s = excelCellToString(v).trim().toLowerCase();
+  if (["true", "1", "yes", "y", "active"].includes(s)) return true;
+  if (["false", "0", "no", "n", "inactive"].includes(s)) return false;
+  throw new Error(`status must be true/false (got "${excelCellToString(v)}")`);
+}
+
+/** Split image paths from Excel: `|` preferred, also supports `,`. */
+function parseImagePaths(v: unknown): string[] | undefined {
+  const raw = optionalString(v);
+  if (!raw) return undefined;
+  const parts = raw
+    .split(/[|,]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length ? parts : undefined;
 }
 
 /**
@@ -173,4 +241,123 @@ export function rowToProductImportPayload(raw: Record<string, unknown>): {
     if (n !== undefined && n >= 1) productId = n;
   }
   return { productId, dto };
+}
+
+export type VariantImportPayload = {
+  /** Existing variant id — when set and found, row updates that variant. */
+  variantId?: number;
+  /** Normalized unique SKU (always required). */
+  sku: string;
+  createDto: CreateVariantDto;
+  updateDto: UpdateVariantDto;
+};
+
+/**
+ * Maps one Excel row to create/update DTOs for variant bulk upload.
+ * Required for create: productId, packSizeId, sku, price.
+ */
+export function rowToVariantImportPayload(
+  raw: Record<string, unknown>,
+): VariantImportPayload {
+  const r = normalizeExcelRow(raw);
+
+  const sku = optionalString(getFirstDefined(r, ["sku", "variant_sku"]));
+  if (!sku) throw new Error("sku is required");
+
+  const idRaw = getFirstDefined(r, ["id", "variant_id", "variantid"]);
+  let variantId: number | undefined;
+  if (idRaw !== undefined && idRaw !== null && idRaw !== "") {
+    const n = parseOptionalInt(idRaw);
+    if (n !== undefined && n >= 1) variantId = n;
+  }
+
+  const productId = parseRequiredInt(
+    getFirstDefined(r, ["product_id", "productid"]),
+    "productId",
+  );
+  const packSizeId = parseRequiredInt(
+    getFirstDefined(r, ["pack_size_id", "packsizeid", "pack_size"]),
+    "packSizeId",
+  );
+  const price = parseRequiredNumber(
+    getFirstDefined(r, ["price", "variant_price"]),
+    "price",
+  );
+
+  const discountedPrice = parseOptionalNumber(
+    getFirstDefined(r, [
+      "discounted_price",
+      "discountedprice",
+      "discount_price",
+      "discountprice",
+    ]),
+  );
+  const variantName = optionalString(
+    getFirstDefined(r, ["variant_name", "variantname", "name"]),
+  );
+  const stockQuantity = parseOptionalInt(
+    getFirstDefined(r, ["stock_quantity", "stockquantity", "stock"]),
+  );
+  const status = parseOptionalBoolean(
+    getFirstDefined(r, ["status", "is_active", "active"]),
+  );
+  const imagePath = parseImagePaths(
+    getFirstDefined(r, ["image_path", "imagepath", "images", "image"]),
+  );
+
+  const createDto: CreateVariantDto = {
+    productId,
+    packSizeId,
+    sku,
+    price,
+  };
+  if (discountedPrice !== undefined) {
+    createDto.discountedPrice = discountedPrice;
+  }
+  if (variantName !== undefined) createDto.variantName = variantName;
+  if (stockQuantity !== undefined) createDto.stockQuantity = stockQuantity;
+  if (status !== undefined) createDto.status = status;
+  if (imagePath !== undefined) createDto.imagePath = imagePath;
+
+  const updateDto: UpdateVariantDto = {
+    packSizeId,
+    sku,
+    price,
+  };
+  if (discountedPrice !== undefined) {
+    updateDto.discountedPrice = discountedPrice;
+  }
+  if (variantName !== undefined) updateDto.variantName = variantName;
+  if (stockQuantity !== undefined) updateDto.stockQuantity = stockQuantity;
+  if (status !== undefined) updateDto.status = status;
+  if (imagePath !== undefined) updateDto.imagePath = imagePath;
+
+  return { variantId, sku, createDto, updateDto };
+}
+
+/** True if the Excel row has any non-empty cell. */
+export function isNonEmptyExcelRow(row: Record<string, unknown>): boolean {
+  return Object.values(row).some((v) => {
+    if (v === null || v === undefined) return false;
+    if (typeof v === "string") return v.trim() !== "";
+    return true;
+  });
+}
+
+/** Validate multipart Excel upload (field name `file`). */
+export function assertExcelUpload(
+  file?: Express.Multer.File,
+): Express.Multer.File {
+  if (!file?.buffer?.length) {
+    throw new BadRequestException(
+      "No file uploaded — use form field name `file`",
+    );
+  }
+  const name = file.originalname?.toLowerCase() ?? "";
+  if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+    throw new BadRequestException(
+      "File must be an Excel workbook (.xlsx or .xls)",
+    );
+  }
+  return file;
 }

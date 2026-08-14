@@ -247,8 +247,17 @@ export class AdminUpdateCategoryDto {
 
 export class AdminUpdateOrderDto {
   @ApiPropertyOptional({
-    example: "shipped",
-    enum: ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+    example: "PACKED",
+    enum: [
+      "PENDING_PAYMENT",
+      "PROCESSING",
+      "PACKED",
+      "SHIPPED",
+      "DELIVERED",
+      "CANCELLED",
+      "FAILED",
+    ],
+    description: "Fulfillment status — validated against allowed transitions",
   })
   @IsOptional()
   @IsString()
@@ -259,10 +268,111 @@ export class AdminUpdateOrderDto {
   @IsString()
   trackingId?: string;
 
-  @ApiPropertyOptional({ example: "Handle with care" })
+  @ApiPropertyOptional({ example: "Packed successfully" })
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class AdminRecordPaymentDto {
+  @ApiPropertyOptional({
+    example: 2450,
+    description: "Defaults to order total",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  amount?: number;
+
+  @ApiPropertyOptional({ example: "cod", enum: ["cod", "cash", "offline"] })
+  @IsOptional()
+  @IsString()
+  method?: string;
+
+  @ApiPropertyOptional({ example: "2026-08-13T10:30:00Z" })
+  @IsOptional()
+  @IsString()
+  receivedAt?: string;
+
+  @ApiPropertyOptional({ example: "COD-001" })
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @ApiPropertyOptional({ example: "Payment received from courier" })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AdminUpdatePaymentStatusDto {
+  @ApiProperty({
+    example: "paid",
+    enum: ["pending", "paid", "failed", "refunded", "partially_refunded"],
+  })
+  @IsString()
+  paymentStatus: string;
+
+  @ApiPropertyOptional({ example: "COD payment received" })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AdminRefundOrderDto {
+  @ApiProperty({ example: 2450 })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiProperty({ example: "Customer requested refund" })
+  @IsString()
+  reason: string;
+
+  @ApiPropertyOptional({
+    type: "array",
+    description: "Optional item-level refund lines",
+    example: [{ orderItemId: 1, quantity: 1 }],
+  })
+  @IsOptional()
+  @IsArray()
+  items?: Array<Record<string, unknown>>;
+}
+
+export class AdminCancelOrderDto {
+  @ApiProperty({ example: "Customer requested cancellation" })
+  @IsString()
+  reason: string;
+}
+
+export class AdminContactCustomerDto {
+  @ApiProperty({
+    example: "email",
+    enum: ["email", "sms", "whatsapp", "phone"],
+  })
+  @IsString()
+  channel: string;
+
+  @ApiProperty({ example: "Your order has been shipped." })
+  @IsString()
+  message: string;
+}
+
+export class AdminAutoDeliverDto {
+  @ApiPropertyOptional({
+    example: 7,
+    description: "Mark SHIPPED → DELIVERED after this many days",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  daysAfterShip?: number;
+
+  @ApiPropertyOptional({ example: 50 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  limit?: number;
 }
 
 // ─── Customer Management DTOs ────────────────────────────────────────────────
