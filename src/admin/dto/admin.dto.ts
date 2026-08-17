@@ -6,6 +6,8 @@ import {
   IsNumber,
   IsInt,
   IsArray,
+  IsObject,
+  IsDefined,
   ValidateNested,
 } from "class-validator";
 import { Transform, Type } from "class-transformer";
@@ -187,6 +189,89 @@ export class AdminUpdateStockDto {
   @IsNumber()
   @Type(() => Number)
   stockQuantity: number;
+}
+
+// ─── Inventory DTOs ──────────────────────────────────────────────────────────
+
+export class AdminAdjustStockDto {
+  @ApiProperty({
+    example: -5,
+    description: "Signed delta applied to on-hand stockQuantity",
+  })
+  @IsInt()
+  @Type(() => Number)
+  quantityChange: number;
+
+  @ApiProperty({ example: "damaged" })
+  @IsString()
+  reason: string;
+
+  @ApiPropertyOptional({ example: "5 units damaged in transit" })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class AdminReserveStockDto {
+  @ApiProperty({ example: 10 })
+  @IsInt()
+  @Type(() => Number)
+  quantity: number;
+
+  @ApiPropertyOptional({ example: "order" })
+  @IsOptional()
+  @IsString()
+  referenceType?: string;
+
+  @ApiPropertyOptional({ example: 234 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  referenceId?: number;
+}
+
+export class AdminReleaseStockDto {
+  @ApiProperty({ example: 10 })
+  @IsInt()
+  @Type(() => Number)
+  quantity: number;
+
+  @ApiPropertyOptional({ example: "order" })
+  @IsOptional()
+  @IsString()
+  referenceType?: string;
+
+  @ApiPropertyOptional({ example: 234 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  referenceId?: number;
+}
+
+export class AdminBulkStockUpdateItemDto {
+  @ApiProperty({ example: 45 })
+  @IsInt()
+  @Type(() => Number)
+  variantId: number;
+
+  @ApiProperty({ example: 120 })
+  @IsNumber()
+  @Type(() => Number)
+  stockQuantity: number;
+}
+
+export class AdminBulkStockUpdateDto {
+  @ApiProperty({
+    type: [AdminBulkStockUpdateItemDto],
+    example: [
+      { variantId: 45, stockQuantity: 120 },
+      { variantId: 46, stockQuantity: 0 },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminBulkStockUpdateItemDto)
+  updates: AdminBulkStockUpdateItemDto[];
 }
 
 export class AdminAddImageDto {
@@ -667,4 +752,157 @@ export class AdminUpdateStoreProfileDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+}
+
+// ─── Admin payments ──────────────────────────────────────────────────────────
+
+export class AdminCreateRefundDto {
+  @ApiPropertyOptional({ example: "pay_MZ9x7QK2ab" })
+  @IsOptional()
+  @IsString()
+  transactionId?: string;
+
+  @ApiPropertyOptional({ example: "ORD-10482" })
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiProperty({ example: 2499.0 })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiProperty({ example: "Customer requested cancellation" })
+  @IsString()
+  reason: string;
+}
+
+export class AdminReconcilePaymentDto {
+  @ApiProperty({ example: "pay_MZ9x7QK2ab" })
+  @IsString()
+  transactionId: string;
+}
+
+export class AdminCreatePaymentLinkDto {
+  @ApiProperty({ example: 500.0 })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ example: "9876543210" })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: "ORD-10482" })
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiPropertyOptional({ example: "Balance payment" })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class AdminPaymentWebhookDto {
+  @ApiProperty({ example: "payment.captured" })
+  @IsString()
+  event: string;
+
+  @ApiProperty({ example: {} })
+  @IsObject()
+  payload: Record<string, unknown>;
+}
+
+// ─── Admin logistics ─────────────────────────────────────────────────────────
+
+export class AdminBookShipmentDto {
+  @ApiProperty({ example: "delhivery" })
+  @IsString()
+  courierId: string;
+
+  @ApiPropertyOptional({ example: "B" })
+  @IsOptional()
+  @IsString()
+  zone?: string;
+
+  @ApiPropertyOptional({ example: 1.2 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  weightKg?: number;
+}
+
+export class AdminLogisticsWebhookDto {
+  @ApiProperty({ example: "DLV4839201" })
+  @IsString()
+  awb: string;
+
+  @ApiProperty({ example: "ofd" })
+  @IsString()
+  status: string;
+
+  @ApiPropertyOptional({ example: "Bengaluru Local Hub" })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional({ example: "2026-08-15T07:40:00Z" })
+  @IsOptional()
+  @IsString()
+  timestamp?: string;
+}
+
+export class AdminNdrReattemptDto {
+  @ApiPropertyOptional({
+    example: "Customer confirmed availability after 6pm",
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class AdminNdrAddressDto {
+  @ApiProperty({ example: "14 Anna Salai, Chennai, 600002" })
+  @IsString()
+  address: string;
+
+  @ApiPropertyOptional({ example: "9123456780" })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}
+
+export class AdminNdrRtoDto {
+  @ApiProperty({ example: "Customer refused after 3 attempts" })
+  @IsString()
+  reason: string;
+}
+
+export class AdminRtoRestockDto {
+  @ApiProperty({ example: "pass" })
+  @IsString()
+  qcResult: string;
+
+  @ApiProperty({ example: 4821, description: "Variant id or SKU string" })
+  @IsDefined()
+  variantId: number | string;
+
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  @Type(() => Number)
+  quantity: number;
+}
+
+export class AdminWalletRechargeDto {
+  @ApiProperty({ example: 5000.0 })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ example: "pay_MZ9x7QK2ab" })
+  @IsOptional()
+  @IsString()
+  paymentReference?: string;
 }

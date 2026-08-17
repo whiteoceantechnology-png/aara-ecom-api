@@ -14,6 +14,9 @@ import { AdminShippingRulesService } from "./admin-shipping-rules.service";
 import { AdminSettingsService } from "./admin-settings.service";
 import { AdminSearchService } from "./admin-search.service";
 import { AdminOrdersService } from "./admin-orders.service";
+import { AdminInventoryService } from "./admin-inventory.service";
+import { AdminPaymentsService } from "./admin-payments.service";
+import { AdminLogisticsService } from "./admin-logistics.service";
 
 import { AdminAuthController } from "./admin-auth.controller";
 import { AdminDashboardController } from "./admin-dashboard.controller";
@@ -30,6 +33,9 @@ import { AdminReportsController } from "./admin-reports.controller";
 import { AdminShippingRulesController } from "./admin-shipping-rules.controller";
 import { AdminSettingsController } from "./admin-settings.controller";
 import { AdminSearchController } from "./admin-search.controller";
+import { AdminInventoryController } from "./admin-inventory.controller";
+import { AdminPaymentsController } from "./admin-payments.controller";
+import { AdminLogisticsController } from "./admin-logistics.controller";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
 
 @Module({
@@ -54,6 +60,9 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminShippingRulesController,
     AdminSettingsController,
     AdminSearchController,
+    AdminInventoryController,
+    AdminPaymentsController,
+    AdminLogisticsController,
   ],
   providers: [
     AdminAuthService,
@@ -67,6 +76,9 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminSettingsService,
     AdminSearchService,
     AdminOrdersService,
+    AdminInventoryService,
+    AdminPaymentsService,
+    AdminLogisticsService,
     AdminRoleGuard,
   ],
 })

@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsString, IsNotEmpty, IsEmail, IsOptional } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  IsEmail,
+  IsOptional,
+  IsBoolean,
+} from "class-validator";
+import { Transform, Type } from "class-transformer";
 
 export class CreateCustomerDto {
   @ApiProperty({ example: "John Doe" })
@@ -33,53 +40,102 @@ export class CustomerLoginDto {
   password: string;
 }
 
+/**
+ * Accepts both canonical API fields and website checkout aliases.
+ * Canonical: name, addressLine1, postalCode
+ * Website: firstName+lastName, houseNo+areaStreet, pincode, isDefault
+ */
 export class CreateCustomerAddressDto {
-  @ApiProperty({ example: "John Doe" })
+  @ApiPropertyOptional({ example: "Ramnath sekar" })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
+
+  @ApiPropertyOptional({ example: "Ramnath" })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: "sekar" })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
 
   @ApiPropertyOptional({ example: "9876543210" })
   @IsOptional()
   @IsString()
   phone?: string;
 
-  @ApiProperty({ example: "12 MG Road" })
+  @ApiPropertyOptional({ example: "12 MG Road" })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  addressLine1: string;
+  addressLine1?: string;
 
   @ApiPropertyOptional({ example: "Near City Mall" })
   @IsOptional()
   @IsString()
   addressLine2?: string;
 
-  @ApiProperty({ example: "Bengaluru" })
+  @ApiPropertyOptional({ example: "35" })
+  @IsOptional()
+  @IsString()
+  houseNo?: string;
+
+  @ApiPropertyOptional({
+    example: "35, Balaji Arcade, Nalliyampalyam, Tindal, Erode",
+  })
+  @IsOptional()
+  @IsString()
+  areaStreet?: string;
+
+  @ApiProperty({ example: "Erode" })
   @IsString()
   @IsNotEmpty()
   city: string;
 
-  @ApiProperty({ example: "Karnataka" })
+  @ApiProperty({ example: "TamilNadu" })
   @IsString()
   @IsNotEmpty()
   state: string;
 
-  @ApiProperty({ example: "560001" })
+  @ApiPropertyOptional({ example: "638012" })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  postalCode: string;
+  postalCode?: string;
 
-  @ApiProperty({ example: "IN" })
+  @ApiPropertyOptional({ example: "638012" })
+  @IsOptional()
+  @IsString()
+  pincode?: string;
+
+  @ApiProperty({ example: "India" })
   @IsString()
   @IsNotEmpty()
   country: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === "true" || value === 1)
+  @Type(() => Boolean)
+  isDefault?: boolean;
 }
 
 export class UpdateCustomerAddressDto {
-  @ApiPropertyOptional({ example: "John Doe" })
+  @ApiPropertyOptional({ example: "Ramnath sekar" })
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({ example: "Ramnath" })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: "sekar" })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
 
   @ApiPropertyOptional({ example: "9876543210" })
   @IsOptional()
@@ -96,23 +152,45 @@ export class UpdateCustomerAddressDto {
   @IsString()
   addressLine2?: string | null;
 
-  @ApiPropertyOptional({ example: "Bengaluru" })
+  @ApiPropertyOptional({ example: "35" })
+  @IsOptional()
+  @IsString()
+  houseNo?: string;
+
+  @ApiPropertyOptional({ example: "Balaji Arcade" })
+  @IsOptional()
+  @IsString()
+  areaStreet?: string;
+
+  @ApiPropertyOptional({ example: "Erode" })
   @IsOptional()
   @IsString()
   city?: string;
 
-  @ApiPropertyOptional({ example: "Karnataka" })
+  @ApiPropertyOptional({ example: "TamilNadu" })
   @IsOptional()
   @IsString()
   state?: string;
 
-  @ApiPropertyOptional({ example: "560001" })
+  @ApiPropertyOptional({ example: "638012" })
   @IsOptional()
   @IsString()
   postalCode?: string;
 
-  @ApiPropertyOptional({ example: "IN" })
+  @ApiPropertyOptional({ example: "638012" })
+  @IsOptional()
+  @IsString()
+  pincode?: string;
+
+  @ApiPropertyOptional({ example: "India" })
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === "true" || value === 1)
+  @Type(() => Boolean)
+  isDefault?: boolean;
 }
