@@ -11,7 +11,11 @@ import { AdminModule } from "./admin/admin.module";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      // `.env.local` (gitignored) overrides `.env` — use for live Razorpay / secrets
+      envFilePath: [".env.local", ".env"],
+    }),
     AuthModule,
     UserModule,
     ProductModule,

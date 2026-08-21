@@ -37,7 +37,9 @@ import {
   AdminUpdateStockDto,
   AdminAddImageDto,
   UpsertSpecificationBodyDto,
+  UpsertProductPoliciesDto,
 } from "./dto/admin.dto";
+import { AdminProductPoliciesService } from "./admin-product-policies.service";
 
 @ApiBearerAuth()
 @ApiTags("Admin — Products & Brands")
@@ -47,6 +49,7 @@ export class AdminProductsController {
     private readonly productsService: ProductsService,
     private readonly brandsService: BrandsService,
     private readonly documentsService: ProductDocumentsService,
+    private readonly productPoliciesService: AdminProductPoliciesService,
   ) {}
 
   // ─── Brands ──────────────────────────────────────────────────────────────────
@@ -108,6 +111,39 @@ export class AdminProductsController {
       specKey,
       specValue,
     );
+  }
+
+  // ─── Product policies (singleton JSON) — must be before products/:id ─────────
+
+  @UseGuards(AdminRoleGuard)
+  @Get("products/policies")
+  @ApiOperation({ summary: "Get product policies JSON" })
+  getProductPolicies() {
+    return this.productPoliciesService.get();
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Post("products/policies")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Create product policies (one-time store)" })
+  @ApiBody({ type: UpsertProductPoliciesDto })
+  createProductPolicies(@Body() dto: UpsertProductPoliciesDto) {
+    return this.productPoliciesService.create(dto);
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Put("products/policies")
+  @ApiOperation({ summary: "Update product policies JSON" })
+  @ApiBody({ type: UpsertProductPoliciesDto })
+  updateProductPolicies(@Body() dto: UpsertProductPoliciesDto) {
+    return this.productPoliciesService.update(dto);
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Delete("products/policies")
+  @ApiOperation({ summary: "Delete product policies" })
+  deleteProductPolicies() {
+    return this.productPoliciesService.remove();
   }
 
   @Get("products/:id")

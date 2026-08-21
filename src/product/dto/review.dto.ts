@@ -3,6 +3,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsIn,
   Max,
   Min,
   MinLength,
@@ -36,4 +37,50 @@ export class CreateReviewDto {
   @IsInt()
   @Type(() => Number)
   orderId: number;
+}
+
+export class ListReviewsQueryDto {
+  @ApiPropertyOptional({ example: 1, default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ example: 10, default: 10 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  @Max(100)
+  limit?: number = 10;
+
+  @ApiPropertyOptional({
+    example: 2026,
+    description: "Filter reviews for a single product",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  productId?: number;
+
+  @ApiPropertyOptional({
+    example: 5,
+    description: "Filter by star rating (1–5)",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional({
+    enum: ["newest", "oldest", "highest", "lowest"],
+    default: "newest",
+  })
+  @IsOptional()
+  @IsIn(["newest", "oldest", "highest", "lowest"])
+  sort?: "newest" | "oldest" | "highest" | "lowest" = "newest";
 }

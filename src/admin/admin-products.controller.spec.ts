@@ -14,6 +14,7 @@ import {
   AdminAddImageDto,
   UpsertSpecificationBodyDto,
 } from "./dto/admin.dto";
+import { AdminProductPoliciesService } from "./admin-product-policies.service";
 import { IS_PUBLIC_KEY } from "../auth/public.decorator";
 
 const mockBrand = {
@@ -62,6 +63,13 @@ const mockDocumentsService = {
   remove: jest.fn(),
 };
 
+const mockProductPoliciesService = {
+  get: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+  remove: jest.fn(),
+};
+
 describe("AdminProductsController", () => {
   let controller: AdminProductsController;
 
@@ -72,6 +80,10 @@ describe("AdminProductsController", () => {
         { provide: ProductsService, useValue: mockProductsService },
         { provide: BrandsService, useValue: mockBrandsService },
         { provide: ProductDocumentsService, useValue: mockDocumentsService },
+        {
+          provide: AdminProductPoliciesService,
+          useValue: mockProductPoliciesService,
+        },
         AdminRoleGuard,
       ],
     }).compile();

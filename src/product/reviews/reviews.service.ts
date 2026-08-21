@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
-import { CreateReviewDto } from "../dto/review.dto";
+import { CreateReviewDto, ListReviewsQueryDto } from "../dto/review.dto";
 import { OrderStatus } from "../constants/order-status";
 
 const orderForReviewInclude = {
@@ -40,10 +40,63 @@ export class ReviewsService {
         rating: dto.rating,
         comment: dto.comment ?? null,
       },
+      include: {
+        customer: { select: { name: true } },
+        product: { select: { id: true, name: true } },
+      },
     });
 
     await this.refreshProductRating(dto.productId);
-    return review;
+    return this.mapReview(review);
+  }
+
+  /** Site-wide (or filtered) reviews list with aggregate summary. */
+  async findAll(query: ListReviewsQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductReviewWhereInput = {};
+    if (query.productId != null) where.productId = query.productId;
+    if (query.rating != null) where.rating = query.rating;
+
+    if (query.productId != null) {
+      await this.assertProductExists(query.productId);
+    }
+
+    const orderBy = this.resolveSort(query.sort);
+
+    const [agg, totalReviews, reviews] = await Promise.all([
+      this.prisma.productReview.aggregate({
+        where,
+        _avg: { rating: true },
+      }),
+      this.prisma.productReview.count({ where }),
+      this.prisma.productReview.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          customer: { select: { name: true } },
+          product: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+
+    const average =
+      agg._avg.rating != null ? Math.round(agg._avg.rating * 100) / 100 : 0;
+
+    return {
+      summary: {
+        averageRating: average,
+        totalReviews,
+      },
+      reviews: reviews.map((r) => this.mapReview(r)),
+      page,
+      limit,
+      totalPages: totalReviews === 0 ? 0 : Math.ceil(totalReviews / limit),
+    };
   }
 
   async findByProduct(productId: number) {
@@ -57,23 +110,21 @@ export class ReviewsService {
     const reviews = await this.prisma.productReview.findMany({
       where: { productId },
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { name: true } },
+        product: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
 
     return {
-      productId,
-      avgRating: product.avgRating,
-      totalReviews: product.reviewCount,
-      reviews: reviews.map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        comment: r.comment,
-        createdAt: r.createdAt,
-        customer: r.customer,
-        verifiedPurchase: r.orderId != null,
-      })),
+      summary: {
+        averageRating:
+          product.avgRating != null
+            ? Math.round(Number(product.avgRating) * 100) / 100
+            : 0,
+        totalReviews: product.reviewCount,
+      },
+      reviews: reviews.map((r) => this.mapReview(r)),
     };
   }
 
@@ -88,7 +139,46 @@ export class ReviewsService {
     const productId = review.productId;
     await this.prisma.productReview.delete({ where: { id: reviewId } });
     await this.refreshProductRating(productId);
-    return { deleted: true };
+    return { message: "Review deleted successfully" };
+  }
+
+  private mapReview(r: {
+    id: number;
+    rating: number;
+    comment: string | null;
+    orderId: number | null;
+    createdAt?: Date;
+    customer: { name: string };
+    product: { id: number; name: string };
+  }) {
+    return {
+      id: r.id,
+      customerName: r.customer.name,
+      rating: r.rating,
+      comment: r.comment,
+      isVerified: r.orderId != null,
+      ...(r.createdAt != null && { createdAt: r.createdAt }),
+      product: {
+        id: r.product.id,
+        name: r.product.name,
+      },
+    };
+  }
+
+  private resolveSort(
+    sort?: ListReviewsQueryDto["sort"],
+  ): Prisma.ProductReviewOrderByWithRelationInput {
+    switch (sort) {
+      case "oldest":
+        return { createdAt: "asc" };
+      case "highest":
+        return { rating: "desc" };
+      case "lowest":
+        return { rating: "asc" };
+      case "newest":
+      default:
+        return { createdAt: "desc" };
+    }
   }
 
   private async assertProductExists(productId: number) {

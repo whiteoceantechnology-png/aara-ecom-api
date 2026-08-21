@@ -36,6 +36,7 @@ import { AdminSearchController } from "./admin-search.controller";
 import { AdminInventoryController } from "./admin-inventory.controller";
 import { AdminPaymentsController } from "./admin-payments.controller";
 import { AdminLogisticsController } from "./admin-logistics.controller";
+import { AdminProductPoliciesService } from "./admin-product-policies.service";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
 
 @Module({
@@ -79,6 +80,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminInventoryService,
     AdminPaymentsService,
     AdminLogisticsService,
+    AdminProductPoliciesService,
     AdminRoleGuard,
   ],
 })

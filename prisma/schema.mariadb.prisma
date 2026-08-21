@@ -567,3 +567,12 @@ model LogisticsWalletTxn {
   balanceAfter     Decimal  @db.Decimal(12, 2)
   createdAt        DateTime @default(now())
 }
+
+// ─── Product policies (singleton JSON config) ────────────────────────────────
+
+model ProductPolicies {
+  id        Int      @id @default(1)
+  policies  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

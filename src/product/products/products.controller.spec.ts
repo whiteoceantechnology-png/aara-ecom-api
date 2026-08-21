@@ -40,6 +40,8 @@ const mockProductsService = {
 
 const mockReviewsService = {
   findByProduct: jest.fn(),
+  findAll: jest.fn(),
+  create: jest.fn(),
 };
 
 describe("ProductsController", () => {
@@ -172,12 +174,56 @@ describe("ProductsController", () => {
     });
   });
 
+  describe("listReviews", () => {
+    it("should return site-wide reviews with summary", async () => {
+      const payload = {
+        summary: { averageRating: 4.78, totalReviews: 686 },
+        reviews: [],
+        page: 1,
+        limit: 10,
+        totalPages: 69,
+      };
+      reviewsService.findAll.mockResolvedValue(payload);
+
+      const result = await controller.listReviews({ page: 1, limit: 10 });
+
+      expect(reviewsService.findAll).toHaveBeenCalledWith({
+        page: 1,
+        limit: 10,
+      });
+      expect(result).toEqual(payload);
+    });
+  });
+
+  describe("createReview", () => {
+    it("should create a review for the authenticated customer", async () => {
+      const dto = {
+        productId: 2026,
+        orderId: 42,
+        rating: 4,
+        comment: "Good quality",
+      };
+      const created = {
+        id: 101,
+        customerName: "Tharun kumar",
+        rating: 4,
+        comment: "Good quality",
+        isVerified: true,
+        product: { id: 2026, name: "Butterfly Pea Petal Herbal Powder" },
+      };
+      reviewsService.create.mockResolvedValue(created);
+
+      const result = await controller.createReview(5, dto);
+
+      expect(reviewsService.create).toHaveBeenCalledWith(5, dto);
+      expect(result).toEqual(created);
+    });
+  });
+
   describe("getReviews", () => {
     it("should return reviews aggregate and list", async () => {
       const payload = {
-        productId: 1,
-        avgRating: 4.5,
-        totalReviews: 2,
+        summary: { averageRating: 4.5, totalReviews: 2 },
         reviews: [],
       };
       reviewsService.findByProduct.mockResolvedValue(payload);
@@ -207,6 +253,22 @@ describe("ProductsController", () => {
         ProductsController.prototype.findAll,
       );
       expect(isPublic).toBe(true);
+    });
+
+    it("should mark listReviews as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.listReviews,
+      );
+      expect(isPublic).toBe(true);
+    });
+
+    it("should NOT mark createReview as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        ProductsController.prototype.createReview,
+      );
+      expect(isPublic).toBeUndefined();
     });
 
     it("should mark findOne as @Public()", () => {

@@ -28,6 +28,8 @@ import {
   UpdateProductDto,
   ProductFilterDto,
 } from "../dto/product.dto";
+import { CreateReviewDto, ListReviewsQueryDto } from "../dto/review.dto";
+import { CurrentCustomerId } from "../decorators/current-customer.decorator";
 import { Public } from "../../auth/public.decorator";
 
 @ApiBearerAuth()
@@ -50,6 +52,40 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: "List of products with variants" })
   findAll(@Query() filter: ProductFilterDto) {
     return this.productsService.findAll(filter);
+  }
+
+  // ─── Reviews (must be before :id routes) ───────────────────────────────────
+
+  @Public()
+  @Get("reviews")
+  @ApiOperation({
+    summary: "List product reviews with rating summary",
+    description:
+      "Public storefront feed. Supports pagination, optional product/rating filters, and sort.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "summary + reviews (with product + isVerified)",
+  })
+  listReviews(@Query() query: ListReviewsQueryDto) {
+    return this.reviewsService.findAll(query);
+  }
+
+  @Post("reviews")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: "Create a product review (verified purchase only)",
+    description:
+      "Customer JWT required. Order must be DELIVERED and include the product. One review per customer×product.",
+  })
+  @ApiBody({ type: CreateReviewDto })
+  @ApiResponse({ status: 201, description: "Review created" })
+  @ApiResponse({ status: 409, description: "Already reviewed this product" })
+  createReview(
+    @CurrentCustomerId() customerId: number,
+    @Body() dto: CreateReviewDto,
+  ) {
+    return this.reviewsService.create(customerId, dto);
   }
 
   @Public()

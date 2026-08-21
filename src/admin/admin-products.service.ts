@@ -144,7 +144,11 @@ export class AdminProductsService {
     }
 
     return this.prisma.productImage.create({
-      data: { productId, ...dto },
+      data: {
+        productId,
+        imageUrl: dto.imageUrl ?? dto.path ?? "",
+        isPrimary: dto.isPrimary ?? false,
+      },
     });
   }
 

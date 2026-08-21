@@ -392,7 +392,13 @@ export class ProductsService {
         data: { isPrimary: false },
       });
     }
-    return this.prisma.productImage.create({ data: { productId, ...dto } });
+    return this.prisma.productImage.create({
+      data: {
+        productId,
+        imageUrl: dto.imageUrl ?? dto.path ?? "",
+        isPrimary: dto.isPrimary ?? false,
+      },
+    });
   }
 
   async deleteImage(imageId: number) {

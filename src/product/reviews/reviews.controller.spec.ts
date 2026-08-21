@@ -45,12 +45,14 @@ describe("ReviewsController", () => {
 
   describe("remove()", () => {
     it("should delete own review", async () => {
-      mockReviewsService.remove.mockResolvedValue({ deleted: true });
+      mockReviewsService.remove.mockResolvedValue({
+        message: "Review deleted successfully",
+      });
 
       const result = await controller.remove(5, 99);
 
       expect(mockReviewsService.remove).toHaveBeenCalledWith(99, 5);
-      expect(result).toEqual({ deleted: true });
+      expect(result).toEqual({ message: "Review deleted successfully" });
     });
   });
 

@@ -916,3 +916,46 @@ export class AdminWalletRechargeDto {
   @IsString()
   paymentReference?: string;
 }
+
+// ─── Product policies (singleton JSON) ───────────────────────────────────────
+
+export class UpsertProductPoliciesDto {
+  @ApiProperty({
+    example: {
+      title: "Shipping & Dispatch Information",
+      dispatchEstimate: {
+        inStock: "2-4 working days",
+        preOrder: "12-14 working days",
+      },
+      deliveryEstimate: {
+        label: "Click Here",
+        url: "/shipping-delivery",
+      },
+    },
+  })
+  @IsObject()
+  shippingAndDispatch: Record<string, unknown>;
+
+  @ApiProperty({
+    example: {
+      title: "Taxes & Legal Information",
+      content:
+        "This product price is inclusive of 18% GST. Input Tax Credit is available for Indian GST registered customers.",
+    },
+  })
+  @IsObject()
+  taxesAndLegal: Record<string, unknown>;
+
+  @ApiProperty({
+    example: {
+      title: "Return, Refund, Exchange & Cancellation Policy",
+      content: [
+        "Goods once shipped are not eligible for alteration, return, exchange & cancellation.",
+        "Any product with physical defects/damage need to be notified to us before usage with an unboxing video. No replacements/refunds will be made after usage and without an unboxing video.",
+        "In case of pre-order items the order cancellation/alteration requests cannot be processed after 24 hours of order being placed.",
+      ],
+    },
+  })
+  @IsObject()
+  returnRefundExchangeCancellation: Record<string, unknown>;
+}
