@@ -2,7 +2,9 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException } from "@nestjs/common";
 import { AdminProductsController } from "./admin-products.controller";
 import { ProductsService } from "../product/products/products.service";
+import { ProductDocumentsService } from "../product/products/product-documents.service";
 import { BrandsService } from "./brands.service";
+import { AdminRoleGuard } from "../auth/admin-role.guard";
 import {
   CreateBrandDto,
   UpdateBrandDto,
@@ -53,6 +55,13 @@ const mockBrandsService = {
   remove: jest.fn(),
 };
 
+const mockDocumentsService = {
+  listByProduct: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+  remove: jest.fn(),
+};
+
 describe("AdminProductsController", () => {
   let controller: AdminProductsController;
 
@@ -62,6 +71,8 @@ describe("AdminProductsController", () => {
       providers: [
         { provide: ProductsService, useValue: mockProductsService },
         { provide: BrandsService, useValue: mockBrandsService },
+        { provide: ProductDocumentsService, useValue: mockDocumentsService },
+        AdminRoleGuard,
       ],
     }).compile();
 

@@ -10,7 +10,12 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  UseGuards,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
 import {
   ApiTags,
   ApiOperation,
@@ -18,9 +23,12 @@ import {
   ApiBody,
   ApiQuery,
   ApiBearerAuth,
+  ApiConsumes,
 } from "@nestjs/swagger";
 import { ProductsService } from "../product/products/products.service";
+import { ProductDocumentsService } from "../product/products/product-documents.service";
 import { BrandsService } from "./brands.service";
+import { AdminRoleGuard } from "../auth/admin-role.guard";
 import {
   CreateBrandDto,
   UpdateBrandDto,
@@ -38,6 +46,7 @@ export class AdminProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly brandsService: BrandsService,
+    private readonly documentsService: ProductDocumentsService,
   ) {}
 
   // ─── Brands ──────────────────────────────────────────────────────────────────
@@ -136,6 +145,101 @@ export class AdminProductsController {
   @ApiParam({ name: "id", type: Number })
   deleteProduct(@Param("id", ParseIntPipe) id: number) {
     return this.productsService.adminDelete(id);
+  }
+
+  // ─── COA / SDS documents ─────────────────────────────────────────────────────
+
+  @UseGuards(AdminRoleGuard)
+  @Get("products/:productId/documents")
+  @ApiOperation({ summary: "List COA / SDS documents for a product" })
+  @ApiParam({ name: "productId", type: Number })
+  listDocuments(@Param("productId", ParseIntPipe) productId: number) {
+    return this.documentsService.listByProduct(productId);
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Post("products/:productId/documents")
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor("document", {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary: "Upload COA / MSDS / SDS document",
+    description:
+      "multipart fields: `documentType` (COA|MSDS|SDS), `documentTitle`, `document` (PDF/image file)",
+  })
+  @ApiParam({ name: "productId", type: Number })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["documentType", "documentTitle", "document"],
+      properties: {
+        documentType: { type: "string", enum: ["COA", "MSDS", "SDS"] },
+        documentTitle: { type: "string" },
+        document: { type: "string", format: "binary" },
+      },
+    },
+  })
+  createDocument(
+    @Param("productId", ParseIntPipe) productId: number,
+    @Body() body: { documentType?: string; documentTitle?: string },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.documentsService.create(
+      productId,
+      {
+        documentType: body.documentType || "",
+        documentTitle: body.documentTitle || "",
+      },
+      file,
+    );
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Put("products/:productId/documents/:documentId")
+  @UseInterceptors(
+    FileInterceptor("document", {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary: "Update COA / SDS metadata and optionally replace file",
+  })
+  @ApiParam({ name: "productId", type: Number })
+  @ApiParam({ name: "documentId", type: Number })
+  updateDocument(
+    @Param("productId", ParseIntPipe) productId: number,
+    @Param("documentId", ParseIntPipe) documentId: number,
+    @Body() body: { documentType?: string; documentTitle?: string },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.documentsService.update(
+      productId,
+      documentId,
+      {
+        documentType: body.documentType,
+        documentTitle: body.documentTitle,
+      },
+      file,
+    );
+  }
+
+  @UseGuards(AdminRoleGuard)
+  @Delete("products/:productId/documents/:documentId")
+  @ApiOperation({ summary: "Delete a product COA / SDS document" })
+  @ApiParam({ name: "productId", type: Number })
+  @ApiParam({ name: "documentId", type: Number })
+  deleteDocument(
+    @Param("productId", ParseIntPipe) productId: number,
+    @Param("documentId", ParseIntPipe) documentId: number,
+  ) {
+    return this.documentsService.remove(productId, documentId);
   }
 
   // ─── Stock ───────────────────────────────────────────────────────────────────

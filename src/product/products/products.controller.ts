@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ProductsService } from "./products.service";
+import { ProductDocumentsService } from "./product-documents.service";
 import { ReviewsService } from "../reviews/reviews.service";
 import {
   CreateProductDto,
@@ -36,6 +37,7 @@ export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly reviewsService: ReviewsService,
+    private readonly documentsService: ProductDocumentsService,
   ) {}
 
   @Public()
@@ -48,6 +50,26 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: "List of products with variants" })
   findAll(@Query() filter: ProductFilterDto) {
     return this.productsService.findAll(filter);
+  }
+
+  @Public()
+  @Get("documents/:documentId/file")
+  @ApiOperation({ summary: "Download / view a product COA or SDS file" })
+  @ApiParam({ name: "documentId", type: Number })
+  async downloadDocument(
+    @Param("documentId", ParseIntPipe) documentId: number,
+  ) {
+    const { file } = await this.documentsService.getFileStream(documentId);
+    return file;
+  }
+
+  @Public()
+  @Get(":id/documents")
+  @ApiOperation({ summary: "List COA / SDS documents for a product" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiResponse({ status: 200, description: "Product documents" })
+  listDocuments(@Param("id", ParseIntPipe) id: number) {
+    return this.documentsService.listByProduct(id);
   }
 
   @Public()

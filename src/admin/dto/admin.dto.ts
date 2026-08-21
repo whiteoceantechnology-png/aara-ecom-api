@@ -275,13 +275,23 @@ export class AdminBulkStockUpdateDto {
 }
 
 export class AdminAddImageDto {
+  @ApiPropertyOptional({
+    example: "2026/03/20/1773990762403-cfbcb565.jpeg",
+    description:
+      "Preferred: image path from upload API response (POST /admin/images/upload)",
+  })
+  @IsOptional()
+  @IsString()
+  path?: string;
+
   @ApiProperty({
     example: "2026/03/20/1773990762403-cfbcb565.jpeg",
     description:
-      "Image path from upload API (POST /admin/images/upload) or full URL",
+      "Backward-compatible alias for path; supports upload path or full URL",
   })
+  @IsOptional()
   @IsString()
-  imageUrl: string;
+  imageUrl?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

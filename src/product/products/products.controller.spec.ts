@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException, ConflictException } from "@nestjs/common";
 import { ProductsController } from "./products.controller";
 import { ProductsService } from "./products.service";
+import { ProductDocumentsService } from "./product-documents.service";
 import { ReviewsService } from "../reviews/reviews.service";
 import {
   CreateProductDto,
@@ -52,6 +53,13 @@ describe("ProductsController", () => {
       providers: [
         { provide: ProductsService, useValue: mockProductsService },
         { provide: ReviewsService, useValue: mockReviewsService },
+        {
+          provide: ProductDocumentsService,
+          useValue: {
+            listByProduct: jest.fn(),
+            getFileStream: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
