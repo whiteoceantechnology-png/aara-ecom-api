@@ -85,25 +85,82 @@ export class AdminProductsService {
     if (!category)
       throw new BadRequestException(`Category #${dto.categoryId} not found`);
 
-    if (dto.brandId) {
+    const brandId =
+      dto.brandId == null || dto.brandId === 0 ? undefined : dto.brandId;
+    if (brandId) {
       const brand = await this.prisma.brand.findUnique({
-        where: { id: dto.brandId },
+        where: { id: brandId },
       });
-      if (!brand)
-        throw new BadRequestException(`Brand #${dto.brandId} not found`);
+      if (!brand) throw new BadRequestException(`Brand #${brandId} not found`);
     }
 
-    return await this.prisma.product.create({
-      data: dto,
+    const {
+      productImage,
+      brandId: _b,
+      taxId,
+      taxPercent,
+      stock,
+      stockUnit,
+      ...rest
+    } = dto;
+    void _b;
+    const imagePaths = Array.isArray(productImage)
+      ? productImage
+      : productImage
+        ? [productImage]
+        : [];
+
+    return this.prisma.product.create({
+      data: {
+        ...rest,
+        brandId: brandId ?? null,
+        taxId: taxId == null || taxId === 0 ? null : taxId,
+        taxPercent: taxPercent ?? 0,
+        productImage: imagePaths[0] ?? null,
+        ...(stock !== undefined ? { stock } : {}),
+        ...(stockUnit !== undefined ? { stockUnit } : {}),
+      },
       include: { category: true, brand: true },
     });
   }
 
   async updateProduct(id: number, dto: AdminUpdateProductDto) {
     await this.findProductOrFail(id);
+    const {
+      productImage,
+      brandId,
+      categoryId,
+      taxId,
+      taxPercent,
+      stock,
+      stockUnit,
+      ...rest
+    } = dto;
+    const imagePaths =
+      productImage === undefined
+        ? undefined
+        : Array.isArray(productImage)
+          ? productImage
+          : [productImage];
+
     return this.prisma.product.update({
       where: { id },
-      data: dto,
+      data: {
+        ...rest,
+        ...(categoryId !== undefined ? { categoryId } : {}),
+        ...(brandId !== undefined
+          ? { brandId: brandId == null || brandId === 0 ? null : brandId }
+          : {}),
+        ...(taxId !== undefined
+          ? { taxId: taxId == null || taxId === 0 ? null : taxId }
+          : {}),
+        ...(taxPercent !== undefined ? { taxPercent } : {}),
+        ...(imagePaths !== undefined
+          ? { productImage: imagePaths[0] ?? null }
+          : {}),
+        ...(stock !== undefined ? { stock } : {}),
+        ...(stockUnit !== undefined ? { stockUnit } : {}),
+      },
       include: { category: true, brand: true, variants: true, images: true },
     });
   }

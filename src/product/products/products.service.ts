@@ -330,45 +330,162 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
-    return product;
+    return this.mapAdminProduct(product);
   }
 
   async adminCreate(dto: AdminCreateProductDto) {
-    await this.validateProductRefs(dto.categoryId, dto.brandId);
-    const { taxId, taxPercent, ...rest } = dto;
-    const taxFields = await this.resolveProductTaxForCreate({
+    const brandId = this.normalizeOptionalFk(dto.brandId);
+    await this.validateProductRefs(dto.categoryId, brandId);
+    const {
       taxId,
       taxPercent,
+      productImage,
+      stock,
+      stockUnit,
+      brandId: _brandId,
+      ...rest
+    } = dto;
+    void _brandId;
+    const taxFields = await this.resolveProductTaxForCreate({
+      taxId: this.normalizeOptionalFk(taxId),
+      taxPercent,
     });
-    return this.prisma.product.create({
-      data: { ...rest, ...taxFields },
-      include: { category: true, brand: true, tax: true },
+    const imagePaths = this.normalizeImagePaths(productImage);
+    const primaryImage = imagePaths[0] ?? null;
+
+    const product = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          ...rest,
+          brandId: brandId ?? null,
+          ...taxFields,
+          productImage: primaryImage,
+          ...(stock !== undefined ? { stock } : {}),
+          ...(stockUnit !== undefined ? { stockUnit } : {}),
+        },
+      });
+
+      if (imagePaths.length) {
+        await tx.productImage.createMany({
+          data: imagePaths.map((imageUrl, index) => ({
+            productId: created.id,
+            imageUrl,
+            isPrimary: index === 0,
+          })),
+        });
+      }
+
+      return tx.product.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { category: true, brand: true, tax: true, images: true },
+      });
     });
+
+    return this.mapAdminProduct(product);
   }
 
   async adminUpdate(id: number, dto: AdminUpdateProductDto) {
     await this.findOne(id);
-    const { taxId, taxPercent, ...rest } = dto;
-    const data: Prisma.ProductUpdateInput = { ...rest };
-    if (taxId !== undefined) {
-      Object.assign(
-        data,
-        await this.resolveProductTaxForCreate({ taxId, taxPercent }),
+    const {
+      taxId,
+      taxPercent,
+      productImage,
+      brandId,
+      categoryId,
+      stock,
+      stockUnit,
+      ...rest
+    } = dto;
+
+    if (categoryId != null || (brandId != null && brandId > 0)) {
+      const existing = await this.prisma.product.findUniqueOrThrow({
+        where: { id },
+        select: { categoryId: true },
+      });
+      await this.validateProductRefs(
+        categoryId ?? existing.categoryId,
+        this.normalizeOptionalFk(brandId ?? undefined),
       );
+    }
+
+    const data: Prisma.ProductUpdateInput = { ...rest };
+
+    if (categoryId !== undefined) {
+      data.category = { connect: { id: categoryId } };
+    }
+
+    if (brandId !== undefined) {
+      const normalizedBrand = this.normalizeOptionalFk(brandId);
+      data.brand =
+        normalizedBrand == null
+          ? { disconnect: true }
+          : { connect: { id: normalizedBrand } };
+    }
+
+    if (taxId !== undefined) {
+      const taxResolved = await this.resolveProductTaxForCreate({
+        taxId: this.normalizeOptionalFk(taxId) ?? undefined,
+        taxPercent: taxPercent ?? undefined,
+      });
+      data.tax =
+        taxResolved.taxId == null
+          ? { disconnect: true }
+          : { connect: { id: taxResolved.taxId } };
+      data.taxPercent = taxResolved.taxPercent;
     } else if (taxPercent !== undefined) {
       data.taxPercent = taxPercent;
     }
-    return this.prisma.product.update({
-      where: { id },
-      data,
-      include: {
-        category: true,
-        brand: true,
-        variants: true,
-        images: true,
-        tax: true,
-      },
+
+    if (stock !== undefined) data.stock = stock;
+    if (stockUnit !== undefined) data.stockUnit = stockUnit;
+
+    const imagePaths =
+      productImage !== undefined
+        ? this.normalizeImagePaths(productImage)
+        : undefined;
+    if (imagePaths !== undefined) {
+      data.productImage = imagePaths[0] ?? null;
+    }
+
+    const product = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: { id },
+        data,
+      });
+
+      if (imagePaths !== undefined) {
+        await tx.productImage.deleteMany({ where: { productId: id } });
+        if (imagePaths.length) {
+          await tx.productImage.createMany({
+            data: imagePaths.map((imageUrl, index) => ({
+              productId: id,
+              imageUrl,
+              isPrimary: index === 0,
+            })),
+          });
+        }
+      }
+
+      if (stock !== undefined) {
+        await tx.productVariant.updateMany({
+          where: { productId: id },
+          data: { stockQuantity: stock },
+        });
+      }
+
+      return tx.product.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: {
+          category: true,
+          brand: true,
+          variants: true,
+          images: true,
+          tax: true,
+        },
+      });
     });
+
+    return this.mapAdminProduct(product);
   }
 
   async updateStock(variantId: number, dto: AdminUpdateStockDto) {
@@ -556,15 +673,51 @@ export class ProductsService {
   }
 
   private async validateProductRefs(categoryId: number, brandId?: number) {
+    const normalizedBrand = this.normalizeOptionalFk(brandId);
     const [category, brand] = await Promise.all([
       this.prisma.category.findUnique({ where: { id: categoryId } }),
-      brandId
-        ? this.prisma.brand.findUnique({ where: { id: brandId } })
+      normalizedBrand != null
+        ? this.prisma.brand.findUnique({ where: { id: normalizedBrand } })
         : Promise.resolve(null),
     ]);
     if (!category)
       throw new BadRequestException(`Category #${categoryId} not found`);
-    if (brandId && !brand)
-      throw new BadRequestException(`Brand #${brandId} not found`);
+    if (normalizedBrand != null && !brand)
+      throw new BadRequestException(`Brand #${normalizedBrand} not found`);
+  }
+
+  /** Treat 0 / null / empty as “no FK”. */
+  private normalizeOptionalFk(id?: number | null): number | undefined {
+    if (id == null || id === 0) return undefined;
+    return id;
+  }
+
+  private normalizeImagePaths(value?: string | string[] | null): string[] {
+    if (value == null || value === "") return [];
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    return [String(value)].filter(Boolean);
+  }
+
+  /** Admin product responses expose `productImage` as a string array. */
+  private mapAdminProduct<
+    T extends {
+      productImage?: string | string[] | null;
+      images?: { imageUrl: string; isPrimary?: boolean }[];
+    },
+  >(product: T) {
+    const fromGallery = (product.images ?? [])
+      .slice()
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+      .map((img) => img.imageUrl)
+      .filter(Boolean);
+    const productImage =
+      fromGallery.length > 0
+        ? fromGallery
+        : Array.isArray(product.productImage)
+          ? product.productImage
+          : product.productImage
+            ? [product.productImage]
+            : [];
+    return { ...product, productImage };
   }
 }

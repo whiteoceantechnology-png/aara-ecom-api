@@ -8,6 +8,7 @@ import {
   IsArray,
   IsObject,
   IsDefined,
+  Min,
   ValidateNested,
 } from "class-validator";
 import { Transform, Type } from "class-transformer";
@@ -59,10 +60,18 @@ export class AdminCreateProductDto {
   @Type(() => Number)
   categoryId: number;
 
-  @ApiPropertyOptional({ example: 1 })
+  @ApiPropertyOptional({
+    example: 1,
+    description: "Omit or send 0 / null for no brand",
+  })
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
+  @Transform(({ value }) =>
+    value === 0 || value === "0" || value === "" || value == null
+      ? undefined
+      : Number(value),
+  )
   brandId?: number;
 
   @ApiProperty({ example: "Ashwagandha Root" })
@@ -90,11 +99,16 @@ export class AdminCreateProductDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description: "Tax master ID (GET /taxes)",
+    description: "Tax master ID (GET /taxes). Omit or 0 for none.",
   })
   @IsOptional()
   @IsInt()
   @Type(() => Number)
+  @Transform(({ value }) =>
+    value === 0 || value === "0" || value === "" || value == null
+      ? undefined
+      : Number(value),
+  )
   taxId?: number;
 
   @ApiPropertyOptional({ example: 1333 })
@@ -109,10 +123,47 @@ export class AdminCreateProductDto {
   @Type(() => Number)
   discountPrice?: number;
 
-  @ApiPropertyOptional({ example: "https://cdn.example.com/product.jpg" })
+  @ApiPropertyOptional({
+    example: ["2026/08/21/image.png"],
+    description: "Primary listing image path(s). String or string[] accepted.",
+    oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value == null || value === "") return undefined;
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch {
+          /* treat as single path */
+        }
+      }
+      return [trimmed];
+    }
+    return undefined;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  productImage?: string[];
+
+  @ApiPropertyOptional({
+    example: 100,
+    description: "On-hand stock at product level (synced to variants)",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(0)
+  stock?: number;
+
+  @ApiPropertyOptional({ example: "KG" })
   @IsOptional()
   @IsString()
-  productImage?: string;
+  stockUnit?: string;
 }
 
 export class AdminUpdateProductDto {
@@ -122,11 +173,19 @@ export class AdminUpdateProductDto {
   @Type(() => Number)
   categoryId?: number;
 
-  @ApiPropertyOptional({ example: 1 })
+  @ApiPropertyOptional({
+    example: 1,
+    description: "Send 0 or null to clear brand",
+  })
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
-  brandId?: number;
+  @Transform(({ value }) => {
+    if (value === "" || value == null) return null;
+    if (value === 0 || value === "0") return null;
+    return Number(value);
+  })
+  brandId?: number | null;
 
   @ApiPropertyOptional({ example: "Ashwagandha Powder" })
   @IsOptional()
@@ -154,12 +213,17 @@ export class AdminUpdateProductDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description: "Tax master ID (GET /taxes)",
+    description: "Tax master ID (GET /taxes). Send 0/null to clear.",
   })
   @IsOptional()
   @IsInt()
   @Type(() => Number)
-  taxId?: number;
+  @Transform(({ value }) => {
+    if (value === "" || value == null) return null;
+    if (value === 0 || value === "0") return null;
+    return Number(value);
+  })
+  taxId?: number | null;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
@@ -178,10 +242,47 @@ export class AdminUpdateProductDto {
   @Type(() => Number)
   discountPrice?: number;
 
-  @ApiPropertyOptional({ example: "https://cdn.example.com/product.jpg" })
+  @ApiPropertyOptional({
+    example: ["2026/08/20/a.png", "2026/04/10/b.jpg"],
+    description: "Replace gallery. String or string[] accepted.",
+    oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value == null || value === "") return undefined;
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch {
+          /* treat as single path */
+        }
+      }
+      return [trimmed];
+    }
+    return undefined;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  productImage?: string[];
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: "On-hand stock at product level (synced to variants)",
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(0)
+  stock?: number;
+
+  @ApiPropertyOptional({ example: "KG" })
   @IsOptional()
   @IsString()
-  productImage?: string;
+  stockUnit?: string;
 }
 
 export class AdminUpdateStockDto {

@@ -219,7 +219,7 @@ export function rowToAdminCreateProductDto(
   const productImage = optionalString(
     getFirstDefined(r, ["product_image", "productimage", "image"]),
   );
-  if (productImage !== undefined) dto.productImage = productImage;
+  if (productImage !== undefined) dto.productImage = [productImage];
 
   return dto;
 }

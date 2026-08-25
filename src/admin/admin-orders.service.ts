@@ -52,7 +52,16 @@ const adminOrderDetailInclude = {
   customer: {
     select: { id: true, name: true, email: true, phone: true },
   },
-  items: { include: { variant: { include: { packSize: true } } } },
+  items: {
+    include: {
+      variant: {
+        include: {
+          packSize: true,
+          product: { select: { id: true, name: true, hsnCode: true } },
+        },
+      },
+    },
+  },
   payments: true,
   shipments: true,
   events: { orderBy: { createdAt: "desc" as const } },
@@ -165,7 +174,13 @@ export class AdminOrdersService {
       include: adminOrderDetailInclude,
     });
     if (!order) throw new NotFoundException(`Order #${id} not found`);
-    return order;
+    return {
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        hsnCode: item.hsnCode ?? item.variant?.product?.hsnCode ?? null,
+      })),
+    };
   }
 
   async listEvents(id: number) {
@@ -619,6 +634,14 @@ export class AdminOrdersService {
       items: order.items.map((i) => ({
         productName: i.productName,
         sizeLabel: i.sizeLabel,
+        hsnCode:
+          i.hsnCode ??
+          (
+            i as {
+              variant?: { product?: { hsnCode?: string | null } };
+            }
+          ).variant?.product?.hsnCode ??
+          null,
         quantity: i.quantity,
         price: i.price,
         subtotal: i.subtotal,

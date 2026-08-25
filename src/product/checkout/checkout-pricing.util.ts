@@ -13,6 +13,7 @@ export function toCartLineInputs(
         id: number;
         name: string;
         taxPercent: { toString(): string } | string | number;
+        hsnCode?: string | null;
       };
       packSize: { label: string };
     };
@@ -26,6 +27,7 @@ export function toCartLineInputs(
     taxPercent: Number(item.variant.product.taxPercent),
     sizeLabel: item.variant.packSize.label,
     currentVariantPrice: Number(item.variant.price),
+    hsnCode: item.variant.product.hsnCode ?? null,
   }));
 }
 
@@ -37,6 +39,7 @@ export type CartLineInput = {
   taxPercent: number;
   sizeLabel: string;
   currentVariantPrice: number;
+  hsnCode?: string | null;
 };
 
 export type PricedLine = {
@@ -51,6 +54,7 @@ export type PricedLine = {
   /** Tax on this line after coupon is spread proportionally */
   taxAmount: number;
   taxPercent: number;
+  hsnCode?: string | null;
 };
 
 export type CheckoutTotals = {
@@ -92,6 +96,7 @@ export function computeCheckoutTotals(
       lineSubtotal,
       taxAmount: 0,
       taxPercent: line.taxPercent,
+      hsnCode: line.hsnCode ?? null,
     });
   }
 

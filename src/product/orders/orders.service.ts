@@ -25,7 +25,16 @@ import {
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
-  items: true,
+  items: {
+    include: {
+      variant: {
+        select: {
+          id: true,
+          product: { select: { hsnCode: true } },
+        },
+      },
+    },
+  },
   payments: true,
   shipments: true,
 } as const;
@@ -169,6 +178,7 @@ export class OrdersService {
               variantId: pl.variantId,
               productName: pl.productName,
               sizeLabel: pl.sizeLabel,
+              hsnCode: pl.hsnCode ?? null,
               price: pl.unitPrice,
               quantity: pl.quantity,
               subtotal: pl.lineSubtotal,
@@ -192,7 +202,7 @@ export class OrdersService {
 
       await tx.checkoutSession.deleteMany({ where: { customerId } });
 
-      return created;
+      return this.mapOrderDetail(created);
     });
   }
 
@@ -294,11 +304,13 @@ export class OrdersService {
   }
 
   findAll(customerId?: number) {
-    return this.prisma.order.findMany({
-      where: customerId ? { customerId } : {},
-      include: orderDetailInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    return this.prisma.order
+      .findMany({
+        where: customerId ? { customerId } : {},
+        include: orderDetailInclude,
+        orderBy: { createdAt: "desc" },
+      })
+      .then((orders) => orders.map((o) => this.mapOrderDetail(o)));
   }
 
   async findOne(id: number) {
@@ -307,7 +319,7 @@ export class OrdersService {
       include: orderDetailInclude,
     });
     if (!order) throw new NotFoundException(`Order #${id} not found`);
-    return order;
+    return this.mapOrderDetail(order);
   }
 
   async findOneForCustomer(id: number, customerId: number) {
@@ -629,6 +641,28 @@ export class OrdersService {
         }
       }
     }
+  }
+
+  /** Flatten HSN onto each line (snapshot, else live product fallback). */
+  private mapOrderDetail<
+    T extends {
+      items: Array<{
+        hsnCode?: string | null;
+        variant?: { product?: { hsnCode?: string | null } | null } | null;
+        [key: string]: unknown;
+      }>;
+    },
+  >(order: T) {
+    return {
+      ...order,
+      items: order.items.map((item) => {
+        const { variant, ...rest } = item;
+        return {
+          ...rest,
+          hsnCode: rest.hsnCode ?? variant?.product?.hsnCode ?? null,
+        };
+      }),
+    };
   }
 }
 

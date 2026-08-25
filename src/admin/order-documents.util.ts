@@ -25,6 +25,7 @@ export type OrderDocumentInput = {
   items: Array<{
     productName: string;
     sizeLabel?: string | null;
+    hsnCode?: string | null;
     quantity: number;
     price?: DocMoney;
     subtotal?: DocMoney;
@@ -78,7 +79,7 @@ export function renderInvoiceHtml(input: OrderDocumentInput): string {
   const rows = input.items
     .map(
       (i) => `<tr>
-      <td>${esc(i.productName)}${i.sizeLabel ? ` <span class="muted">(${esc(i.sizeLabel)})</span>` : ""}</td>
+      <td>${esc(i.productName)}${i.sizeLabel ? ` <span class="muted">(${esc(i.sizeLabel)})</span>` : ""}${i.hsnCode ? ` <span class="muted">HSN: ${esc(i.hsnCode)}</span>` : ""}</td>
       <td class="right">${esc(i.quantity)}</td>
       <td class="right">${money(i.price)}</td>
       <td class="right">${money(i.subtotal)}</td>

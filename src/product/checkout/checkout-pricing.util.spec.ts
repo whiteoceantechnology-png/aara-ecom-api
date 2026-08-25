@@ -27,6 +27,7 @@ describe("checkout-pricing.util", () => {
           taxPercent: 5,
           sizeLabel: "25 g",
           currentVariantPrice: 31,
+          hsnCode: null,
         },
       ]);
     });

@@ -118,6 +118,9 @@ model Product {
   actualPrice    Decimal?               @db.Decimal(10, 2)
   discountPrice  Decimal?               @db.Decimal(10, 2)
   productImage   String?
+  /** Admin-facing on-hand stock (synced to variants when set). */
+  stock          Int                    @default(0)
+  stockUnit      String?
   status         Boolean                @default(true)
   avgRating      Decimal?               @db.Decimal(3, 2)
   reviewCount    Int                    @default(0)
@@ -394,6 +397,8 @@ model OrderItem {
   variant   ProductVariant @relation(fields: [variantId], references: [id])
   productName String
   sizeLabel   String
+  /** Snapshot of product HSN at order time (for invoices). */
+  hsnCode     String?
   price       Decimal      @db.Decimal(10, 2)
   quantity    Int
   subtotal    Decimal      @db.Decimal(10, 2)
