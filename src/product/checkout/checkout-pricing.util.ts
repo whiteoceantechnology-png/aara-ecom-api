@@ -1,6 +1,13 @@
+import { FREE_SHIPPING_MIN_MERCHANDISE } from "./checkout.constants";
+
 /**
  * Pure checkout pricing: maps cart lines to numeric inputs and totals merchandise,
- * coupon discount, proportional tax, and flat shipping. No I/O — safe to unit test.
+ * coupon discount, GST embedded in prices (inclusive), and flat shipping.
+ * No I/O — safe to unit test.
+ *
+ * Catalog / variant prices are GST-inclusive (Indian B2C). Tax is extracted for
+ * reporting/invoices and must NOT be added again on top of the merchandise total.
+ * Shipping is free when merchandise (after discount) is ≥ FREE_SHIPPING_MIN_MERCHANDISE.
  */
 
 export function toCartLineInputs(
@@ -51,7 +58,7 @@ export type PricedLine = {
   quantity: number;
   /** Line total before order-level coupon (qty * unitPrice) */
   lineSubtotal: number;
-  /** Tax on this line after coupon is spread proportionally */
+  /** GST embedded in the (discounted) inclusive line amount */
   taxAmount: number;
   taxPercent: number;
   hsnCode?: string | null;
@@ -68,7 +75,8 @@ export type CheckoutTotals = {
 
 /**
  * Server-side pricing: uses current variant price, not cart-stored price.
- * Coupon applies to merchandise subtotal; tax is computed on discounted line amounts.
+ * Coupon applies to merchandise subtotal. GST is extracted from inclusive prices
+ * (tax = amount × rate / (100 + rate)) and is not added to the payable total.
  */
 export function computeCheckoutTotals(
   lines: CartLineInput[],
@@ -120,15 +128,19 @@ export function computeCheckoutTotals(
     for (const pl of pricedLines) {
       const share = pl.lineSubtotal / subtotal;
       const lineAfterDiscount = pl.lineSubtotal - discount * share;
-      const lineTax = (lineAfterDiscount * pl.taxPercent) / 100;
+      // GST-inclusive: extract embedded tax, do not add on top.
+      const rate = Math.max(0, pl.taxPercent);
+      const lineTax = rate > 0 ? (lineAfterDiscount * rate) / (100 + rate) : 0;
       pl.taxAmount = Math.round(lineTax * 100) / 100;
       tax += pl.taxAmount;
     }
   }
 
-  const shipping = opts.shippingFlat;
   const merchandiseTotal = Math.max(0, subtotal - discount);
-  const total = merchandiseTotal + tax + shipping;
+  const shipping =
+    merchandiseTotal >= FREE_SHIPPING_MIN_MERCHANDISE ? 0 : opts.shippingFlat;
+  // Payable = inclusive merchandise + shipping (tax already inside merchandise).
+  const total = merchandiseTotal + shipping;
 
   return {
     items: pricedLines,

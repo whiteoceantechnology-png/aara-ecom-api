@@ -144,6 +144,7 @@ export class ReviewsService {
 
   private mapReview(r: {
     id: number;
+    customerId: number;
     rating: number;
     comment: string | null;
     orderId: number | null;
@@ -153,6 +154,7 @@ export class ReviewsService {
   }) {
     return {
       id: r.id,
+      customerId: r.customerId,
       customerName: r.customer.name,
       rating: r.rating,
       comment: r.comment,

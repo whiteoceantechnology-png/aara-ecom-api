@@ -214,7 +214,13 @@ export class ProductsService {
   async findVariantsByProductId(productId: number) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        stock: true,
+        reservedStock: true,
+        stockUnit: true,
+      },
     });
     if (!product)
       throw new NotFoundException(`Product #${productId} not found`);
@@ -223,10 +229,16 @@ export class ProductsService {
       where: { productId, status: true },
       include: {
         product: { select: { name: true } },
+        packSize: true,
         images: { select: { imageUrl: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: { id: "asc" },
     });
+
+    const availableProductStock = Math.max(
+      0,
+      product.stock - product.reservedStock,
+    );
 
     return variants.map((v) => ({
       id: v.id,
@@ -239,7 +251,20 @@ export class ProductsService {
       actualPrice: v.actualPrice ? Number(v.actualPrice) : Number(v.price),
       discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
       altTags: v.altTags,
-      availableStock: v.stockQuantity,
+      // Pack SKU only — FE derives pack availability from product pool + pack size.
+      availableStock: availableProductStock,
+      productStock: product.stock,
+      reservedStock: product.reservedStock,
+      availableProductStock,
+      stockUnit: product.stockUnit,
+      packSize: v.packSize
+        ? {
+            id: v.packSize.id,
+            size: Number(v.packSize.size),
+            unit: v.packSize.unit,
+            label: v.packSize.label,
+          }
+        : null,
       favourites: v.favourites,
     }));
   }
@@ -467,9 +492,10 @@ export class ProductsService {
       }
 
       if (stock !== undefined) {
+        // Product.stock is the shared pool. Variants do not hold inventory.
         await tx.productVariant.updateMany({
           where: { productId: id },
-          data: { stockQuantity: stock },
+          data: { stockQuantity: 0, reservedQuantity: 0 },
         });
       }
 
@@ -478,7 +504,7 @@ export class ProductsService {
         include: {
           category: true,
           brand: true,
-          variants: true,
+          variants: { include: { packSize: true } },
           images: true,
           tax: true,
         },
@@ -491,14 +517,32 @@ export class ProductsService {
   async updateStock(variantId: number, dto: AdminUpdateStockDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: variantId },
+      include: { product: true, packSize: true },
     });
     if (!variant)
       throw new NotFoundException(`Variant #${variantId} not found`);
-    return this.prisma.productVariant.update({
-      where: { id: variantId },
-      data: { stockQuantity: dto.stockQuantity },
-      include: { packSize: true, product: { select: { name: true } } },
+
+    // Variant stock endpoints adjust the product-level pool (pack-count mode).
+    const updatedProduct = await this.prisma.product.update({
+      where: { id: variant.productId },
+      data: { stock: dto.stockQuantity },
     });
+    await this.prisma.productVariant.updateMany({
+      where: { productId: variant.productId },
+      data: { stockQuantity: 0, reservedQuantity: 0 },
+    });
+
+    return {
+      ...variant,
+      stockQuantity: 0,
+      product: {
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        stock: updatedProduct.stock,
+        reservedStock: updatedProduct.reservedStock,
+        stockUnit: updatedProduct.stockUnit,
+      },
+    };
   }
 
   async addImage(productId: number, dto: AdminAddImageDto) {
@@ -701,8 +745,16 @@ export class ProductsService {
   /** Admin product responses expose `productImage` as a string array. */
   private mapAdminProduct<
     T extends {
+      stock?: number;
+      reservedStock?: number;
+      stockUnit?: string | null;
       productImage?: string | string[] | null;
       images?: { imageUrl: string; isPrimary?: boolean }[];
+      variants?: Array<{
+        stockQuantity?: number;
+        reservedQuantity?: number;
+        [key: string]: unknown;
+      }>;
     },
   >(product: T) {
     const fromGallery = (product.images ?? [])
@@ -718,6 +770,26 @@ export class ProductsService {
           : product.productImage
             ? [product.productImage]
             : [];
-    return { ...product, productImage };
+
+    const stock = product.stock ?? 0;
+    const reservedStock = product.reservedStock ?? 0;
+    const availableProductStock = Math.max(0, stock - reservedStock);
+
+    const variants = Array.isArray(product.variants)
+      ? product.variants.map((v) => ({
+          ...v,
+          // Variants are pack SKUs only — inventory lives on the product.
+          stockQuantity: 0,
+          reservedQuantity: 0,
+          availableProductStock,
+        }))
+      : product.variants;
+
+    return {
+      ...product,
+      productImage,
+      availableProductStock,
+      variants,
+    };
   }
 }

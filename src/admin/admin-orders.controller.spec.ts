@@ -32,6 +32,7 @@ const mockAdminOrders = {
   findAll: jest.fn(),
   findOne: jest.fn(),
   update: jest.fn(),
+  exportExcel: jest.fn(),
   exportCsv: jest.fn(),
   listEvents: jest.fn(),
   recordPayment: jest.fn(),

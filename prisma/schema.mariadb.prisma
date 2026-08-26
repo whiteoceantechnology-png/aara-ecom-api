@@ -118,8 +118,13 @@ model Product {
   actualPrice    Decimal?               @db.Decimal(10, 2)
   discountPrice  Decimal?               @db.Decimal(10, 2)
   productImage   String?
-  /** Admin-facing on-hand stock (synced to variants when set). */
+  /**
+   * Product-level inventory pool (source of truth).
+   * Variants are pack SKUs only — do not hold independent stock.
+   */
   stock          Int                    @default(0)
+  /** Units reserved for unpaid ONLINE checkouts (same unit as stock). */
+  reservedStock  Int                    @default(0)
   stockUnit      String?
   status         Boolean                @default(true)
   avgRating      Decimal?               @db.Decimal(3, 2)

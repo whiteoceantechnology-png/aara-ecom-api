@@ -120,14 +120,14 @@ export class AdminOrdersController {
   }
 
   @Get("export")
-  @ApiOperation({ summary: "Export orders to CSV" })
+  @ApiOperation({ summary: "Export orders to Excel (.xlsx)" })
   @ApiQuery({ name: "status", required: false })
   @ApiQuery({ name: "from", required: false })
   @ApiQuery({ name: "to", required: false })
   @ApiQuery({ name: "startDate", required: false })
   @ApiQuery({ name: "endDate", required: false })
-  @ApiResponse({ status: 200, description: "CSV file download" })
-  async exportCsv(
+  @ApiResponse({ status: 200, description: "Excel (.xlsx) file download" })
+  async exportExcel(
     @Res() res: Response,
     @Query("status") status?: string,
     @Query("from") from?: string,
@@ -135,17 +135,20 @@ export class AdminOrdersController {
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
   ) {
-    const csv = await this.adminOrders.exportCsv({
+    const buffer = await this.adminOrders.exportExcel({
       status,
       from,
       to,
       startDate,
       endDate,
     });
-    const filename = `orders-${new Date().toISOString().split("T")[0]}.csv`;
-    res.setHeader("Content-Type", "text/csv");
+    const filename = `orders-${new Date().toISOString().split("T")[0]}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.status(HttpStatus.OK).send(csv);
+    res.status(HttpStatus.OK).send(buffer);
   }
 
   @Get(":id/events")

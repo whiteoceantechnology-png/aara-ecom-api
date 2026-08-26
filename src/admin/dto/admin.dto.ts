@@ -152,7 +152,8 @@ export class AdminCreateProductDto {
 
   @ApiPropertyOptional({
     example: 100,
-    description: "On-hand stock at product level (synced to variants)",
+    description:
+      "Total on-hand stock at product level. When variants exist later, updates divide this total across SKUs.",
   })
   @IsOptional()
   @IsInt()
@@ -271,7 +272,10 @@ export class AdminUpdateProductDto {
 
   @ApiPropertyOptional({
     example: 0,
-    description: "On-hand stock at product level (synced to variants)",
+    description:
+      "Product-level inventory pool (shared across all pack variants). " +
+      "Variants do not store independent stock — frontend computes pack availability from stock + pack size. " +
+      "Without stockUnit: 1 sold pack = 1 pool unit. With stockUnit (g/ml): pool is in that unit.",
   })
   @IsOptional()
   @IsInt()

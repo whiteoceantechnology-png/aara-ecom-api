@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
+import { unitsToConsume } from "../products/product-stock-pool.util";
 
 const cartInclude = {
   items: {
@@ -12,7 +13,16 @@ const cartInclude = {
       variant: {
         include: {
           packSize: true,
-          product: { select: { id: true, name: true, taxPercent: true } },
+          product: {
+            select: {
+              id: true,
+              name: true,
+              taxPercent: true,
+              stock: true,
+              reservedStock: true,
+              stockUnit: true,
+            },
+          },
         },
       },
     },
@@ -40,26 +50,64 @@ export class CartService {
   async addItem(customerId: number, dto: AddToCartDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
+      include: {
+        packSize: true,
+        product: {
+          select: {
+            id: true,
+            stock: true,
+            reservedStock: true,
+            stockUnit: true,
+          },
+        },
+      },
     });
     if (!variant)
       throw new NotFoundException(`Variant #${dto.variantId} not found`);
 
-    if (variant.stockQuantity < dto.quantity) {
-      throw new BadRequestException(
-        `Insufficient stock for variant #${dto.variantId}. Available: ${variant.stockQuantity}`,
-      );
-    }
-
     const cart = await this.getOrCreate(customerId);
-
     const existing = await this.prisma.cartItem.findFirst({
       where: { cartId: cart.id, variantId: dto.variantId },
     });
+    const nextQty = (existing?.quantity ?? 0) + dto.quantity;
+
+    // Sum units already in cart for this product (shared pool).
+    const sameProductItems = cart.items.filter(
+      (i) => i.variant.product.id === variant.productId,
+    );
+    let unitsNeeded = 0;
+    for (const i of sameProductItems) {
+      const qty = i.variantId === dto.variantId ? nextQty : i.quantity;
+      unitsNeeded += unitsToConsume({
+        quantity: qty,
+        stockUnit: variant.product.stockUnit,
+        packSize: i.variant.packSize,
+        variantName: i.variant.variantName,
+      });
+    }
+    if (!sameProductItems.some((i) => i.variantId === dto.variantId)) {
+      unitsNeeded += unitsToConsume({
+        quantity: dto.quantity,
+        stockUnit: variant.product.stockUnit,
+        packSize: variant.packSize,
+        variantName: variant.variantName,
+      });
+    }
+
+    const sellable = Math.max(
+      0,
+      variant.product.stock - variant.product.reservedStock,
+    );
+    if (unitsNeeded > sellable) {
+      throw new BadRequestException(
+        `Insufficient stock for product #${variant.productId}. Available pool: ${sellable}`,
+      );
+    }
 
     if (existing) {
       return this.prisma.cartItem.update({
         where: { id: existing.id },
-        data: { quantity: existing.quantity + dto.quantity },
+        data: { quantity: nextQty },
       });
     }
 

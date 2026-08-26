@@ -6,3 +6,9 @@ export const CHECKOUT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
  * Keep in sync with `OrdersService.getShippingFlat()` fallback logic.
  */
 export const DEFAULT_CHECKOUT_SHIPPING_FLAT = 50;
+
+/**
+ * Inclusive merchandise total (after discount, before shipping) at/above which
+ * shipping is ₹0 ("Free Shipping").
+ */
+export const FREE_SHIPPING_MIN_MERCHANDISE = 2000;

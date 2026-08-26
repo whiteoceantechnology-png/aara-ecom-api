@@ -4,6 +4,7 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -39,6 +40,11 @@ function splitName(name: string): { firstName: string; lastName: string } {
   if (parts.length === 0) return { firstName: "", lastName: "" };
   if (parts.length === 1) return { firstName: parts[0], lastName: "" };
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+/** Canonical customer email for storage and lookup. */
+export function normalizeCustomerEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 function mapAddressResponse(addr: {
@@ -140,15 +146,16 @@ export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: CreateCustomerDto) {
+    const email = normalizeCustomerEmail(dto.email);
     const existing = await this.prisma.customer.findUnique({
-      where: { email: dto.email },
+      where: { email },
     });
     if (existing) throw new ConflictException("Email already registered");
     const passwordHash = await bcrypt.hash(dto.password, 10);
     return this.prisma.customer.create({
       data: {
         name: dto.name,
-        email: dto.email,
+        email,
         phone: dto.phone,
         passwordHash,
       },
@@ -163,17 +170,27 @@ export class CustomersService {
   }
 
   async login(dto: CustomerLoginDto) {
+    const email = normalizeCustomerEmail(dto.email);
     const customer = await this.prisma.customer.findUnique({
-      where: { email: dto.email },
+      where: { email },
     });
-    if (!customer) throw new UnauthorizedException("Invalid credentials");
+    if (!customer?.passwordHash) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
     const valid = await bcrypt.compare(dto.password, customer.passwordHash);
     if (!valid) throw new UnauthorizedException("Invalid credentials");
-    const token = jwt.sign(
-      { customerId: customer.id },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "7d" },
-    );
+    if (customer.isBlocked) {
+      throw new UnauthorizedException("Account is blocked");
+    }
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException(
+        "Authentication is not configured",
+      );
+    }
+    const token = jwt.sign({ customerId: customer.id }, secret, {
+      expiresIn: "7d",
+    });
     return { token, customerId: customer.id, name: customer.name };
   }
 

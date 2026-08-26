@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import * as XLSX from "xlsx";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../product/orders/orders.service";
 import {
@@ -23,6 +24,7 @@ import {
   renderInvoiceHtml,
   renderPackingSlipHtml,
 } from "./order-documents.util";
+import { unitsToConsume } from "../product/products/product-stock-pool.util";
 import {
   AdminAutoDeliverDto,
   AdminCancelOrderDto,
@@ -34,19 +36,6 @@ import {
 } from "./dto/admin.dto";
 
 type AdminActor = { name?: string | null };
-
-type AdminOrderCsvRow = {
-  orderNumber: string;
-  customer: { name: string; email: string; phone: string | null };
-  status: string;
-  paymentStatus: string;
-  totalAmount: unknown;
-  taxAmount: unknown;
-  shippingAmount: unknown;
-  trackingId: string | null;
-  notes: string | null;
-  createdAt: Date;
-};
 
 const adminOrderDetailInclude = {
   customer: {
@@ -470,7 +459,18 @@ export class AdminOrdersService {
   async cancel(id: number, dto: AdminCancelOrderDto, actor: AdminActor = {}) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { items: true },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                packSize: true,
+                product: { select: { id: true, stockUnit: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!order) throw new NotFoundException(`Order #${id} not found`);
     if (order.status === OrderStatus.CANCELLED) {
@@ -682,6 +682,61 @@ export class AdminOrdersService {
     });
   }
 
+  async exportExcel(params: {
+    status?: string;
+    from?: string;
+    to?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Buffer> {
+    const from = params.startDate ?? params.from;
+    const to = params.endDate ?? params.to;
+
+    const where: Prisma.OrderWhereInput = {
+      ...(params.status && { status: params.status }),
+      ...(from || to
+        ? {
+            createdAt: {
+              ...(from && { gte: new Date(from) }),
+              ...(to && { lte: new Date(to) }),
+            },
+          }
+        : {}),
+    };
+
+    const orders = await this.prisma.order.findMany({
+      where,
+      include: {
+        customer: {
+          select: { name: true, email: true, phone: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10000,
+    });
+
+    const rows = orders.map((o) => ({
+      "Order Number": o.orderNumber,
+      "Customer Name": o.customer.name,
+      "Customer Email": o.customer.email,
+      "Customer Phone": o.customer.phone ?? "",
+      Status: o.status,
+      "Payment Status": o.paymentStatus,
+      "Total Amount": Number(o.totalAmount),
+      "Tax Amount": Number(o.taxAmount),
+      "Shipping Amount": Number(o.shippingAmount),
+      "Tracking ID": o.trackingId ?? "",
+      Notes: o.notes ?? "",
+      "Created At": o.createdAt.toISOString(),
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Orders");
+    return XLSX.write(book, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  }
+
+  /** @deprecated Prefer exportExcel — kept for any callers still expecting CSV text. */
   async exportCsv(params: {
     status?: string;
     from?: string;
@@ -689,50 +744,9 @@ export class AdminOrdersService {
     startDate?: string;
     endDate?: string;
   }): Promise<string> {
-    const from = params.startDate ?? params.from;
-    const to = params.endDate ?? params.to;
-    const page = await this.findAll({
-      status: params.status,
-      from,
-      to,
-      page: 1,
-      limit: 5000,
-    });
-    const orders = page.orders as AdminOrderCsvRow[];
-
-    const headers = [
-      "Order Number",
-      "Customer Name",
-      "Customer Email",
-      "Customer Phone",
-      "Status",
-      "Payment Status",
-      "Total Amount",
-      "Tax Amount",
-      "Shipping Amount",
-      "Tracking ID",
-      "Notes",
-      "Created At",
-    ].join(",");
-
-    const rows = orders.map((o) =>
-      [
-        o.orderNumber,
-        `"${o.customer.name}"`,
-        o.customer.email,
-        o.customer.phone ?? "",
-        o.status,
-        o.paymentStatus,
-        o.totalAmount,
-        o.taxAmount,
-        o.shippingAmount,
-        o.trackingId ?? "",
-        `"${(o.notes ?? "").replace(/"/g, '""')}"`,
-        o.createdAt.toISOString(),
-      ].join(","),
-    );
-
-    return [headers, ...rows].join("\n");
+    const buffer = await this.exportExcel(params);
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    return XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
   }
 
   // ─── helpers ───────────────────────────────────────────────────────────────
@@ -826,47 +840,72 @@ export class AdminOrdersService {
   }
 
   /**
-   * PENDING_PAYMENT (ONLINE): release reservedQuantity.
-   * Paid / COD deducted: restock stockQuantity.
+   * PENDING_PAYMENT (ONLINE): release Product.reservedStock.
+   * Paid / COD deducted: restock Product.stock.
    */
   private async releaseStockOnCancel(
     tx: Prisma.TransactionClient,
     order: {
       status: string;
       paymentStatus: string;
-      items: Array<{ variantId: number; quantity: number }>;
+      items: Array<{
+        quantity: number;
+        variant: {
+          variantName: string | null;
+          packSize: {
+            size: { toString(): string } | number;
+            unit: string;
+            label: string;
+          } | null;
+          product: { id: number; stockUnit: string | null };
+        };
+      }>;
     },
   ): Promise<boolean> {
     if (!order.items.length) return false;
 
-    const T = quoteSqlIdentifier("ProductVariant");
-    const rq = quoteSqlIdentifier("reservedQuantity");
+    const byProduct = new Map<number, number>();
+    for (const item of order.items) {
+      const units = unitsToConsume({
+        quantity: item.quantity,
+        stockUnit: item.variant.product.stockUnit,
+        packSize: item.variant.packSize,
+        variantName: item.variant.variantName,
+      });
+      const pid = item.variant.product.id;
+      byProduct.set(pid, (byProduct.get(pid) ?? 0) + units);
+    }
+
+    const T = quoteSqlIdentifier("Product");
+    const stockCol = quoteSqlIdentifier("stock");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
 
     if (
       order.status === OrderStatus.PENDING_PAYMENT &&
       order.paymentStatus !== PaymentStatus.PAID
     ) {
-      for (const item of order.items) {
+      for (const [productId, units] of byProduct) {
         const rowsAffected = await tx.$executeRawUnsafe(
-          `UPDATE ${T} SET ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
-          item.quantity,
-          item.variantId,
-          item.quantity,
+          `UPDATE ${T} SET ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ?`,
+          units,
+          productId,
+          units,
         );
         if (affectedRowsCount(rowsAffected) !== 1) {
           throw new BadRequestException(
-            `Failed to release reservation for variant #${item.variantId}`,
+            `Failed to release reservation for product #${productId}`,
           );
         }
       }
       return true;
     }
 
-    for (const item of order.items) {
-      await tx.productVariant.update({
-        where: { id: item.variantId },
-        data: { stockQuantity: { increment: item.quantity } },
+    for (const [productId, units] of byProduct) {
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: { increment: units } },
       });
+      void stockCol;
     }
     return true;
   }

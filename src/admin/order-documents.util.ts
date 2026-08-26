@@ -108,7 +108,9 @@ export function renderInvoiceHtml(input: OrderDocumentInput): string {
     t
       ? `<table class="totals" style="width:280px;margin-left:auto">
     <tr><td>Tax</td><td class="right">${money(t.tax)}</td></tr>
-    <tr><td>Shipping</td><td class="right">${money(t.shipping)}</td></tr>
+    <tr><td>Shipping</td><td class="right">${
+      Number(t.shipping) === 0 ? "Free Shipping (₹0)" : money(t.shipping)
+    }</td></tr>
     <tr><td>Discount</td><td class="right">${money(t.discount)}</td></tr>
     <tr class="grand"><td>Total</td><td class="right">${money(t.total)}</td></tr>
   </table>`

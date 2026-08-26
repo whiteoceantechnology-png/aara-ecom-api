@@ -46,24 +46,73 @@ describe("checkout-pricing.util", () => {
       },
     ];
 
-    it("should compute subtotal, tax, shipping without coupon", () => {
+    it("should extract inclusive GST and not add it to payable total", () => {
+      // ₹100 inclusive @ 10% → tax = 100×10/110 ≈ 9.09; total = 100 + 20 shipping
       const t = computeCheckoutTotals(baseLines, { shippingFlat: 20 });
       expect(t.subtotal).toBe(100);
       expect(t.discount).toBe(0);
       expect(t.shipping).toBe(20);
-      expect(t.tax).toBe(10);
-      expect(t.total).toBe(130);
+      expect(t.tax).toBe(9.09);
+      expect(t.total).toBe(120);
     });
 
-    it("should apply percent discount and scale tax", () => {
+    it("should apply percent discount and scale extracted tax", () => {
+      // After 10% off → ₹90 inclusive @ 10% → tax = 90×10/110 ≈ 8.18; total = 90
       const t = computeCheckoutTotals(baseLines, {
         shippingFlat: 0,
         discountPercent: 10,
       });
       expect(t.discount).toBe(10);
       expect(t.subtotal).toBe(100);
-      expect(t.tax).toBe(9);
-      expect(t.items[0].taxAmount).toBe(9);
+      expect(t.tax).toBe(8.18);
+      expect(t.items[0].taxAmount).toBe(8.18);
+      expect(t.total).toBe(90);
+    });
+
+    it("should match GST-inclusive storefront example (80 + 50 shipping = 130)", () => {
+      const lines: CartLineInput[] = [
+        {
+          variantId: 1,
+          productId: 1,
+          quantity: 2,
+          productName: "Mud",
+          taxPercent: 5,
+          sizeLabel: "25 g",
+          currentVariantPrice: 40,
+        },
+      ];
+      const t = computeCheckoutTotals(lines, { shippingFlat: 50 });
+      expect(t.subtotal).toBe(80);
+      expect(t.tax).toBe(3.81); // 80 × 5 / 105
+      expect(t.shipping).toBe(50);
+      expect(t.total).toBe(130);
+    });
+
+    it("should apply free shipping when merchandise ≥ ₹2000", () => {
+      const lines: CartLineInput[] = [
+        {
+          variantId: 1,
+          productId: 1,
+          quantity: 6,
+          productName: "Bluecorn",
+          taxPercent: 5,
+          sizeLabel: "25 g",
+          currentVariantPrice: 660,
+        },
+        {
+          variantId: 2,
+          productId: 2,
+          quantity: 1,
+          productName: "Allantoin",
+          taxPercent: 18,
+          sizeLabel: "25 g",
+          currentVariantPrice: 120,
+        },
+      ];
+      const t = computeCheckoutTotals(lines, { shippingFlat: 50 });
+      expect(t.subtotal).toBe(4080);
+      expect(t.shipping).toBe(0);
+      expect(t.total).toBe(4080);
     });
 
     it("should cap discount with maxDiscountAmount", () => {

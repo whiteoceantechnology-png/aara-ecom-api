@@ -16,6 +16,9 @@ export class CreateCustomerDto {
 
   @ApiProperty({ example: "john@gmail.com" })
   @IsEmail()
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value,
+  )
   email: string;
 
   @ApiPropertyOptional({ example: "9876543210" })
@@ -32,6 +35,9 @@ export class CreateCustomerDto {
 export class CustomerLoginDto {
   @ApiProperty({ example: "john@gmail.com" })
   @IsEmail()
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value,
+  )
   email: string;
 
   @ApiProperty({ example: "Secret@123" })

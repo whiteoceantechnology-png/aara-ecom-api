@@ -22,6 +22,7 @@ import {
   quoteSqlIdentifier,
   stringContainsFilter,
 } from "../../common/database-provider.util";
+import { unitsToConsume } from "../products/product-stock-pool.util";
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
@@ -214,7 +215,20 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { items: true },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: {
+                  packSize: true,
+                  product: {
+                    select: { id: true, stockUnit: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
       if (!order) throw new NotFoundException(`Order #${orderId} not found`);
       if (order.paymentStatus === "paid") {
@@ -225,20 +239,30 @@ export class OrdersService {
       }
 
       if (order.status === OrderStatus.PENDING_PAYMENT) {
-        const T = quoteSqlIdentifier("ProductVariant");
-        const sq = quoteSqlIdentifier("stockQuantity");
-        const rq = quoteSqlIdentifier("reservedQuantity");
-        for (const item of order.items) {
+        const byProduct = this.aggregateProductPoolUnits(
+          order.items.map((item) => ({
+            productId: item.variant.product.id,
+            stockUnit: item.variant.product.stockUnit,
+            quantity: item.quantity,
+            packSize: item.variant.packSize,
+            variantName: item.variant.variantName,
+          })),
+        );
+        const T = quoteSqlIdentifier("Product");
+        const stockCol = quoteSqlIdentifier("stock");
+        const reservedCol = quoteSqlIdentifier("reservedStock");
+        for (const [productId, units] of byProduct) {
           const rowsAffected = await tx.$executeRawUnsafe(
-            `UPDATE ${T} SET ${sq} = ${sq} - ?, ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
-            item.quantity,
-            item.quantity,
-            item.variantId,
-            item.quantity,
+            `UPDATE ${T} SET ${stockCol} = ${stockCol} - ?, ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ? AND ${stockCol} >= ?`,
+            units,
+            units,
+            productId,
+            units,
+            units,
           );
           if (affectedRowsCount(rowsAffected) !== 1) {
             throw new BadRequestException(
-              `Inventory commit failed for variant #${item.variantId}`,
+              `Inventory commit failed for product #${productId}`,
             );
           }
         }
@@ -260,7 +284,18 @@ export class OrdersService {
   async cancel(orderId: number, customerId: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                packSize: true,
+                product: { select: { id: true, stockUnit: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!order) throw new NotFoundException(`Order #${orderId} not found`);
     if (order.customerId !== customerId) {
@@ -278,19 +313,28 @@ export class OrdersService {
       throw new BadRequestException("Paid orders cannot use this cancel flow");
     }
 
-    const T = quoteSqlIdentifier("ProductVariant");
-    const rq = quoteSqlIdentifier("reservedQuantity");
+    const byProduct = this.aggregateProductPoolUnits(
+      order.items.map((item) => ({
+        productId: item.variant.product.id,
+        stockUnit: item.variant.product.stockUnit,
+        quantity: item.quantity,
+        packSize: item.variant.packSize,
+        variantName: item.variant.variantName,
+      })),
+    );
+    const T = quoteSqlIdentifier("Product");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
     await this.prisma.$transaction(async (tx) => {
-      for (const item of order.items) {
+      for (const [productId, units] of byProduct) {
         const rowsAffected = await tx.$executeRawUnsafe(
-          `UPDATE ${T} SET ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
-          item.quantity,
-          item.variantId,
-          item.quantity,
+          `UPDATE ${T} SET ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ?`,
+          units,
+          productId,
+          units,
         );
         if (affectedRowsCount(rowsAffected) !== 1) {
           throw new BadRequestException(
-            `Failed to release reservation for variant #${item.variantId}`,
+            `Failed to release reservation for product #${productId}`,
           );
         }
       }
@@ -571,45 +615,65 @@ export class OrdersService {
     }
   }
 
-  /** COD: permanently reduce on-hand quantity. */
+  /** COD: permanently reduce product-level pool. */
   private async deductStockImmediate(
     tx: Prisma.TransactionClient,
     items: CartForPlaceOrder["items"],
   ) {
-    for (const item of items) {
-      const updated = await tx.productVariant.updateMany({
-        where: {
-          id: item.variantId,
-          stockQuantity: { gte: item.quantity },
-        },
-        data: { stockQuantity: { decrement: item.quantity } },
-      });
-      if (updated.count !== 1) {
+    const byProduct = this.aggregateProductPoolUnits(
+      items.map((item) => ({
+        productId: item.variant.product.id,
+        stockUnit: item.variant.product.stockUnit,
+        quantity: item.quantity,
+        packSize: item.variant.packSize,
+        variantName: item.variant.variantName,
+      })),
+    );
+    const T = quoteSqlIdentifier("Product");
+    const stockCol = quoteSqlIdentifier("stock");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
+    for (const [productId, units] of byProduct) {
+      const rowsAffected = await tx.$executeRawUnsafe(
+        `UPDATE ${T} SET ${stockCol} = ${stockCol} - ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
+        units,
+        productId,
+        units,
+      );
+      if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
-          `Insufficient stock for variant #${item.variantId}`,
+          `Insufficient stock for product #${productId}`,
         );
       }
     }
   }
 
-  /** ONLINE: hold units until payment clears or the customer cancels. */
+  /** ONLINE: hold units on product pool until payment clears or cancel. */
   private async reserveStockForOnlineCheckout(
     tx: Prisma.TransactionClient,
     items: CartForPlaceOrder["items"],
   ) {
-    const T = quoteSqlIdentifier("ProductVariant");
-    const sq = quoteSqlIdentifier("stockQuantity");
-    const rq = quoteSqlIdentifier("reservedQuantity");
-    for (const item of items) {
+    const byProduct = this.aggregateProductPoolUnits(
+      items.map((item) => ({
+        productId: item.variant.product.id,
+        stockUnit: item.variant.product.stockUnit,
+        quantity: item.quantity,
+        packSize: item.variant.packSize,
+        variantName: item.variant.variantName,
+      })),
+    );
+    const T = quoteSqlIdentifier("Product");
+    const stockCol = quoteSqlIdentifier("stock");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
+    for (const [productId, units] of byProduct) {
       const rowsAffected = await tx.$executeRawUnsafe(
-        `UPDATE ${T} SET ${rq} = ${rq} + ? WHERE id = ? AND (${sq} - ${rq}) >= ?`,
-        item.quantity,
-        item.variantId,
-        item.quantity,
+        `UPDATE ${T} SET ${reservedCol} = ${reservedCol} + ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
+        units,
+        productId,
+        units,
       );
       if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
-          `Insufficient stock to reserve for variant #${item.variantId}`,
+          `Insufficient stock to reserve for product #${productId}`,
         );
       }
     }
@@ -619,28 +683,84 @@ export class OrdersService {
     items: Array<{ variantId: number; quantity: number }>,
     paymentMethod: "ONLINE" | "COD",
   ) {
+    void paymentMethod;
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: items.map((i) => i.variantId) } },
+      include: {
+        packSize: true,
+        product: {
+          select: {
+            id: true,
+            stock: true,
+            reservedStock: true,
+            stockUnit: true,
+          },
+        },
+      },
+    });
+    const byId = new Map(variants.map((v) => [v.id, v]));
+    const lines: Array<{
+      productId: number;
+      stockUnit: string | null;
+      quantity: number;
+      packSize: (typeof variants)[0]["packSize"];
+      variantName: string | null;
+    }> = [];
     for (const item of items) {
-      const v = await this.prisma.productVariant.findUnique({
-        where: { id: item.variantId },
-      });
+      const v = byId.get(item.variantId);
       if (!v) {
         throw new NotFoundException(`Variant #${item.variantId} not found`);
       }
-      if (paymentMethod === "COD") {
-        if (v.stockQuantity < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for variant #${item.variantId}`,
-          );
-        }
-      } else {
-        const sellable = v.stockQuantity - v.reservedQuantity;
-        if (sellable < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock to reserve for variant #${item.variantId}`,
-          );
-        }
-      }
+      lines.push({
+        productId: v.product.id,
+        stockUnit: v.product.stockUnit,
+        quantity: item.quantity,
+        packSize: v.packSize,
+        variantName: v.variantName,
+      });
     }
+    const needed = this.aggregateProductPoolUnits(lines);
+    for (const [productId, units] of needed) {
+      const sample = lines.find((l) => l.productId === productId)!;
+      const product = byId.get(
+        items.find((i) => byId.get(i.variantId)?.product.id === productId)!
+          .variantId,
+      )!.product;
+      const sellable = Math.max(0, product.stock - product.reservedStock);
+      if (units > sellable) {
+        throw new BadRequestException(
+          `Insufficient stock for product #${productId}. Need ${units}, available ${sellable}`,
+        );
+      }
+      void sample;
+    }
+  }
+
+  /** Sum pool units per productId for multi-line carts of the same product. */
+  private aggregateProductPoolUnits(
+    lines: Array<{
+      productId: number;
+      stockUnit: string | null;
+      quantity: number;
+      packSize: {
+        size: { toString(): string } | number;
+        unit: string;
+        label: string;
+      } | null;
+      variantName: string | null;
+    }>,
+  ): Map<number, number> {
+    const map = new Map<number, number>();
+    for (const line of lines) {
+      const units = unitsToConsume({
+        quantity: line.quantity,
+        stockUnit: line.stockUnit,
+        packSize: line.packSize,
+        variantName: line.variantName,
+      });
+      map.set(line.productId, (map.get(line.productId) ?? 0) + units);
+    }
+    return map;
   }
 
   /** Flatten HSN onto each line (snapshot, else live product fallback). */

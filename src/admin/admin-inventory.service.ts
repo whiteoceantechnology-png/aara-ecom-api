@@ -40,17 +40,30 @@ function mapInventoryRow(v: {
   stockQuantity: number;
   reservedQuantity: number;
   status: boolean;
-  product: { name: string };
+  product: {
+    name: string;
+    stock?: number;
+    reservedStock?: number;
+    stockUnit?: string | null;
+  };
 }) {
+  const productStock = v.product.stock ?? 0;
+  const productReserved = v.product.reservedStock ?? 0;
+  const availableProductStock = Math.max(0, productStock - productReserved);
   return {
     id: v.id,
     productId: v.productId,
     productName: v.product.name,
     variantName: v.variantName,
     sku: v.sku,
-    stockQuantity: v.stockQuantity,
-    reservedQuantity: v.reservedQuantity,
-    availableQuantity: v.stockQuantity - v.reservedQuantity,
+    // Variants are pack SKUs only — inventory is product-level.
+    stockQuantity: 0,
+    reservedQuantity: 0,
+    availableQuantity: availableProductStock,
+    productStock,
+    productReservedStock: productReserved,
+    availableProductStock,
+    stockUnit: v.product.stockUnit ?? null,
     status: v.status,
   };
 }
@@ -98,7 +111,14 @@ export class AdminInventoryService {
           stockQuantity: true,
           reservedQuantity: true,
           status: true,
-          product: { select: { name: true } },
+          product: {
+            select: {
+              name: true,
+              stock: true,
+              reservedStock: true,
+              stockUnit: true,
+            },
+          },
         },
         orderBy: [{ productId: "asc" }, { id: "asc" }],
         skip,
@@ -434,34 +454,45 @@ export class AdminInventoryService {
     }
 
     const variant = await this.requireVariant(variantId);
-    if (stockQuantity < variant.reservedQuantity) {
+    const productReserved = variant.product.reservedStock ?? 0;
+    if (stockQuantity < productReserved) {
       throw new BadRequestException(
-        `stockQuantity (${stockQuantity}) cannot be below reservedQuantity (${variant.reservedQuantity})`,
+        `product stock (${stockQuantity}) cannot be below reservedStock (${productReserved})`,
       );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.productVariant.update({
-        where: { id: variantId },
-        data: { stockQuantity },
+      const before = variant.product.stock ?? 0;
+      await tx.product.update({
+        where: { id: variant.productId },
+        data: { stock: stockQuantity },
+      });
+      // Variants are pack SKUs only — clear per-variant counters.
+      await tx.productVariant.updateMany({
+        where: { productId: variant.productId },
+        data: { stockQuantity: 0, reservedQuantity: 0 },
       });
       await this.recordMovement(tx, {
         variantId,
         type,
-        quantityChange: stockQuantity - variant.stockQuantity,
-        stockBefore: variant.stockQuantity,
-        stockAfter: row.stockQuantity,
-        reservedBefore: variant.reservedQuantity,
-        reservedAfter: row.reservedQuantity,
-        reason: type === "bulk_set" ? "bulk_set" : "manual_set",
+        quantityChange: stockQuantity - before,
+        stockBefore: before,
+        stockAfter: stockQuantity,
+        reservedBefore: productReserved,
+        reservedAfter: productReserved,
+        reason:
+          type === "bulk_set"
+            ? "bulk_set_product_pool"
+            : "manual_set_product_pool",
         actorName: actor?.name,
       });
-      return row;
+      return { id: variantId, stockQuantity: 0 };
     });
 
     return {
       id: updated.id,
-      stockQuantity: updated.stockQuantity,
+      stockQuantity: 0,
+      productStock: stockQuantity,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -477,7 +508,14 @@ export class AdminInventoryService {
         stockQuantity: true,
         reservedQuantity: true,
         status: true,
-        product: { select: { name: true } },
+        product: {
+          select: {
+            name: true,
+            stock: true,
+            reservedStock: true,
+            stockUnit: true,
+          },
+        },
       },
     });
     if (!v) throw new NotFoundException(`Variant #${variantId} not found`);
