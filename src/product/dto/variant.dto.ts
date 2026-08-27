@@ -48,12 +48,6 @@ export class CreateVariantDto {
   @IsNotEmpty()
   sku: string;
 
-  @ApiPropertyOptional({ example: 100 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  stockQuantity?: number;
-
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
@@ -105,12 +99,6 @@ export class UpdateVariantDto {
   @IsOptional()
   @IsString()
   sku?: string;
-
-  @ApiPropertyOptional({ example: 100 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  stockQuantity?: number;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

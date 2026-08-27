@@ -29,8 +29,6 @@ export function serializeProductVariantForApi(
     actualPrice: v.actualPrice != null ? Number(v.actualPrice) : null,
     discountPrice: v.discountPrice != null ? Number(v.discountPrice) : null,
     sku: v.sku,
-    stockQuantity: v.stockQuantity,
-    reservedQuantity: v.reservedQuantity,
     altTags: v.altTags,
     favourites: v.favourites,
     status: v.status,

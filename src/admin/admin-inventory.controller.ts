@@ -27,6 +27,7 @@ import {
   AdminBulkStockUpdateDto,
   AdminReleaseStockDto,
   AdminReserveStockDto,
+  AdminUpdateProductStockDto,
   AdminUpdateStockDto,
 } from "./dto/admin.dto";
 
@@ -38,13 +39,13 @@ export class AdminInventoryController {
   constructor(private readonly inventory: AdminInventoryService) {}
 
   @Get("low-stock")
-  @ApiOperation({ summary: "Paginated low-stock inventory list" })
+  @ApiOperation({ summary: "Paginated low-stock products (product pool)" })
   @ApiQuery({
     name: "threshold",
     required: false,
     type: Number,
     description:
-      "Stock <= threshold (default: NotificationSettings.lowStockThreshold or 10)",
+      "Product stock <= threshold (default: NotificationSettings.lowStockThreshold or 10)",
   })
   @ApiQuery({ name: "page", required: false, example: 1 })
   @ApiQuery({ name: "limit", required: false, example: 25 })
@@ -61,8 +62,33 @@ export class AdminInventoryController {
     });
   }
 
+  @Get("sales")
+  @ApiOperation({
+    summary: "Sale transactions ledger (what was sold + stock before/after)",
+  })
+  @ApiQuery({ name: "productId", required: false, type: Number })
+  @ApiQuery({ name: "orderId", required: false, type: Number })
+  @ApiQuery({ name: "page", required: false, example: 1 })
+  @ApiQuery({ name: "limit", required: false, example: 25 })
+  listSales(
+    @Query("productId") productId?: string,
+    @Query("orderId") orderId?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.inventory.listSales({
+      productId: productId != null ? Number(productId) : undefined,
+      orderId: orderId != null ? Number(orderId) : undefined,
+      page: page != null ? Number(page) : undefined,
+      limit: limit != null ? Number(limit) : undefined,
+    });
+  }
+
   @Post("bulk-update")
-  @ApiOperation({ summary: "Bulk absolute stock updates" })
+  @ApiOperation({
+    summary:
+      "Bulk absolute product-pool stock updates (via variantId → product)",
+  })
   @ApiBody({ type: AdminBulkStockUpdateDto })
   @ApiResponse({ status: 200, description: "Bulk update results" })
   bulkUpdate(@Body() dto: AdminBulkStockUpdateDto, @Req() req: Request) {
@@ -71,7 +97,8 @@ export class AdminInventoryController {
 
   @Get()
   @ApiOperation({
-    summary: "Paginated stock list — search, status, productId, variantId",
+    summary:
+      "Paginated inventory list — product pool stock exposed per pack SKU",
   })
   @ApiQuery({
     name: "search",
@@ -106,8 +133,44 @@ export class AdminInventoryController {
     });
   }
 
+  @Put("products/:productId/stock")
+  @ApiOperation({
+    summary: "Set absolute product-level stock (source of truth)",
+  })
+  @ApiParam({ name: "productId", type: Number })
+  @ApiBody({ type: AdminUpdateProductStockDto })
+  updateProductStock(
+    @Param("productId", ParseIntPipe) productId: number,
+    @Body() dto: AdminUpdateProductStockDto,
+    @Req() req: Request,
+  ) {
+    return this.inventory.updateProductStock(
+      productId,
+      dto.stock,
+      this.actorFrom(req),
+    );
+  }
+
+  @Get("products/:productId/history")
+  @ApiOperation({ summary: "Stock movement history for a product pool" })
+  @ApiParam({ name: "productId", type: Number })
+  @ApiQuery({ name: "page", required: false, example: 1 })
+  @ApiQuery({ name: "limit", required: false, example: 20 })
+  productHistory(
+    @Param("productId", ParseIntPipe) productId: number,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.inventory.productHistory(productId, {
+      page: page != null ? Number(page) : undefined,
+      limit: limit != null ? Number(limit) : undefined,
+    });
+  }
+
   @Get(":variantId/history")
-  @ApiOperation({ summary: "Stock movement history for a variant" })
+  @ApiOperation({
+    summary: "Stock movement history (resolves variant → product pool)",
+  })
   @ApiParam({ name: "variantId", type: Number })
   @ApiQuery({ name: "page", required: false, example: 1 })
   @ApiQuery({ name: "limit", required: false, example: 20 })
@@ -123,7 +186,9 @@ export class AdminInventoryController {
   }
 
   @Get(":variantId")
-  @ApiOperation({ summary: "Stock details for a variant" })
+  @ApiOperation({
+    summary: "Stock details for a pack SKU (shows parent product pool)",
+  })
   @ApiParam({ name: "variantId", type: Number })
   @ApiResponse({ status: 200, description: "Stock details" })
   findOne(@Param("variantId", ParseIntPipe) variantId: number) {
@@ -131,7 +196,10 @@ export class AdminInventoryController {
   }
 
   @Put(":variantId/stock")
-  @ApiOperation({ summary: "Set absolute on-hand stock quantity" })
+  @ApiOperation({
+    summary:
+      "Set absolute product-pool stock via variantId (legacy; prefer PUT .../products/:id/stock)",
+  })
   @ApiParam({ name: "variantId", type: Number })
   @ApiBody({ type: AdminUpdateStockDto })
   updateStock(
@@ -143,7 +211,9 @@ export class AdminInventoryController {
   }
 
   @Post(":variantId/adjust")
-  @ApiOperation({ summary: "Adjust stock by signed delta with reason" })
+  @ApiOperation({
+    summary: "Adjust product-pool stock by signed delta with reason",
+  })
   @ApiParam({ name: "variantId", type: Number })
   @ApiBody({ type: AdminAdjustStockDto })
   adjust(
@@ -155,7 +225,7 @@ export class AdminInventoryController {
   }
 
   @Post(":variantId/reserve")
-  @ApiOperation({ summary: "Reserve available stock for a reference" })
+  @ApiOperation({ summary: "Reserve available product-pool stock" })
   @ApiParam({ name: "variantId", type: Number })
   @ApiBody({ type: AdminReserveStockDto })
   reserve(
@@ -167,7 +237,7 @@ export class AdminInventoryController {
   }
 
   @Post(":variantId/release")
-  @ApiOperation({ summary: "Release previously reserved stock" })
+  @ApiOperation({ summary: "Release previously reserved product-pool stock" })
   @ApiParam({ name: "variantId", type: Number })
   @ApiBody({ type: AdminReleaseStockDto })
   release(

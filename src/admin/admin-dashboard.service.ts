@@ -93,10 +93,10 @@ export class AdminDashboardService {
           ],
         },
       }),
-      this.prisma.productVariant.count({
+      this.prisma.product.count({
         where: {
           status: true,
-          stockQuantity: { lte: threshold },
+          stock: { lte: threshold },
         },
       }),
       this.prisma.customer.count(),
@@ -209,7 +209,7 @@ export class AdminDashboardService {
       zeroPriceVariants,
       productsWithoutPrice,
       taxRows,
-      lowStockVariants,
+      lowStockProducts,
     ] = await Promise.all([
       this.prisma.order.findMany({
         where: {
@@ -262,15 +262,15 @@ export class AdminDashboardService {
         select: { id: true, name: true, percent: true },
         orderBy: { percent: "asc" },
       }),
-      this.prisma.productVariant.findMany({
-        where: { status: true, stockQuantity: { lte: threshold } },
+      this.prisma.product.findMany({
+        where: { status: true, stock: { lte: threshold } },
         take: 50,
-        orderBy: { stockQuantity: "asc" },
+        orderBy: { stock: "asc" },
         select: {
           id: true,
-          sku: true,
-          stockQuantity: true,
-          product: { select: { id: true, name: true } },
+          name: true,
+          stock: true,
+          reservedStock: true,
         },
       }),
     ]);
@@ -325,14 +325,20 @@ export class AdminDashboardService {
       missingVariantPrice,
       lowStock: {
         threshold,
-        items: lowStockVariants,
+        items: lowStockProducts.map((p) => ({
+          productId: p.id,
+          productName: p.name,
+          stock: p.stock,
+          reservedStock: p.reservedStock,
+          availableProductStock: Math.max(0, p.stock - p.reservedStock),
+        })),
       },
       counts: {
         missingAddress: missingAddressOrders.length,
         pricingIssues: pricingIssues.length,
         duplicateTax: duplicateTax.length,
         missingVariantPrice: missingVariantPrice.length,
-        lowStock: lowStockVariants.length,
+        lowStock: lowStockProducts.length,
       },
     };
   }

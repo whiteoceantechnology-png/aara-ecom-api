@@ -35,6 +35,7 @@ import {
   AdminCreateProductDto,
   AdminUpdateProductDto,
   AdminUpdateStockDto,
+  AdminUpdateProductStockDto,
   AdminAddImageDto,
   UpsertSpecificationBodyDto,
   UpsertProductPoliciesDto,
@@ -280,8 +281,24 @@ export class AdminProductsController {
 
   // ─── Stock ───────────────────────────────────────────────────────────────────
 
+  @Put("products/:id/stock")
+  @ApiOperation({
+    summary: "Set product-level stock pool (source of truth for availability)",
+  })
+  @ApiParam({ name: "id", type: Number, description: "Product ID" })
+  @ApiBody({ type: AdminUpdateProductStockDto })
+  updateProductStock(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: AdminUpdateProductStockDto,
+  ) {
+    return this.productsService.updateProductStock(id, dto.stock);
+  }
+
   @Put("variants/:id/stock")
-  @ApiOperation({ summary: "Update stock quantity for a variant" })
+  @ApiOperation({
+    summary:
+      "Set product-pool stock via variant id (legacy; prefer PUT /admin/products/:id/stock)",
+  })
   @ApiParam({ name: "id", type: Number, description: "Variant ID" })
   @ApiBody({ type: AdminUpdateStockDto })
   updateStock(

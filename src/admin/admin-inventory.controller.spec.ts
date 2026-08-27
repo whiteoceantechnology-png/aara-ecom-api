@@ -9,17 +9,21 @@ import {
   AdminReleaseStockDto,
   AdminReserveStockDto,
   AdminUpdateStockDto,
+  AdminUpdateProductStockDto,
 } from "./dto/admin.dto";
 
 const mockInventory = {
   findAll: jest.fn(),
   findOne: jest.fn(),
   updateStock: jest.fn(),
+  updateProductStock: jest.fn(),
   adjustStock: jest.fn(),
   reserveStock: jest.fn(),
   releaseStock: jest.fn(),
   lowStock: jest.fn(),
   history: jest.fn(),
+  productHistory: jest.fn(),
+  listSales: jest.fn(),
   bulkUpdate: jest.fn(),
 };
 
@@ -71,8 +75,9 @@ describe("AdminInventoryController", () => {
         productName: "Aloe Gel",
         variantName: "500ml",
         sku: "AAR-500",
-        stockQuantity: 120,
-        reservedQuantity: 15,
+        productStock: 120,
+        productReservedStock: 15,
+        availableProductStock: 105,
         availableQuantity: 105,
       };
       mockInventory.findOne.mockResolvedValue(detail);
@@ -87,19 +92,57 @@ describe("AdminInventoryController", () => {
     });
   });
 
+  describe("updateProductStock()", () => {
+    it("should set product pool stock", async () => {
+      const dto: AdminUpdateProductStockDto = { stock: 120 };
+      mockInventory.updateProductStock.mockResolvedValue({
+        productId: 12,
+        stock: 120,
+        reservedStock: 0,
+        availableProductStock: 120,
+      });
+      const result = await controller.updateProductStock(12, dto, req);
+      expect(mockInventory.updateProductStock).toHaveBeenCalledWith(12, 120, {
+        name: "Admin",
+      });
+      expect(result.stock).toBe(120);
+    });
+  });
+
+  describe("listSales()", () => {
+    it("should return sale transactions", async () => {
+      mockInventory.listSales.mockResolvedValue({
+        sales: [],
+        total: 0,
+        page: 1,
+        limit: 25,
+        totalPages: 1,
+      });
+      const result = await controller.listSales("12", undefined, "1", "25");
+      expect(mockInventory.listSales).toHaveBeenCalledWith({
+        productId: 12,
+        orderId: undefined,
+        page: 1,
+        limit: 25,
+      });
+      expect(result.total).toBe(0);
+    });
+  });
+
   describe("updateStock()", () => {
-    it("should set absolute stock", async () => {
+    it("should set absolute product-pool stock via variant", async () => {
       const dto: AdminUpdateStockDto = { stockQuantity: 120 };
       mockInventory.updateStock.mockResolvedValue({
         id: 45,
-        stockQuantity: 120,
+        productId: 12,
+        productStock: 120,
         updatedAt: "2026-08-13T10:30:00Z",
       });
       const result = await controller.updateStock(45, dto, req);
       expect(mockInventory.updateStock).toHaveBeenCalledWith(45, dto, {
         name: "Admin",
       });
-      expect(result.stockQuantity).toBe(120);
+      expect(result.productStock).toBe(120);
     });
   });
 
@@ -111,8 +154,9 @@ describe("AdminInventoryController", () => {
         notes: "5 units damaged in transit",
       };
       mockInventory.adjustStock.mockResolvedValue({
-        id: 45,
-        stockQuantity: 115,
+        productId: 12,
+        variantId: 45,
+        stock: 115,
         adjustmentId: 901,
         updatedAt: "2026-08-13T10:30:00Z",
       });
@@ -129,12 +173,13 @@ describe("AdminInventoryController", () => {
         referenceId: 234,
       };
       mockInventory.reserveStock.mockResolvedValue({
-        id: 45,
-        reservedQuantity: 25,
-        availableQuantity: 95,
+        productId: 12,
+        variantId: 45,
+        reservedStock: 25,
+        availableProductStock: 95,
       });
       await expect(controller.reserve(45, dto, req)).resolves.toEqual(
-        expect.objectContaining({ reservedQuantity: 25 }),
+        expect.objectContaining({ reservedStock: 25 }),
       );
     });
 
@@ -145,12 +190,13 @@ describe("AdminInventoryController", () => {
         referenceId: 234,
       };
       mockInventory.releaseStock.mockResolvedValue({
-        id: 45,
-        reservedQuantity: 15,
-        availableQuantity: 105,
+        productId: 12,
+        variantId: 45,
+        reservedStock: 15,
+        availableProductStock: 105,
       });
       await expect(controller.release(45, dto, req)).resolves.toEqual(
-        expect.objectContaining({ availableQuantity: 105 }),
+        expect.objectContaining({ availableProductStock: 105 }),
       );
     });
   });

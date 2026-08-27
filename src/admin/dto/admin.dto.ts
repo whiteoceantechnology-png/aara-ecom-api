@@ -290,10 +290,26 @@ export class AdminUpdateProductDto {
 }
 
 export class AdminUpdateStockDto {
-  @ApiProperty({ example: 100 })
+  @ApiProperty({
+    example: 100,
+    description:
+      "Sets Product.stock (shared pool). Variant counters were removed — this is product-level inventory.",
+  })
   @IsNumber()
   @Type(() => Number)
   stockQuantity: number;
+}
+
+export class AdminUpdateProductStockDto {
+  @ApiProperty({
+    example: 100,
+    description:
+      "Absolute on-hand quantity for the product pool. Available = stock - reservedStock.",
+  })
+  @IsInt()
+  @Type(() => Number)
+  @Min(0)
+  stock: number;
 }
 
 // ─── Inventory DTOs ──────────────────────────────────────────────────────────
@@ -301,7 +317,7 @@ export class AdminUpdateStockDto {
 export class AdminAdjustStockDto {
   @ApiProperty({
     example: -5,
-    description: "Signed delta applied to on-hand stockQuantity",
+    description: "Signed delta applied to Product.stock (product pool)",
   })
   @IsInt()
   @Type(() => Number)

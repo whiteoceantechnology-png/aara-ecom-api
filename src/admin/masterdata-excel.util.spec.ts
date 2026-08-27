@@ -67,7 +67,6 @@ describe("masterdata-excel.util", () => {
       sku: "ASH-25",
       price: 31,
       discountedPrice: 28,
-      stockQuantity: 50,
       status: "yes",
       imagePath: "a.jpg|b.jpg",
     });
@@ -79,7 +78,6 @@ describe("masterdata-excel.util", () => {
       sku: "ASH-25",
       price: 31,
       discountedPrice: 28,
-      stockQuantity: 50,
       status: true,
       imagePath: ["a.jpg", "b.jpg"],
     });

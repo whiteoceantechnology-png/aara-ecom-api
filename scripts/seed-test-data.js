@@ -145,8 +145,6 @@ async function main() {
         actualPrice: 199,
         discountPrice: 149,
         sku: TEST.variantSku,
-        stockQuantity: 100,
-        reservedQuantity: 0,
         altTags: altTagsValue(),
         status: true,
       },

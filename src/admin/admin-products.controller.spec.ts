@@ -11,6 +11,7 @@ import {
   AdminCreateProductDto,
   AdminUpdateProductDto,
   AdminUpdateStockDto,
+  AdminUpdateProductStockDto,
   AdminAddImageDto,
   UpsertSpecificationBodyDto,
 } from "./dto/admin.dto";
@@ -43,6 +44,7 @@ const mockProductsService = {
   adminUpdate: jest.fn(),
   adminDelete: jest.fn(),
   updateStock: jest.fn(),
+  updateProductStock: jest.fn(),
   addImage: jest.fn(),
   deleteImage: jest.fn(),
   upsertSpecification: jest.fn(),
@@ -302,20 +304,45 @@ describe("AdminProductsController", () => {
   // ──────────────────────────────────────────────
   // Stock
   // ──────────────────────────────────────────────
+  describe("updateProductStock()", () => {
+    it("should set product-level stock", async () => {
+      const dto: AdminUpdateProductStockDto = { stock: 150 };
+      const updated = {
+        productId: 1,
+        stock: 150,
+        reservedStock: 0,
+        availableProductStock: 150,
+        stockUnit: null,
+      };
+      mockProductsService.updateProductStock.mockResolvedValue(updated);
+
+      const result = await controller.updateProductStock(1, dto);
+
+      expect(mockProductsService.updateProductStock).toHaveBeenCalledWith(
+        1,
+        150,
+      );
+      expect(result.stock).toBe(150);
+      expect(result.availableProductStock).toBe(150);
+    });
+  });
+
   describe("updateStock()", () => {
-    it("should update stock for a variant", async () => {
+    it("should update product pool stock via variant id", async () => {
       const dto: AdminUpdateStockDto = { stockQuantity: 150 };
       const updated = {
         id: 1,
-        stockQuantity: 150,
-        packSize: { label: "25 g" },
+        productId: 9,
+        productStock: 150,
+        reservedStock: 0,
+        availableProductStock: 150,
       };
       mockProductsService.updateStock.mockResolvedValue(updated);
 
       const result = await controller.updateStock(1, dto);
 
       expect(mockProductsService.updateStock).toHaveBeenCalledWith(1, dto);
-      expect(result.stockQuantity).toBe(150);
+      expect(result.productStock).toBe(150);
     });
 
     it("should throw NotFoundException for unknown variant", async () => {
@@ -457,6 +484,7 @@ describe("AdminProductsController", () => {
         "createProduct",
         "updateProduct",
         "deleteProduct",
+        "updateProductStock",
         "updateStock",
         "addImage",
         "deleteImage",

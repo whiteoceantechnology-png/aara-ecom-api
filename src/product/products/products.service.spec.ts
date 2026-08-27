@@ -12,9 +12,17 @@ describe("ProductsService", () => {
 
   const tx = {
     cartItem: { deleteMany: jest.fn() },
-    productImage: { deleteMany: jest.fn() },
-    productVariant: { deleteMany: jest.fn() },
-    product: { delete: jest.fn() },
+    productImage: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    productVariant: { deleteMany: jest.fn(), updateMany: jest.fn() },
+    product: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
   };
 
   const prisma = {
@@ -29,6 +37,7 @@ describe("ProductsService", () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     productImage: {
       findUnique: jest.fn(),
@@ -75,13 +84,15 @@ describe("ProductsService", () => {
     taxPercent: "5",
     tax: null as { id: number; name: string; percent: string } | null,
     status: true,
+    stock: 20,
+    reservedStock: 0,
+    stockUnit: null as string | null,
     category: { id: 1, name: "Herbs" },
     variants: [
       {
         id: 10,
         sku: "ASH-1",
         price: "10",
-        stockQuantity: 5,
         status: true,
         packSize: { label: "100g" },
       },
@@ -351,8 +362,14 @@ describe("ProductsService", () => {
       );
     });
 
-    it("should map variant fields", async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 1, name: "P" });
+    it("should map variant fields from product pool stock", async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        id: 1,
+        name: "P",
+        stock: 4,
+        reservedStock: 0,
+        stockUnit: null,
+      });
       prisma.productVariant.findMany.mockResolvedValue([
         {
           id: 3,
@@ -364,9 +381,9 @@ describe("ProductsService", () => {
           actualPrice: null,
           discountPrice: null,
           altTags: [],
-          stockQuantity: 4,
           favourites: 0,
           product: { name: "P" },
+          packSize: { id: 1, size: "100", unit: "g", label: "100 g" },
           images: [],
         },
       ]);
@@ -376,6 +393,9 @@ describe("ProductsService", () => {
         id: 3,
         productName: "P",
         availableStock: 4,
+        productStock: 4,
+        reservedStock: 0,
+        availableProductStock: 4,
       });
     });
   });
@@ -470,16 +490,28 @@ describe("ProductsService", () => {
     it("should validate refs and create", async () => {
       prisma.category.findUnique.mockResolvedValue({ id: 1 });
       prisma.brand.findUnique.mockResolvedValue({ id: 2 });
-      prisma.product.create.mockResolvedValue({ id: 1 });
+      tx.product.create.mockResolvedValue({ id: 1 });
+      tx.product.findUniqueOrThrow.mockResolvedValue({
+        id: 1,
+        name: "N",
+        stock: 0,
+        reservedStock: 0,
+        category: { id: 1 },
+        brand: { id: 2 },
+        tax: null,
+        images: [],
+        variants: [],
+      });
 
-      await service.adminCreate({
+      const created = await service.adminCreate({
         categoryId: 1,
         brandId: 2,
         name: "N",
         slug: "n",
       } as any);
 
-      expect(prisma.product.create).toHaveBeenCalled();
+      expect(tx.product.create).toHaveBeenCalled();
+      expect(created).toMatchObject({ id: 1, availableProductStock: 0 });
     });
 
     it("should throw when brand invalid", async () => {
@@ -514,15 +546,74 @@ describe("ProductsService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should update quantity", async () => {
-      prisma.productVariant.findUnique.mockResolvedValue({ id: 1 });
-      prisma.productVariant.update.mockResolvedValue({
+    it("should update product pool quantity", async () => {
+      prisma.productVariant.findUnique.mockResolvedValue({
         id: 1,
-        stockQuantity: 20,
+        productId: 9,
+        product: { reservedStock: 0, name: "P", stock: 5, stockUnit: null },
+        packSize: null,
+      });
+      prisma.product.update.mockResolvedValue({
+        id: 9,
+        name: "P",
+        stock: 20,
+        reservedStock: 0,
+        stockUnit: null,
       });
 
       const r = await service.updateStock(1, { stockQuantity: 20 });
-      expect(r.stockQuantity).toBe(20);
+      expect(prisma.product.update).toHaveBeenCalledWith({
+        where: { id: 9 },
+        data: { stock: 20 },
+      });
+      expect(r.productStock).toBe(20);
+      expect(r.availableProductStock).toBe(20);
+    });
+
+    it("should reject stock below reservedStock", async () => {
+      prisma.productVariant.findUnique.mockResolvedValue({
+        id: 1,
+        productId: 9,
+        product: { reservedStock: 8, name: "P", stock: 10, stockUnit: null },
+        packSize: null,
+      });
+
+      await expect(
+        service.updateStock(1, { stockQuantity: 5 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("updateProductStock", () => {
+    it("should throw when product missing", async () => {
+      prisma.product.findUnique.mockResolvedValue(null);
+      await expect(service.updateProductStock(1, 10)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should set product stock", async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        id: 1,
+        reservedStock: 2,
+        stock: 5,
+        stockUnit: "KG",
+      });
+      prisma.product.update.mockResolvedValue({
+        id: 1,
+        stock: 50,
+        reservedStock: 2,
+        stockUnit: "KG",
+      });
+
+      const r = await service.updateProductStock(1, 50);
+      expect(r).toEqual({
+        productId: 1,
+        stock: 50,
+        reservedStock: 2,
+        availableProductStock: 48,
+        stockUnit: "KG",
+      });
     });
   });
 

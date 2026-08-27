@@ -55,7 +55,6 @@ export class VariantsService {
           discountPrice:
             discountedPrice != null ? discountedPrice : product.discountPrice,
           sku: fields.sku,
-          stockQuantity: fields.stockQuantity ?? 0,
           status: fields.status ?? true,
           ...(fields.variantName !== undefined && fields.variantName !== ""
             ? { variantName: fields.variantName }
@@ -104,8 +103,6 @@ export class VariantsService {
     }
     if (rest.price !== undefined) data.price = rest.price;
     if (rest.sku !== undefined) data.sku = rest.sku;
-    if (rest.stockQuantity !== undefined)
-      data.stockQuantity = rest.stockQuantity;
     if (rest.status !== undefined) data.status = rest.status;
     if (rest.variantName !== undefined) {
       data.variantName = rest.variantName === "" ? null : rest.variantName;

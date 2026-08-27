@@ -767,9 +767,29 @@ export class AdminLogisticsService {
 
     await this.prisma.$transaction(async (tx) => {
       if (passed) {
-        await tx.productVariant.update({
-          where: { id: variant.id },
-          data: { stockQuantity: { increment: dto.quantity } },
+        const before = await tx.product.findUniqueOrThrow({
+          where: { id: variant.productId },
+          select: { stock: true, reservedStock: true },
+        });
+        await tx.product.update({
+          where: { id: variant.productId },
+          data: { stock: { increment: dto.quantity } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId: variant.productId,
+            variantId: variant.id,
+            type: "restock",
+            quantityChange: dto.quantity,
+            stockBefore: before.stock,
+            stockAfter: before.stock + dto.quantity,
+            reservedBefore: before.reservedStock,
+            reservedAfter: before.reservedStock,
+            reason: "rto_qc_pass",
+            referenceType: "shipment",
+            referenceId: shipment.id,
+            actorType: "admin",
+          },
         });
       }
       await tx.shipment.update({
@@ -923,7 +943,7 @@ export class AdminLogisticsService {
     if (Number.isFinite(asNum) && String(asNum) === String(variantId)) {
       const v = await this.prisma.productVariant.findUnique({
         where: { id: asNum },
-        select: { id: true, sku: true },
+        select: { id: true, sku: true, productId: true },
       });
       if (!v) throw new NotFoundException(`Variant #${variantId} not found`);
       return v;
@@ -932,7 +952,7 @@ export class AdminLogisticsService {
     const sku = String(variantId);
     const bySku = await this.prisma.productVariant.findFirst({
       where: { sku },
-      select: { id: true, sku: true },
+      select: { id: true, sku: true, productId: true },
     });
     if (!bySku) {
       throw new NotFoundException(`Variant "${variantId}" not found`);

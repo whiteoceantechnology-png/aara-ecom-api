@@ -17,10 +17,12 @@ import {
   AdminReserveStockDto,
   AdminUpdateStockDto,
 } from "./dto/admin.dto";
+import {
+  recordStockMovement,
+  type StockMovementType,
+} from "../product/products/inventory-ledger";
 
 type AdminActor = { name?: string | null };
-
-type StockMovementType = "set" | "adjust" | "reserve" | "release" | "bulk_set";
 
 function parseStatusFilter(status?: string): boolean | undefined {
   if (status == null || status === "") return undefined;
@@ -37,13 +39,11 @@ function mapInventoryRow(v: {
   productId: number;
   variantName: string | null;
   sku: string;
-  stockQuantity: number;
-  reservedQuantity: number;
   status: boolean;
   product: {
     name: string;
-    stock?: number;
-    reservedStock?: number;
+    stock: number;
+    reservedStock: number;
     stockUnit?: string | null;
   };
 }) {
@@ -56,13 +56,10 @@ function mapInventoryRow(v: {
     productName: v.product.name,
     variantName: v.variantName,
     sku: v.sku,
-    // Variants are pack SKUs only — inventory is product-level.
-    stockQuantity: 0,
-    reservedQuantity: 0,
-    availableQuantity: availableProductStock,
     productStock,
     productReservedStock: productReserved,
     availableProductStock,
+    availableQuantity: availableProductStock,
     stockUnit: v.product.stockUnit ?? null,
     status: v.status,
   };
@@ -108,8 +105,6 @@ export class AdminInventoryService {
           productId: true,
           variantName: true,
           sku: true,
-          stockQuantity: true,
-          reservedQuantity: true,
           status: true,
           product: {
             select: {
@@ -149,6 +144,55 @@ export class AdminInventoryService {
     return this.setStockAbsolute(variantId, dto.stockQuantity, actor, "set");
   }
 
+  async updateProductStock(
+    productId: number,
+    stock: number,
+    actor?: AdminActor,
+  ) {
+    if (!Number.isFinite(stock) || stock < 0) {
+      throw new BadRequestException("stock must be >= 0");
+    }
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, stock: true, reservedStock: true, name: true },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+    if (stock < product.reservedStock) {
+      throw new BadRequestException(
+        `product stock (${stock}) cannot be below reservedStock (${product.reservedStock})`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock },
+      });
+      await recordStockMovement(tx, {
+        productId,
+        type: "set",
+        quantityChange: stock - product.stock,
+        stockBefore: product.stock,
+        stockAfter: stock,
+        reservedBefore: product.reservedStock,
+        reservedAfter: product.reservedStock,
+        reason: "manual_set_product_pool",
+        actorName: actor?.name,
+      });
+    });
+
+    const availableProductStock = Math.max(0, stock - product.reservedStock);
+    return {
+      productId,
+      productName: product.name,
+      stock,
+      reservedStock: product.reservedStock,
+      availableProductStock,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   async adjustStock(
     variantId: number,
     dto: AdminAdjustStockDto,
@@ -161,41 +205,47 @@ export class AdminInventoryService {
     }
 
     const variant = await this.requireVariant(variantId);
-    const nextStock = variant.stockQuantity + dto.quantityChange;
+    const before = variant.product.stock;
+    const reserved = variant.product.reservedStock;
+    const nextStock = before + dto.quantityChange;
     if (nextStock < 0) {
       throw new BadRequestException(
-        `Adjustment would make stockQuantity negative (current ${variant.stockQuantity})`,
+        `Adjustment would make product stock negative (current ${before})`,
       );
     }
-    if (nextStock < variant.reservedQuantity) {
+    if (nextStock < reserved) {
       throw new BadRequestException(
-        `Adjustment would leave stockQuantity (${nextStock}) below reservedQuantity (${variant.reservedQuantity})`,
+        `Adjustment would leave stock (${nextStock}) below reservedStock (${reserved})`,
       );
     }
 
-    const { updated, movement } = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.productVariant.update({
-        where: { id: variantId },
-        data: { stockQuantity: { increment: dto.quantityChange } },
+    const { movement } = await this.prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: variant.productId },
+        data: { stock: { increment: dto.quantityChange } },
       });
-      const movement = await this.recordMovement(tx, {
+      const movement = await recordStockMovement(tx, {
+        productId: variant.productId,
         variantId,
         type: "adjust",
         quantityChange: dto.quantityChange,
-        stockBefore: variant.stockQuantity,
-        stockAfter: row.stockQuantity,
-        reservedBefore: variant.reservedQuantity,
-        reservedAfter: row.reservedQuantity,
+        stockBefore: before,
+        stockAfter: nextStock,
+        reservedBefore: reserved,
+        reservedAfter: reserved,
         reason: dto.reason,
         notes: dto.notes,
         actorName: actor?.name,
       });
-      return { updated: row, movement };
+      return { movement };
     });
 
     return {
-      id: updated.id,
-      stockQuantity: updated.stockQuantity,
+      productId: variant.productId,
+      variantId,
+      stock: nextStock,
+      reservedStock: reserved,
+      availableProductStock: Math.max(0, nextStock - reserved),
       adjustmentId: movement.id,
       updatedAt: new Date().toISOString(),
     };
@@ -210,43 +260,42 @@ export class AdminInventoryService {
       throw new BadRequestException("quantity must be a positive integer");
     }
 
-    await this.requireVariant(variantId);
-
-    const T = quoteSqlIdentifier("ProductVariant");
-    const sq = quoteSqlIdentifier("stockQuantity");
-    const rq = quoteSqlIdentifier("reservedQuantity");
+    const variant = await this.requireVariant(variantId);
+    const T = quoteSqlIdentifier("Product");
+    const stockCol = quoteSqlIdentifier("stock");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const before = await tx.productVariant.findUnique({
-        where: { id: variantId },
+      const before = await tx.product.findUniqueOrThrow({
+        where: { id: variant.productId },
+        select: { stock: true, reservedStock: true },
       });
-      if (!before) {
-        throw new NotFoundException(`Variant #${variantId} not found`);
-      }
 
       const rowsAffected = await tx.$executeRawUnsafe(
-        `UPDATE ${T} SET ${rq} = ${rq} + ? WHERE id = ? AND (${sq} - ${rq}) >= ?`,
+        `UPDATE ${T} SET ${reservedCol} = ${reservedCol} + ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
         dto.quantity,
-        variantId,
+        variant.productId,
         dto.quantity,
       );
       if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
-          `Insufficient available stock to reserve for variant #${variantId}`,
+          `Insufficient available stock to reserve for product #${variant.productId}`,
         );
       }
 
-      const after = await tx.productVariant.findUniqueOrThrow({
-        where: { id: variantId },
+      const after = await tx.product.findUniqueOrThrow({
+        where: { id: variant.productId },
+        select: { stock: true, reservedStock: true },
       });
-      await this.recordMovement(tx, {
+      await recordStockMovement(tx, {
+        productId: variant.productId,
         variantId,
         type: "reserve",
         quantityChange: dto.quantity,
-        stockBefore: before.stockQuantity,
-        stockAfter: after.stockQuantity,
-        reservedBefore: before.reservedQuantity,
-        reservedAfter: after.reservedQuantity,
+        stockBefore: before.stock,
+        stockAfter: after.stock,
+        reservedBefore: before.reservedStock,
+        reservedAfter: after.reservedStock,
         reason: "reserve",
         referenceType: dto.referenceType,
         referenceId: dto.referenceId,
@@ -256,9 +305,10 @@ export class AdminInventoryService {
     });
 
     return {
-      id: updated.id,
-      reservedQuantity: updated.reservedQuantity,
-      availableQuantity: updated.stockQuantity - updated.reservedQuantity,
+      productId: variant.productId,
+      variantId,
+      reservedStock: updated.reservedStock,
+      availableProductStock: Math.max(0, updated.stock - updated.reservedStock),
     };
   }
 
@@ -271,42 +321,41 @@ export class AdminInventoryService {
       throw new BadRequestException("quantity must be a positive integer");
     }
 
-    await this.requireVariant(variantId);
-
-    const T = quoteSqlIdentifier("ProductVariant");
-    const rq = quoteSqlIdentifier("reservedQuantity");
+    const variant = await this.requireVariant(variantId);
+    const T = quoteSqlIdentifier("Product");
+    const reservedCol = quoteSqlIdentifier("reservedStock");
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const before = await tx.productVariant.findUnique({
-        where: { id: variantId },
+      const before = await tx.product.findUniqueOrThrow({
+        where: { id: variant.productId },
+        select: { stock: true, reservedStock: true },
       });
-      if (!before) {
-        throw new NotFoundException(`Variant #${variantId} not found`);
-      }
 
       const rowsAffected = await tx.$executeRawUnsafe(
-        `UPDATE ${T} SET ${rq} = ${rq} - ? WHERE id = ? AND ${rq} >= ?`,
+        `UPDATE ${T} SET ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ?`,
         dto.quantity,
-        variantId,
+        variant.productId,
         dto.quantity,
       );
       if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
-          `Insufficient reserved stock to release for variant #${variantId}`,
+          `Insufficient reserved stock to release for product #${variant.productId}`,
         );
       }
 
-      const after = await tx.productVariant.findUniqueOrThrow({
-        where: { id: variantId },
+      const after = await tx.product.findUniqueOrThrow({
+        where: { id: variant.productId },
+        select: { stock: true, reservedStock: true },
       });
-      await this.recordMovement(tx, {
+      await recordStockMovement(tx, {
+        productId: variant.productId,
         variantId,
         type: "release",
         quantityChange: -dto.quantity,
-        stockBefore: before.stockQuantity,
-        stockAfter: after.stockQuantity,
-        reservedBefore: before.reservedQuantity,
-        reservedAfter: after.reservedQuantity,
+        stockBefore: before.stock,
+        stockAfter: after.stock,
+        reservedBefore: before.reservedStock,
+        reservedAfter: after.reservedStock,
         reason: "release",
         referenceType: dto.referenceType,
         referenceId: dto.referenceId,
@@ -316,9 +365,10 @@ export class AdminInventoryService {
     });
 
     return {
-      id: updated.id,
-      reservedQuantity: updated.reservedQuantity,
-      availableQuantity: updated.stockQuantity - updated.reservedQuantity,
+      productId: variant.productId,
+      variantId,
+      reservedStock: updated.reservedStock,
+      availableProductStock: Math.max(0, updated.stock - updated.reservedStock),
     };
   }
 
@@ -340,33 +390,47 @@ export class AdminInventoryService {
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 25));
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductVariantWhereInput = {
+    const where: Prisma.ProductWhereInput = {
       status: true,
-      stockQuantity: { lte: threshold },
+      stock: { lte: threshold },
     };
 
     const [rows, total] = await this.prisma.$transaction([
-      this.prisma.productVariant.findMany({
+      this.prisma.product.findMany({
         where,
         select: {
           id: true,
-          productId: true,
-          variantName: true,
-          sku: true,
-          stockQuantity: true,
-          reservedQuantity: true,
+          name: true,
+          stock: true,
+          reservedStock: true,
+          stockUnit: true,
           status: true,
-          product: { select: { name: true } },
+          variants: {
+            where: { status: true },
+            select: { id: true, sku: true, variantName: true },
+            take: 5,
+            orderBy: { id: "asc" },
+          },
         },
-        orderBy: { stockQuantity: "asc" },
+        orderBy: { stock: "asc" },
         skip,
         take: limit,
       }),
-      this.prisma.productVariant.count({ where }),
+      this.prisma.product.count({ where }),
     ]);
 
     return {
-      inventory: rows.map(mapInventoryRow),
+      inventory: rows.map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        productStock: p.stock,
+        productReservedStock: p.reservedStock,
+        availableProductStock: Math.max(0, p.stock - p.reservedStock),
+        availableQuantity: Math.max(0, p.stock - p.reservedStock),
+        stockUnit: p.stockUnit,
+        status: p.status,
+        variants: p.variants,
+      })),
       total,
       page,
       limit,
@@ -376,13 +440,26 @@ export class AdminInventoryService {
   }
 
   async history(variantId: number, params: { page?: number; limit?: number }) {
-    await this.requireVariant(variantId);
+    const variant = await this.requireVariant(variantId);
+    return this.productHistory(variant.productId, params);
+  }
+
+  async productHistory(
+    productId: number,
+    params: { page?: number; limit?: number },
+  ) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
 
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const where = { variantId };
+    const where = { productId };
     const [movements, total] = await this.prisma.$transaction([
       this.prisma.stockMovement.findMany({
         where,
@@ -394,7 +471,44 @@ export class AdminInventoryService {
     ]);
 
     return {
+      productId,
       movements,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  async listSales(params: {
+    productId?: number;
+    orderId?: number;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 25));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.SaleTransactionWhereInput = {
+      ...(params.productId != null &&
+        Number.isFinite(params.productId) && { productId: params.productId }),
+      ...(params.orderId != null &&
+        Number.isFinite(params.orderId) && { orderId: params.orderId }),
+    };
+
+    const [sales, total] = await this.prisma.$transaction([
+      this.prisma.saleTransaction.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      this.prisma.saleTransaction.count({ where }),
+    ]);
+
+    return {
+      sales,
       total,
       page,
       limit,
@@ -410,7 +524,7 @@ export class AdminInventoryService {
     const results: Array<{
       variantId: number;
       success: boolean;
-      stockQuantity?: number;
+      productStock?: number;
       error?: string;
     }> = [];
     let updated = 0;
@@ -427,7 +541,7 @@ export class AdminInventoryService {
         results.push({
           variantId: item.variantId,
           success: true,
-          stockQuantity: r.stockQuantity,
+          productStock: r.productStock,
         });
         updated += 1;
       } catch (err) {
@@ -447,7 +561,7 @@ export class AdminInventoryService {
     variantId: number,
     stockQuantity: number,
     actor: AdminActor | undefined,
-    type: "set" | "bulk_set",
+    type: Extract<StockMovementType, "set" | "bulk_set">,
   ) {
     if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
       throw new BadRequestException("stockQuantity must be >= 0");
@@ -461,18 +575,14 @@ export class AdminInventoryService {
       );
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const before = variant.product.stock ?? 0;
       await tx.product.update({
         where: { id: variant.productId },
         data: { stock: stockQuantity },
       });
-      // Variants are pack SKUs only — clear per-variant counters.
-      await tx.productVariant.updateMany({
-        where: { productId: variant.productId },
-        data: { stockQuantity: 0, reservedQuantity: 0 },
-      });
-      await this.recordMovement(tx, {
+      await recordStockMovement(tx, {
+        productId: variant.productId,
         variantId,
         type,
         quantityChange: stockQuantity - before,
@@ -486,13 +596,14 @@ export class AdminInventoryService {
             : "manual_set_product_pool",
         actorName: actor?.name,
       });
-      return { id: variantId, stockQuantity: 0 };
     });
 
     return {
-      id: updated.id,
-      stockQuantity: 0,
+      id: variantId,
+      productId: variant.productId,
       productStock: stockQuantity,
+      reservedStock: productReserved,
+      availableProductStock: Math.max(0, stockQuantity - productReserved),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -505,8 +616,6 @@ export class AdminInventoryService {
         productId: true,
         variantName: true,
         sku: true,
-        stockQuantity: true,
-        reservedQuantity: true,
         status: true,
         product: {
           select: {
@@ -520,41 +629,5 @@ export class AdminInventoryService {
     });
     if (!v) throw new NotFoundException(`Variant #${variantId} not found`);
     return v;
-  }
-
-  private recordMovement(
-    tx: Prisma.TransactionClient,
-    data: {
-      variantId: number;
-      type: StockMovementType;
-      quantityChange: number;
-      stockBefore: number;
-      stockAfter: number;
-      reservedBefore: number;
-      reservedAfter: number;
-      reason?: string;
-      notes?: string;
-      referenceType?: string;
-      referenceId?: number;
-      actorName?: string | null;
-    },
-  ) {
-    return tx.stockMovement.create({
-      data: {
-        variantId: data.variantId,
-        type: data.type,
-        quantityChange: data.quantityChange,
-        stockBefore: data.stockBefore,
-        stockAfter: data.stockAfter,
-        reservedBefore: data.reservedBefore,
-        reservedAfter: data.reservedAfter,
-        reason: data.reason,
-        notes: data.notes,
-        referenceType: data.referenceType,
-        referenceId: data.referenceId,
-        actorType: "admin",
-        actorName: data.actorName ?? null,
-      },
-    });
   }
 }

@@ -117,7 +117,7 @@ export class AdminMasterdataController {
     description:
       "Sheets: **Variants** (data), **PackSizes** (lookup), **Instructions**. " +
       "Columns: id (optional), productId, packSizeId, sku, price, discountedPrice, " +
-      "variantName, stockQuantity, status, imagePath (`path1|path2`). " +
+      "variantName, status, imagePath (`path1|path2`). " +
       "Leave **id** blank to create, or omit id and reuse an existing **sku** to upsert.",
   })
   @ApiProduces(XLSX_MIME)

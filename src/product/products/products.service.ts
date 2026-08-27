@@ -54,7 +54,6 @@ export class ProductsService {
             id: true,
             sku: true,
             price: true,
-            stockQuantity: true,
             status: true,
             packSize: { select: { label: true } },
             images: {
@@ -491,14 +490,6 @@ export class ProductsService {
         }
       }
 
-      if (stock !== undefined) {
-        // Product.stock is the shared pool. Variants do not hold inventory.
-        await tx.productVariant.updateMany({
-          where: { productId: id },
-          data: { stockQuantity: 0, reservedQuantity: 0 },
-        });
-      }
-
       return tx.product.findUniqueOrThrow({
         where: { id: updated.id },
         include: {
@@ -522,19 +513,27 @@ export class ProductsService {
     if (!variant)
       throw new NotFoundException(`Variant #${variantId} not found`);
 
-    // Variant stock endpoints adjust the product-level pool (pack-count mode).
+    const reserved = variant.product.reservedStock ?? 0;
+    if (dto.stockQuantity < reserved) {
+      throw new BadRequestException(
+        `product stock (${dto.stockQuantity}) cannot be below reservedStock (${reserved})`,
+      );
+    }
+
     const updatedProduct = await this.prisma.product.update({
       where: { id: variant.productId },
       data: { stock: dto.stockQuantity },
     });
-    await this.prisma.productVariant.updateMany({
-      where: { productId: variant.productId },
-      data: { stockQuantity: 0, reservedQuantity: 0 },
-    });
 
     return {
-      ...variant,
-      stockQuantity: 0,
+      id: variant.id,
+      productId: variant.productId,
+      productStock: updatedProduct.stock,
+      reservedStock: updatedProduct.reservedStock,
+      availableProductStock: Math.max(
+        0,
+        updatedProduct.stock - updatedProduct.reservedStock,
+      ),
       product: {
         id: updatedProduct.id,
         name: updatedProduct.name,
@@ -542,6 +541,30 @@ export class ProductsService {
         reservedStock: updatedProduct.reservedStock,
         stockUnit: updatedProduct.stockUnit,
       },
+    };
+  }
+
+  async updateProductStock(productId: number, stock: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+    if (stock < product.reservedStock) {
+      throw new BadRequestException(
+        `product stock (${stock}) cannot be below reservedStock (${product.reservedStock})`,
+      );
+    }
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { stock },
+    });
+    return {
+      productId: updated.id,
+      stock: updated.stock,
+      reservedStock: updated.reservedStock,
+      availableProductStock: Math.max(0, updated.stock - updated.reservedStock),
+      stockUnit: updated.stockUnit,
     };
   }
 
@@ -750,11 +773,7 @@ export class ProductsService {
       stockUnit?: string | null;
       productImage?: string | string[] | null;
       images?: { imageUrl: string; isPrimary?: boolean }[];
-      variants?: Array<{
-        stockQuantity?: number;
-        reservedQuantity?: number;
-        [key: string]: unknown;
-      }>;
+      variants?: Array<Record<string, unknown>>;
     },
   >(product: T) {
     const fromGallery = (product.images ?? [])
@@ -778,9 +797,6 @@ export class ProductsService {
     const variants = Array.isArray(product.variants)
       ? product.variants.map((v) => ({
           ...v,
-          // Variants are pack SKUs only — inventory lives on the product.
-          stockQuantity: 0,
-          reservedQuantity: 0,
           availableProductStock,
         }))
       : product.variants;

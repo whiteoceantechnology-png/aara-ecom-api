@@ -391,7 +391,6 @@ export class AdminMasterdataService {
       Number(v.price),
       v.discountPrice !== null ? Number(v.discountPrice) : "",
       v.variantName ?? "",
-      v.stockQuantity,
       v.status,
       v.images.map((img) => img.imageUrl).join("|"),
     ]);

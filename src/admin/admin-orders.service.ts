@@ -71,12 +71,12 @@ export class AdminOrdersService {
       online: {
         onCreate: "reserve",
         description:
-          "ONLINE checkout increments reservedQuantity until payment succeeds (then stock commits) or the unpaid order is cancelled (reservation released).",
+          "ONLINE checkout increments Product.reservedStock until payment succeeds (then Product.stock commits) or the unpaid order is cancelled (reservation released).",
       },
       cod: {
         onCreate: "deduct",
         description:
-          "COD deducts stockQuantity immediately at place-order. Admin cancel before ship restocks. COD cash is recorded via POST /admin/orders/:id/payments.",
+          "COD deducts Product.stock immediately at place-order and writes SaleTransaction rows. Admin cancel before ship restocks. COD cash is recorded via POST /admin/orders/:id/payments.",
       },
       cancelStockRelease: {
         beforeShip: true,

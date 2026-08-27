@@ -176,15 +176,22 @@ export class AdminProductsService {
   async updateStock(variantId: number, dto: AdminUpdateStockDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: variantId },
+      include: { product: true },
     });
     if (!variant)
       throw new NotFoundException(`Variant #${variantId} not found`);
 
-    return this.prisma.productVariant.update({
-      where: { id: variantId },
-      data: { stockQuantity: dto.stockQuantity },
-      include: { packSize: true, product: { select: { name: true } } },
+    const updated = await this.prisma.product.update({
+      where: { id: variant.productId },
+      data: { stock: dto.stockQuantity },
     });
+    return {
+      productId: updated.id,
+      productStock: updated.stock,
+      reservedStock: updated.reservedStock,
+      availableProductStock: Math.max(0, updated.stock - updated.reservedStock),
+      variantId,
+    };
   }
 
   // ─── Images ──────────────────────────────────────────────────────────────────

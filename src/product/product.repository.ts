@@ -123,7 +123,6 @@ export class ProductRepository {
             id: true,
             sku: true,
             price: true,
-            stockQuantity: true,
             status: true,
             packSize: { select: { label: true } },
           },
@@ -194,23 +193,24 @@ export class ProductRepository {
   async getVariantsByProductId(productId: number) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, stock: true, reservedStock: true },
     });
     if (!product) throw new NotFoundException("Product not found");
 
     const variants = await this.prisma.productVariant.findMany({
       where: { productId, status: true },
       include: {
-        product: { select: { name: true } },
         images: { select: { imageUrl: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: { id: "asc" },
     });
 
+    const availableStock = Math.max(0, product.stock - product.reservedStock);
+
     return variants.map((v) => ({
       id: v.id,
       productId: v.productId,
-      productName: v.product.name,
+      productName: product.name,
       variantName: v.variantName,
       variantImage: toImageUrls(v.images.map((img) => img.imageUrl)),
       variantColor: v.variantColor,
@@ -218,7 +218,7 @@ export class ProductRepository {
       actualPrice: v.actualPrice ? Number(v.actualPrice) : Number(v.price),
       discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
       altTags: v.altTags,
-      availableStock: v.stockQuantity,
+      availableStock,
       favourites: v.favourites,
     }));
   }
@@ -285,7 +285,6 @@ export class ProductRepository {
         actualPrice: product.actualPrice,
         discountPrice: product.discountPrice,
         sku: dto.sku,
-        stockQuantity: dto.stockQuantity ?? 0,
         status: dto.status ?? true,
       },
       include: {
@@ -406,12 +405,19 @@ export class ProductRepository {
   async addToCart(customerId: number, dto: AddToCartDto) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
+      include: {
+        product: { select: { stock: true, reservedStock: true } },
+      },
     });
     if (!variant) throw new NotFoundException("Variant not found");
 
-    if (variant.stockQuantity < dto.quantity) {
+    const available = Math.max(
+      0,
+      variant.product.stock - variant.product.reservedStock,
+    );
+    if (available < dto.quantity) {
       throw new BadRequestException(
-        `Insufficient stock for variant #${dto.variantId}. Available: ${variant.stockQuantity}`,
+        `Insufficient stock for variant #${dto.variantId}. Available: ${available}`,
       );
     }
 
@@ -478,15 +484,22 @@ export class ProductRepository {
       throw new NotFoundException("Cart not found");
     if (cart.items.length === 0) throw new BadRequestException("Cart is empty");
 
-    // Validate stock availability
-    const outOfStock = cart.items.filter(
-      (item) => item.variant.stockQuantity < item.quantity,
-    );
-    if (outOfStock.length > 0) {
-      const details = outOfStock.map(
-        (item) =>
-          `${item.variant.product.name} (requested: ${item.quantity}, available: ${item.variant.stockQuantity})`,
+    // Validate stock availability (product pool)
+    const outOfStock = cart.items.filter((item) => {
+      const available = Math.max(
+        0,
+        item.variant.product.stock - item.variant.product.reservedStock,
       );
+      return available < item.quantity;
+    });
+    if (outOfStock.length > 0) {
+      const details = outOfStock.map((item) => {
+        const available = Math.max(
+          0,
+          item.variant.product.stock - item.variant.product.reservedStock,
+        );
+        return `${item.variant.product.name} (requested: ${item.quantity}, available: ${available})`;
+      });
       throw new BadRequestException(
         `Insufficient stock for: ${details.join("; ")}`,
       );
@@ -517,12 +530,12 @@ export class ProductRepository {
       include: { items: true },
     });
 
-    // Deduct stock
+    // Deduct product-pool stock
     await Promise.all(
       cart.items.map((item) =>
-        this.prisma.productVariant.update({
-          where: { id: item.variantId },
-          data: { stockQuantity: { decrement: item.quantity } },
+        this.prisma.product.update({
+          where: { id: item.variant.productId },
+          data: { stock: { decrement: item.quantity } },
         }),
       ),
     );

@@ -23,6 +23,11 @@ import {
   stringContainsFilter,
 } from "../../common/database-provider.util";
 import { unitsToConsume } from "../products/product-stock-pool.util";
+import {
+  recordSaleTransactions,
+  recordStockMovement,
+  type SaleLineInput,
+} from "../products/inventory-ledger";
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
@@ -155,7 +160,11 @@ export class OrdersService {
     const orderNumber = this.generateOrderNumber();
 
     return this.prisma.$transaction(async (tx) => {
-      await this.applyInventoryForPaymentMode(tx, cart.items, paymentMethod);
+      const stockDelta = await this.applyInventoryForPaymentMode(
+        tx,
+        cart.items,
+        paymentMethod,
+      );
 
       const created = await tx.order.create({
         data: {
@@ -186,8 +195,32 @@ export class OrdersService {
             })),
           },
         },
-        include: orderDetailInclude,
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: {
+                  packSize: true,
+                  product: {
+                    select: { id: true, stockUnit: true },
+                  },
+                },
+              },
+            },
+          },
+          payments: true,
+          shipments: true,
+        },
       });
+
+      if (paymentMethod === "COD" && stockDelta.size > 0) {
+        await this.writeSaleLedger(tx, {
+          orderId: created.id,
+          paymentMethod: "COD",
+          items: created.items,
+          stockByProduct: stockDelta,
+        });
+      }
 
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
@@ -248,10 +281,24 @@ export class OrdersService {
             variantName: item.variant.variantName,
           })),
         );
+        const stockByProduct = new Map<
+          number,
+          {
+            units: number;
+            stockBefore: number;
+            stockAfter: number;
+            reservedBefore: number;
+            reservedAfter: number;
+          }
+        >();
         const T = quoteSqlIdentifier("Product");
         const stockCol = quoteSqlIdentifier("stock");
         const reservedCol = quoteSqlIdentifier("reservedStock");
         for (const [productId, units] of byProduct) {
+          const before = await tx.product.findUniqueOrThrow({
+            where: { id: productId },
+            select: { stock: true, reservedStock: true },
+          });
           const rowsAffected = await tx.$executeRawUnsafe(
             `UPDATE ${T} SET ${stockCol} = ${stockCol} - ?, ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ? AND ${stockCol} >= ?`,
             units,
@@ -265,7 +312,26 @@ export class OrdersService {
               `Inventory commit failed for product #${productId}`,
             );
           }
+          const after = await tx.product.findUniqueOrThrow({
+            where: { id: productId },
+            select: { stock: true, reservedStock: true },
+          });
+          stockByProduct.set(productId, {
+            units,
+            stockBefore: before.stock,
+            stockAfter: after.stock,
+            reservedBefore: before.reservedStock,
+            reservedAfter: after.reservedStock,
+          });
         }
+
+        await this.writeSaleLedger(tx, {
+          orderId: order.id,
+          paymentMethod: "ONLINE",
+          items: order.items,
+          stockByProduct,
+        });
+
         return tx.order.update({
           where: { id: orderId },
           data: { status: OrderStatus.PROCESSING, paymentStatus: "paid" },
@@ -607,12 +673,23 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     items: CartForPlaceOrder["items"],
     paymentMethod: "ONLINE" | "COD",
-  ) {
+  ): Promise<
+    Map<
+      number,
+      {
+        units: number;
+        stockBefore: number;
+        stockAfter: number;
+        reservedBefore: number;
+        reservedAfter: number;
+      }
+    >
+  > {
     if (paymentMethod === "COD") {
-      await this.deductStockImmediate(tx, items);
-    } else {
-      await this.reserveStockForOnlineCheckout(tx, items);
+      return this.deductStockImmediate(tx, items);
     }
+    await this.reserveStockForOnlineCheckout(tx, items);
+    return new Map();
   }
 
   /** COD: permanently reduce product-level pool. */
@@ -629,10 +706,24 @@ export class OrdersService {
         variantName: item.variant.variantName,
       })),
     );
+    const stockByProduct = new Map<
+      number,
+      {
+        units: number;
+        stockBefore: number;
+        stockAfter: number;
+        reservedBefore: number;
+        reservedAfter: number;
+      }
+    >();
     const T = quoteSqlIdentifier("Product");
     const stockCol = quoteSqlIdentifier("stock");
     const reservedCol = quoteSqlIdentifier("reservedStock");
     for (const [productId, units] of byProduct) {
+      const before = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { stock: true, reservedStock: true },
+      });
       const rowsAffected = await tx.$executeRawUnsafe(
         `UPDATE ${T} SET ${stockCol} = ${stockCol} - ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
         units,
@@ -644,7 +735,19 @@ export class OrdersService {
           `Insufficient stock for product #${productId}`,
         );
       }
+      const after = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { stock: true, reservedStock: true },
+      });
+      stockByProduct.set(productId, {
+        units,
+        stockBefore: before.stock,
+        stockAfter: after.stock,
+        reservedBefore: before.reservedStock,
+        reservedAfter: after.reservedStock,
+      });
     }
+    return stockByProduct;
   }
 
   /** ONLINE: hold units on product pool until payment clears or cancel. */
@@ -665,6 +768,10 @@ export class OrdersService {
     const stockCol = quoteSqlIdentifier("stock");
     const reservedCol = quoteSqlIdentifier("reservedStock");
     for (const [productId, units] of byProduct) {
+      const before = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { stock: true, reservedStock: true },
+      });
       const rowsAffected = await tx.$executeRawUnsafe(
         `UPDATE ${T} SET ${reservedCol} = ${reservedCol} + ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
         units,
@@ -676,6 +783,109 @@ export class OrdersService {
           `Insufficient stock to reserve for product #${productId}`,
         );
       }
+      const after = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { stock: true, reservedStock: true },
+      });
+      await recordStockMovement(tx, {
+        productId,
+        type: "reserve",
+        quantityChange: units,
+        stockBefore: before.stock,
+        stockAfter: after.stock,
+        reservedBefore: before.reservedStock,
+        reservedAfter: after.reservedStock,
+        reason: "online_checkout_reserve",
+        referenceType: "checkout",
+        actorType: "system",
+      });
+    }
+  }
+
+  /** Persist sell ledger + stock movements when product pool stock is deducted. */
+  private async writeSaleLedger(
+    tx: Prisma.TransactionClient,
+    opts: {
+      orderId: number;
+      paymentMethod: "COD" | "ONLINE";
+      items: Array<{
+        id: number;
+        quantity: number;
+        price: Prisma.Decimal | number;
+        subtotal: Prisma.Decimal | number;
+        productName: string;
+        sizeLabel: string;
+        variantId: number;
+        variant: {
+          sku?: string;
+          variantName: string | null;
+          packSize: {
+            size: { toString(): string } | number;
+            unit: string;
+            label: string;
+          } | null;
+          product: { id: number; stockUnit: string | null };
+        };
+      }>;
+      stockByProduct: Map<
+        number,
+        {
+          units: number;
+          stockBefore: number;
+          stockAfter: number;
+          reservedBefore: number;
+          reservedAfter: number;
+        }
+      >;
+    },
+  ) {
+    const saleLines: SaleLineInput[] = [];
+    for (const item of opts.items) {
+      const productId = item.variant.product.id;
+      const stock = opts.stockByProduct.get(productId);
+      if (!stock) continue;
+      const unitsConsumed = unitsToConsume({
+        quantity: item.quantity,
+        stockUnit: item.variant.product.stockUnit,
+        packSize: item.variant.packSize,
+        variantName: item.variant.variantName,
+      });
+      saleLines.push({
+        orderId: opts.orderId,
+        orderItemId: item.id,
+        productId,
+        variantId: item.variantId,
+        productName: item.productName,
+        sizeLabel: item.sizeLabel,
+        sku: item.variant.sku ?? null,
+        quantity: item.quantity,
+        unitsConsumed,
+        unitPrice: item.price,
+        subtotal: item.subtotal,
+        paymentMethod: opts.paymentMethod,
+        stockBefore: stock.stockBefore,
+        stockAfter: stock.stockAfter,
+      });
+    }
+    await recordSaleTransactions(tx, saleLines);
+
+    for (const [productId, stock] of opts.stockByProduct) {
+      await recordStockMovement(tx, {
+        productId,
+        type: "sale",
+        quantityChange: -stock.units,
+        stockBefore: stock.stockBefore,
+        stockAfter: stock.stockAfter,
+        reservedBefore: stock.reservedBefore,
+        reservedAfter: stock.reservedAfter,
+        reason:
+          opts.paymentMethod === "COD"
+            ? "cod_sale"
+            : "online_payment_sale_commit",
+        referenceType: "order",
+        referenceId: opts.orderId,
+        actorType: "system",
+      });
     }
   }
 
@@ -764,18 +974,11 @@ export class OrdersService {
   }
 
   /** Flatten HSN onto each line (snapshot, else live product fallback). */
-  private mapOrderDetail<
-    T extends {
-      items: Array<{
-        hsnCode?: string | null;
-        variant?: { product?: { hsnCode?: string | null } | null } | null;
-        [key: string]: unknown;
-      }>;
-    },
-  >(order: T) {
+
+  private mapOrderDetail(order: any) {
     return {
       ...order,
-      items: order.items.map((item) => {
+      items: (order.items ?? []).map((item: any) => {
         const { variant, ...rest } = item;
         return {
           ...rest,

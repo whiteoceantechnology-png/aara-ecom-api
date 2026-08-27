@@ -69,33 +69,46 @@ export class AdminVariantsController {
       threshold = settings?.lowStockThreshold ?? 10;
     }
 
-    const items = await this.prisma.productVariant.findMany({
-      where: { status: true, stockQuantity: { lte: threshold } },
-      orderBy: { stockQuantity: "asc" },
+    const items = await this.prisma.product.findMany({
+      where: { status: true, stock: { lte: threshold } },
+      orderBy: { stock: "asc" },
       select: {
         id: true,
-        sku: true,
-        stockQuantity: true,
-        reservedQuantity: true,
-        price: true,
-        discountPrice: true,
-        productId: true,
-        product: {
+        name: true,
+        stock: true,
+        reservedStock: true,
+        stockUnit: true,
+        productImage: true,
+        status: true,
+        variants: {
+          where: { status: true },
           select: {
             id: true,
-            name: true,
-            productImage: true,
-            status: true,
+            sku: true,
+            price: true,
+            discountPrice: true,
+            packSize: {
+              select: { id: true, label: true, size: true, unit: true },
+            },
           },
         },
-        packSize: { select: { id: true, label: true, size: true, unit: true } },
       },
     });
 
     return {
       threshold,
       count: items.length,
-      items,
+      items: items.map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        productStock: p.stock,
+        reservedStock: p.reservedStock,
+        availableProductStock: Math.max(0, p.stock - p.reservedStock),
+        stockUnit: p.stockUnit,
+        productImage: p.productImage,
+        status: p.status,
+        variants: p.variants,
+      })),
     };
   }
 
@@ -142,7 +155,7 @@ export class AdminVariantsController {
       "Industry-standard masterdata upsert — same engine as product bulk import.\n\n" +
       "**Upsert:** id → else unique sku → else create (delegates to VariantsService).\n" +
       "Required create columns: productId, packSizeId, sku, price.\n" +
-      "Optional: discountedPrice, variantName, stockQuantity, status, imagePath (`a|b`).",
+      "Optional: discountedPrice, variantName, status, imagePath (`a|b`).",
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({

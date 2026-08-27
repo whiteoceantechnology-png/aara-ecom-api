@@ -52,7 +52,6 @@ export const MASTERDATA_VARIANT_COLUMNS = [
   "price",
   "discountedPrice",
   "variantName",
-  "stockQuantity",
   "status",
   "imagePath",
 ] as const;
@@ -295,9 +294,6 @@ export function rowToVariantImportPayload(
   const variantName = optionalString(
     getFirstDefined(r, ["variant_name", "variantname", "name"]),
   );
-  const stockQuantity = parseOptionalInt(
-    getFirstDefined(r, ["stock_quantity", "stockquantity", "stock"]),
-  );
   const status = parseOptionalBoolean(
     getFirstDefined(r, ["status", "is_active", "active"]),
   );
@@ -315,7 +311,6 @@ export function rowToVariantImportPayload(
     createDto.discountedPrice = discountedPrice;
   }
   if (variantName !== undefined) createDto.variantName = variantName;
-  if (stockQuantity !== undefined) createDto.stockQuantity = stockQuantity;
   if (status !== undefined) createDto.status = status;
   if (imagePath !== undefined) createDto.imagePath = imagePath;
 
@@ -328,7 +323,6 @@ export function rowToVariantImportPayload(
     updateDto.discountedPrice = discountedPrice;
   }
   if (variantName !== undefined) updateDto.variantName = variantName;
-  if (stockQuantity !== undefined) updateDto.stockQuantity = stockQuantity;
   if (status !== undefined) updateDto.status = status;
   if (imagePath !== undefined) updateDto.imagePath = imagePath;
 
