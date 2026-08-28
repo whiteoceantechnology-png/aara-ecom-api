@@ -103,7 +103,6 @@ export class ProductsService {
         hsnCode: dto.hsnCode,
         status: dto.status ?? true,
         ...taxFields,
-        ...(dto.actualPrice != null ? { actualPrice: dto.actualPrice } : {}),
         ...(dto.discountPrice != null
           ? { discountPrice: dto.discountPrice }
           : {}),
@@ -247,7 +246,7 @@ export class ProductsService {
       variantImage: toImageUrls(v.images.map((img) => img.imageUrl)),
       variantColor: v.variantColor,
       isColor: v.isColor,
-      actualPrice: v.actualPrice ? Number(v.actualPrice) : Number(v.price),
+      price: Number(v.price),
       discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
       altTags: v.altTags,
       // Pack SKU only — FE derives pack availability from product pool + pack size.
@@ -256,14 +255,6 @@ export class ProductsService {
       reservedStock: product.reservedStock,
       availableProductStock,
       stockUnit: product.stockUnit,
-      packSize: v.packSize
-        ? {
-            id: v.packSize.id,
-            size: Number(v.packSize.size),
-            unit: v.packSize.unit,
-            label: v.packSize.label,
-          }
-        : null,
       favourites: v.favourites,
     }));
   }
@@ -689,6 +680,8 @@ export class ProductsService {
       images?: { imageUrl: string }[];
       tax?: { id: number; name: string; percent: unknown } | null;
       variants?: unknown;
+      actualPrice?: unknown;
+      discountPrice?: unknown;
     },
   >(product: T) {
     const mapped = this.mapProductWithImageUrls(this.mapProductName(product));
@@ -699,15 +692,38 @@ export class ProductsService {
           percent: Number(mapped.tax.percent),
         }
       : null;
-    const { tax: previousTax, variants, ...rest } = mapped;
+    const {
+      tax: previousTax,
+      variants,
+      actualPrice: _actualPrice,
+      discountPrice: _discountPrice,
+      ...rest
+    } = mapped as typeof mapped & {
+      actualPrice?: unknown;
+      discountPrice?: unknown;
+    };
     void previousTax;
+    void _actualPrice;
+    void _discountPrice;
     const mappedVariants = Array.isArray(variants)
       ? variants.map((v) => {
           const row = v as {
             images?: { imageUrl: string }[];
+            packSize?: unknown;
+            actualPrice?: unknown;
+            discountPrice?: unknown;
             [key: string]: unknown;
           };
-          const { images, ...vrest } = row;
+          const {
+            images,
+            packSize: _packSize,
+            actualPrice: _vActual,
+            discountPrice: _vDiscount,
+            ...vrest
+          } = row;
+          void _packSize;
+          void _vActual;
+          void _vDiscount;
           return {
             ...vrest,
             imagePath: Array.isArray(images)
@@ -794,15 +810,23 @@ export class ProductsService {
     const reservedStock = product.reservedStock ?? 0;
     const availableProductStock = Math.max(0, stock - reservedStock);
 
+    const { actualPrice: _productActual, ...productWithoutActual } =
+      product as T & { actualPrice?: unknown };
+    void _productActual;
+
     const variants = Array.isArray(product.variants)
-      ? product.variants.map((v) => ({
-          ...v,
-          availableProductStock,
-        }))
+      ? product.variants.map((v) => {
+          const { actualPrice: _va, ...vrest } = v;
+          void _va;
+          return {
+            ...vrest,
+            availableProductStock,
+          };
+        })
       : product.variants;
 
     return {
-      ...product,
+      ...productWithoutActual,
       productImage,
       availableProductStock,
       variants,

@@ -223,14 +223,12 @@ describe("ProductsService", () => {
         categoryId: 1,
         name: "P",
         slug: "p",
-        actualPrice: 1699,
         discountPrice: 1455,
         productImage: "/images/products/sample.png",
       } as any);
 
       expect(prisma.product.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          actualPrice: 1699,
           discountPrice: 1455,
           productImage: "/images/products/sample.png",
           taxId: null,
@@ -378,7 +376,6 @@ describe("ProductsService", () => {
           variantColor: null,
           isColor: 0,
           price: "10",
-          actualPrice: null,
           discountPrice: null,
           altTags: [],
           favourites: 0,

@@ -49,12 +49,6 @@ export class CreateProductDto {
   @Type(() => Number)
   taxId?: number;
 
-  @ApiPropertyOptional({ example: 1699, description: "Original price" })
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  actualPrice?: number;
-
   @ApiPropertyOptional({ example: 1455, description: "Discounted price" })
   @IsOptional()
   @IsNumber()
@@ -116,12 +110,6 @@ export class UpdateProductDto {
   @IsInt()
   @Type(() => Number)
   taxId?: number;
-
-  @ApiPropertyOptional({ example: 1699 })
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  actualPrice?: number;
 
   @ApiPropertyOptional({ example: 1455 })
   @IsOptional()

@@ -46,7 +46,6 @@ export class CategoriesService {
         categoryId: true,
         name: true,
         productImage: true,
-        actualPrice: true,
         discountPrice: true,
         category: { select: { name: true } },
       },
@@ -61,7 +60,6 @@ export class CategoriesService {
         categoryName: p.category.name,
         productName: p.name,
         productImage: p.productImage || null,
-        actualPrice: p.actualPrice ? Number(p.actualPrice) : null,
         discountPrice: p.discountPrice ? Number(p.discountPrice) : null,
       })),
     };

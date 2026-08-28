@@ -51,7 +51,6 @@ export class VariantsService {
           productId: fields.productId,
           packSizeId: fields.packSizeId,
           price: fields.price,
-          actualPrice: product.actualPrice,
           discountPrice:
             discountedPrice != null ? discountedPrice : product.discountPrice,
           sku: fields.sku,

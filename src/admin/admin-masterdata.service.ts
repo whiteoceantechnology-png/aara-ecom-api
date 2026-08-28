@@ -72,7 +72,6 @@ function createDtoToAdminUpdate(
   if (dto.hsnCode !== undefined) u.hsnCode = dto.hsnCode;
   if (dto.taxPercent !== undefined) u.taxPercent = dto.taxPercent;
   if (dto.taxId !== undefined) u.taxId = dto.taxId;
-  if (dto.actualPrice !== undefined) u.actualPrice = dto.actualPrice;
   if (dto.discountPrice !== undefined) u.discountPrice = dto.discountPrice;
   if (dto.productImage !== undefined) u.productImage = dto.productImage;
   return u;
@@ -198,7 +197,6 @@ export class AdminMasterdataService {
         hsnCode: true,
         taxPercent: true,
         taxId: true,
-        actualPrice: true,
         discountPrice: true,
         productImage: true,
       },
@@ -213,7 +211,6 @@ export class AdminMasterdataService {
       hsnCode: p.hsnCode ?? "",
       taxPercent: p.taxPercent !== null ? Number(p.taxPercent) : "",
       taxId: p.taxId ?? "",
-      actualPrice: p.actualPrice !== null ? Number(p.actualPrice) : "",
       discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : "",
       productImage: p.productImage ?? "",
     }));

@@ -194,6 +194,25 @@ export class CustomersService {
     return { token, customerId: customer.id, name: customer.name };
   }
 
+  async resetPassword(id: number, newPassword: string) {
+    const password = newPassword?.trim();
+    if (!password || password.length < 6) {
+      throw new BadRequestException("Password must be at least 6 characters");
+    }
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException(`Customer #${id} not found`);
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.prisma.customer.update({
+      where: { id },
+      data: { passwordHash },
+    });
+    return { message: "updated successfully." };
+  }
+
   async findOne(id: number) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },

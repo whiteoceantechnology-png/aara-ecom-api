@@ -73,10 +73,10 @@ describe("WishlistService", () => {
           product: {
             id: 3,
             name: "Phone",
-            actualPrice: "100",
             discountPrice: "90",
             productImage: "/img.png",
             images: [],
+            variants: [{ price: "100" }],
           },
         },
       ]);
@@ -111,10 +111,10 @@ describe("WishlistService", () => {
           product: {
             id: 1,
             name: "X",
-            actualPrice: "10",
             discountPrice: null,
             productImage: "/legacy.png",
             images: [{ imageUrl: "2026/01/a.jpg" }],
+            variants: [{ price: "10" }],
           },
         },
       ]);

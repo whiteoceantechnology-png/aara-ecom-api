@@ -246,7 +246,6 @@ export class AdminDashboardService {
       this.prisma.product.findMany({
         where: {
           status: true,
-          actualPrice: null,
           discountPrice: null,
           variants: { none: { price: { gt: 0 } } },
         },
@@ -254,7 +253,6 @@ export class AdminDashboardService {
         select: {
           id: true,
           name: true,
-          actualPrice: true,
           discountPrice: true,
         },
       }),

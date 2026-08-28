@@ -26,7 +26,6 @@ export function serializeProductVariantForApi(
     variantColor: v.variantColor,
     isColor: v.isColor,
     price: Number(v.price),
-    actualPrice: v.actualPrice != null ? Number(v.actualPrice) : null,
     discountPrice: v.discountPrice != null ? Number(v.discountPrice) : null,
     sku: v.sku,
     altTags: v.altTags,

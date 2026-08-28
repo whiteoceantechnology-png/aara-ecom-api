@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -22,6 +23,7 @@ import { CustomersService } from "./customers.service";
 import {
   CreateCustomerDto,
   CustomerLoginDto,
+  CustomerResetPasswordDto,
   CreateCustomerAddressDto,
   UpdateCustomerAddressDto,
 } from "../dto/customer.dto";
@@ -30,7 +32,7 @@ import { CurrentCustomerId } from "../decorators/current-customer.decorator";
 
 @ApiBearerAuth()
 @ApiTags("Customers")
-@Controller("customers")
+@Controller(["customers", "customer"])
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
@@ -57,6 +59,21 @@ export class CustomersController {
   @ApiResponse({ status: 400, description: "Invalid credentials" })
   login(@Body() dto: CustomerLoginDto) {
     return this.customersService.login(dto);
+  }
+
+  @Public()
+  @Patch("reset-password/:id")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Reset customer password by ID" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ type: CustomerResetPasswordDto })
+  @ApiResponse({ status: 200, description: "Password updated successfully" })
+  @ApiResponse({ status: 404, description: "Customer not found" })
+  resetPassword(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: CustomerResetPasswordDto,
+  ) {
+    return this.customersService.resetPassword(id, dto.new_password);
   }
 
   @Get("me")

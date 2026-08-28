@@ -979,7 +979,8 @@ export class OrdersService {
     return {
       ...order,
       items: (order.items ?? []).map((item: any) => {
-        const { variant, ...rest } = item;
+        const { variant, subtotal: _subtotal, ...rest } = item;
+        void _subtotal;
         return {
           ...rest,
           hsnCode: rest.hsnCode ?? variant?.product?.hsnCode ?? null,

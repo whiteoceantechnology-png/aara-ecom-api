@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsOptional,
   IsBoolean,
+  MinLength,
 } from "class-validator";
 import { Transform, Type } from "class-transformer";
 
@@ -44,6 +45,21 @@ export class CustomerLoginDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class CustomerResetPasswordDto {
+  @ApiProperty({
+    example: "Sarmi@123",
+    description: "New password (min 6 chars)",
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6)
+  @Transform(({ obj }) => {
+    const v = obj?.new_password ?? obj?.newPassword;
+    return typeof v === "string" ? v : obj?.new_password;
+  })
+  new_password: string;
 }
 
 /**

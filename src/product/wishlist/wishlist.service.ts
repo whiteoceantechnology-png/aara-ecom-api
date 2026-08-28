@@ -54,13 +54,18 @@ export class WishlistService {
             select: {
               id: true,
               name: true,
-              actualPrice: true,
               discountPrice: true,
               productImage: true,
               images: {
                 where: { isPrimary: true },
                 take: 1,
                 select: { imageUrl: true },
+              },
+              variants: {
+                where: { status: true },
+                take: 1,
+                orderBy: { id: "asc" },
+                select: { price: true },
               },
             },
           },
@@ -92,14 +97,15 @@ export class WishlistService {
     product: {
       id: number;
       name: string;
-      actualPrice: { toString(): string } | null;
       discountPrice: { toString(): string } | null;
       productImage: string | null;
       images: { imageUrl: string }[];
+      variants: { price: { toString(): string } }[];
     };
   }) {
     const p = w.product;
-    const price = this.resolveDisplayPrice(p.discountPrice, p.actualPrice);
+    const variantPrice = p.variants[0]?.price ?? null;
+    const price = this.resolveDisplayPrice(p.discountPrice, variantPrice);
     const primaryFromGallery = p.images[0]?.imageUrl;
     const rawImage = primaryFromGallery ?? p.productImage;
     return {
@@ -112,10 +118,10 @@ export class WishlistService {
 
   private resolveDisplayPrice(
     discount: { toString(): string } | null | undefined,
-    actual: { toString(): string } | null | undefined,
+    fallback: { toString(): string } | null | undefined,
   ): number {
     const d = discount != null ? Number(discount) : null;
-    const a = actual != null ? Number(actual) : null;
+    const a = fallback != null ? Number(fallback) : null;
     if (d != null && !Number.isNaN(d)) return d;
     if (a != null && !Number.isNaN(a)) return a;
     return 0;

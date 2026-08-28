@@ -149,7 +149,15 @@ export class AdminOrdersService {
     ]);
 
     return {
-      orders,
+      orders: orders.map((o) => ({
+        ...o,
+        items: o.items.map((item) => {
+          const { quantity: _q, subtotal: _s, ...rest } = item;
+          void _q;
+          void _s;
+          return rest;
+        }),
+      })),
       total,
       page,
       limit,
@@ -165,10 +173,36 @@ export class AdminOrdersService {
     if (!order) throw new NotFoundException(`Order #${id} not found`);
     return {
       ...order,
-      items: order.items.map((item) => ({
-        ...item,
-        hsnCode: item.hsnCode ?? item.variant?.product?.hsnCode ?? null,
-      })),
+      items: order.items.map((item) => {
+        const { variant, ...rest } = item;
+        if (!variant) {
+          return {
+            ...rest,
+            hsnCode: item.hsnCode ?? null,
+          };
+        }
+        const {
+          actualPrice: _ap,
+          discountPrice: _dp,
+          stockQuantity: _sq,
+          reservedQuantity: _rq,
+          ...variantSafe
+        } = variant as typeof variant & {
+          actualPrice?: unknown;
+          discountPrice?: unknown;
+          stockQuantity?: unknown;
+          reservedQuantity?: unknown;
+        };
+        void _ap;
+        void _dp;
+        void _sq;
+        void _rq;
+        return {
+          ...rest,
+          hsnCode: item.hsnCode ?? variant.product?.hsnCode ?? null,
+          variant: variantSafe,
+        };
+      }),
     };
   }
 
