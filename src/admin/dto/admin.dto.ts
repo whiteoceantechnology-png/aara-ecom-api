@@ -111,6 +111,17 @@ export class AdminCreateProductDto {
   )
   taxId?: number;
 
+  @ApiPropertyOptional({
+    example: 0,
+    deprecated: true,
+    description:
+      "Deprecated — ignored. actualPrice column was removed; selling price lives on variants.",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
+
   @ApiPropertyOptional({ example: 1239 })
   @IsOptional()
   @IsNumber()
@@ -224,6 +235,17 @@ export class AdminUpdateProductDto {
   @IsOptional()
   @IsBoolean()
   status?: boolean;
+
+  @ApiPropertyOptional({
+    example: 0,
+    deprecated: true,
+    description:
+      "Deprecated — ignored. actualPrice column was removed; selling price lives on variants.",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  actualPrice?: number;
 
   @ApiPropertyOptional({ example: 1239 })
   @IsOptional()

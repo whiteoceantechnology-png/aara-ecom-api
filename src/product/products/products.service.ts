@@ -358,9 +358,11 @@ export class ProductsService {
       stock,
       stockUnit,
       brandId: _brandId,
+      actualPrice: _actualPrice,
       ...rest
     } = dto;
     void _brandId;
+    void _actualPrice;
     const taxFields = await this.resolveProductTaxForCreate({
       taxId: this.normalizeOptionalFk(taxId),
       taxPercent,
@@ -409,8 +411,10 @@ export class ProductsService {
       categoryId,
       stock,
       stockUnit,
+      actualPrice: _actualPrice,
       ...rest
     } = dto;
+    void _actualPrice;
 
     if (categoryId != null || (brandId != null && brandId > 0)) {
       const existing = await this.prisma.product.findUniqueOrThrow({
