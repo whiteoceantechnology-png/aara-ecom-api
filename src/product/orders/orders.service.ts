@@ -22,7 +22,11 @@ import {
   quoteSqlIdentifier,
   stringContainsFilter,
 } from "../../common/database-provider.util";
-import { unitsToConsume } from "../products/product-stock-pool.util";
+import {
+  unitsToConsume,
+  poolAvailableInBase,
+  unitsToDeductFromStoredPool,
+} from "../products/product-stock-pool.util";
 import {
   recordSaleTransactions,
   recordStockMovement,
@@ -294,11 +298,15 @@ export class OrdersService {
         const T = quoteSqlIdentifier("Product");
         const stockCol = quoteSqlIdentifier("stock");
         const reservedCol = quoteSqlIdentifier("reservedStock");
-        for (const [productId, units] of byProduct) {
+        for (const [productId, neededBase] of byProduct) {
           const before = await tx.product.findUniqueOrThrow({
             where: { id: productId },
-            select: { stock: true, reservedStock: true },
+            select: { stock: true, reservedStock: true, stockUnit: true },
           });
+          const units = unitsToDeductFromStoredPool(
+            neededBase,
+            before.stockUnit,
+          );
           const rowsAffected = await tx.$executeRawUnsafe(
             `UPDATE ${T} SET ${stockCol} = ${stockCol} - ?, ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ? AND ${stockCol} >= ?`,
             units,
@@ -391,7 +399,15 @@ export class OrdersService {
     const T = quoteSqlIdentifier("Product");
     const reservedCol = quoteSqlIdentifier("reservedStock");
     await this.prisma.$transaction(async (tx) => {
-      for (const [productId, units] of byProduct) {
+      for (const [productId, neededBase] of byProduct) {
+        const product = await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: { stockUnit: true },
+        });
+        const units = unitsToDeductFromStoredPool(
+          neededBase,
+          product.stockUnit,
+        );
         const rowsAffected = await tx.$executeRawUnsafe(
           `UPDATE ${T} SET ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ?`,
           units,
@@ -719,16 +735,27 @@ export class OrdersService {
     const T = quoteSqlIdentifier("Product");
     const stockCol = quoteSqlIdentifier("stock");
     const reservedCol = quoteSqlIdentifier("reservedStock");
-    for (const [productId, units] of byProduct) {
+    for (const [productId, neededBase] of byProduct) {
       const before = await tx.product.findUniqueOrThrow({
         where: { id: productId },
-        select: { stock: true, reservedStock: true },
+        select: { stock: true, reservedStock: true, stockUnit: true },
       });
+      const availableBase = poolAvailableInBase(
+        before.stock,
+        before.reservedStock,
+        before.stockUnit,
+      );
+      if (neededBase > availableBase) {
+        throw new BadRequestException(
+          `Insufficient stock for product #${productId}`,
+        );
+      }
+      const deduct = unitsToDeductFromStoredPool(neededBase, before.stockUnit);
       const rowsAffected = await tx.$executeRawUnsafe(
         `UPDATE ${T} SET ${stockCol} = ${stockCol} - ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
-        units,
+        deduct,
         productId,
-        units,
+        deduct,
       );
       if (affectedRowsCount(rowsAffected) !== 1) {
         throw new BadRequestException(
@@ -740,7 +767,7 @@ export class OrdersService {
         select: { stock: true, reservedStock: true },
       });
       stockByProduct.set(productId, {
-        units,
+        units: deduct,
         stockBefore: before.stock,
         stockAfter: after.stock,
         reservedBefore: before.reservedStock,
@@ -767,11 +794,22 @@ export class OrdersService {
     const T = quoteSqlIdentifier("Product");
     const stockCol = quoteSqlIdentifier("stock");
     const reservedCol = quoteSqlIdentifier("reservedStock");
-    for (const [productId, units] of byProduct) {
+    for (const [productId, neededBase] of byProduct) {
       const before = await tx.product.findUniqueOrThrow({
         where: { id: productId },
-        select: { stock: true, reservedStock: true },
+        select: { stock: true, reservedStock: true, stockUnit: true },
       });
+      const availableBase = poolAvailableInBase(
+        before.stock,
+        before.reservedStock,
+        before.stockUnit,
+      );
+      if (neededBase > availableBase) {
+        throw new BadRequestException(
+          `Insufficient stock to reserve for product #${productId}`,
+        );
+      }
+      const units = unitsToDeductFromStoredPool(neededBase, before.stockUnit);
       const rowsAffected = await tx.$executeRawUnsafe(
         `UPDATE ${T} SET ${reservedCol} = ${reservedCol} + ? WHERE id = ? AND (${stockCol} - ${reservedCol}) >= ?`,
         units,
@@ -931,18 +969,20 @@ export class OrdersService {
     }
     const needed = this.aggregateProductPoolUnits(lines);
     for (const [productId, units] of needed) {
-      const sample = lines.find((l) => l.productId === productId)!;
       const product = byId.get(
         items.find((i) => byId.get(i.variantId)?.product.id === productId)!
           .variantId,
       )!.product;
-      const sellable = Math.max(0, product.stock - product.reservedStock);
+      const sellable = poolAvailableInBase(
+        product.stock,
+        product.reservedStock,
+        product.stockUnit,
+      );
       if (units > sellable) {
         throw new BadRequestException(
           `Insufficient stock for product #${productId}. Need ${units}, available ${sellable}`,
         );
       }
-      void sample;
     }
   }
 

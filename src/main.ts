@@ -20,10 +20,16 @@ async function bootstrap() {
   app.useBodyParser("json", { limit: "10mb" });
   app.useBodyParser("urlencoded", { extended: true, limit: "10mb" });
 
-  // CORS — allow configured origins (comma-separated CORS_ORIGIN env var) or all origins
+  // CORS — allow configured origins (comma-separated CORS_ORIGIN env var) or all origins.
+  // Do NOT pin allowedHeaders: admin axios uses withCredentials and may send
+  // X-XSRF-TOKEN; a fixed allow-list that omits it makes browsers reject
+  // preflight (PATCH never fires; DevTools shows a generic "CORS error").
   const rawOrigins = process.env.CORS_ORIGIN;
   const allowedOrigins = rawOrigins
-    ? rawOrigins.split(",").map((o) => o.trim())
+    ? rawOrigins
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
     : null;
 
   app.enableCors({
@@ -32,21 +38,18 @@ async function bootstrap() {
           if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
           } else {
-            callback(new Error(`Origin ${origin} not allowed by CORS`));
+            // false (not Error) — avoids 500 responses without CORS headers
+            callback(null, false);
           }
         }
       : true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Origin",
-      "X-Requested-With",
-      "Content-Type",
-      "Accept",
-      "Authorization",
-    ],
+    // Omit allowedHeaders so cors reflects Access-Control-Request-Headers
+    // (covers Authorization, Content-Type, X-XSRF-TOKEN, etc.).
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204,
+    maxAge: 86400,
   });
 
   // Global interceptors (order: logging → timeout → transform)

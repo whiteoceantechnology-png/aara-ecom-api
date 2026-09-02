@@ -24,6 +24,7 @@ import {
   stringContainsFilter,
   stringEqualsInsensitiveFilter,
 } from "../../common/database-provider.util";
+import { normalizeStockForStorage } from "./product-stock-pool.util";
 
 @Injectable()
 export class ProductsService {
@@ -369,6 +370,10 @@ export class ProductsService {
     });
     const imagePaths = this.normalizeImagePaths(productImage);
     const primaryImage = imagePaths[0] ?? null;
+    const normalizedStock =
+      stock !== undefined
+        ? normalizeStockForStorage(stock, stockUnit ?? null)
+        : null;
 
     const product = await this.prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
@@ -377,8 +382,14 @@ export class ProductsService {
           brandId: brandId ?? null,
           ...taxFields,
           productImage: primaryImage,
-          ...(stock !== undefined ? { stock } : {}),
-          ...(stockUnit !== undefined ? { stockUnit } : {}),
+          ...(normalizedStock
+            ? {
+                stock: normalizedStock.stock,
+                stockUnit: normalizedStock.stockUnit,
+              }
+            : stockUnit !== undefined
+              ? { stockUnit }
+              : {}),
         },
       });
 
@@ -455,8 +466,22 @@ export class ProductsService {
       data.taxPercent = taxPercent;
     }
 
-    if (stock !== undefined) data.stock = stock;
-    if (stockUnit !== undefined) data.stockUnit = stockUnit;
+    if (stock !== undefined) {
+      const existingUnit = (
+        await this.prisma.product.findUniqueOrThrow({
+          where: { id },
+          select: { stockUnit: true },
+        })
+      ).stockUnit;
+      const normalized = normalizeStockForStorage(
+        stock,
+        stockUnit !== undefined ? stockUnit : existingUnit,
+      );
+      data.stock = normalized.stock;
+      data.stockUnit = normalized.stockUnit;
+    } else if (stockUnit !== undefined) {
+      data.stockUnit = normalizeStockForStorage(0, stockUnit).stockUnit;
+    }
 
     const imagePaths =
       productImage !== undefined

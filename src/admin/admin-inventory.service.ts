@@ -74,6 +74,7 @@ export class AdminInventoryService {
     status?: string;
     productId?: number;
     variantId?: number;
+    categoryId?: number;
     page?: number;
     limit?: number;
   }) {
@@ -88,6 +89,10 @@ export class AdminInventoryService {
         Number.isFinite(params.productId) && { productId: params.productId }),
       ...(params.variantId != null &&
         Number.isFinite(params.variantId) && { id: params.variantId }),
+      ...(params.categoryId != null &&
+        Number.isFinite(params.categoryId) && {
+          product: { categoryId: params.categoryId },
+        }),
       ...(params.search && {
         OR: [
           { sku: stringContainsFilter(params.search) },

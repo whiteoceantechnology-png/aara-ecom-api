@@ -65,6 +65,28 @@ describe("AdminInventoryController", () => {
         expect.objectContaining({ total: 84, totalPages: 4 }),
       );
     });
+
+    it("should pass categoryId filter to service", async () => {
+      mockInventory.findAll.mockResolvedValue({
+        inventory: [],
+        total: 0,
+        page: 1,
+        limit: 25,
+        totalPages: 1,
+      });
+
+      await controller.findAll(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "21",
+      );
+
+      expect(mockInventory.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: 21 }),
+      );
+    });
   });
 
   describe("findOne()", () => {

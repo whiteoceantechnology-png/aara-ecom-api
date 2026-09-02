@@ -5,7 +5,10 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
-import { unitsToConsume } from "../products/product-stock-pool.util";
+import {
+  unitsToConsume,
+  poolAvailableInBase,
+} from "../products/product-stock-pool.util";
 
 const cartInclude = {
   items: {
@@ -94,13 +97,17 @@ export class CartService {
       });
     }
 
-    const sellable = Math.max(
-      0,
-      variant.product.stock - variant.product.reservedStock,
+    const sellable = poolAvailableInBase(
+      variant.product.stock,
+      variant.product.reservedStock,
+      variant.product.stockUnit,
     );
     if (unitsNeeded > sellable) {
       throw new BadRequestException(
-        `Insufficient stock for product #${variant.productId}. Available pool: ${sellable}`,
+        `Insufficient stock for product #${variant.productId}. Need ${unitsNeeded}, available ${sellable}` +
+          (variant.product.stockUnit
+            ? ` (${variant.product.stockUnit} pool)`
+            : ""),
       );
     }
 

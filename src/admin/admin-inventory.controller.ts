@@ -112,6 +112,7 @@ export class AdminInventoryController {
   })
   @ApiQuery({ name: "productId", required: false, type: Number })
   @ApiQuery({ name: "variantId", required: false, type: Number })
+  @ApiQuery({ name: "categoryId", required: false, type: Number })
   @ApiQuery({ name: "page", required: false, example: 1 })
   @ApiQuery({ name: "limit", required: false, example: 25 })
   @ApiResponse({ status: 200, description: "Stock list" })
@@ -120,6 +121,7 @@ export class AdminInventoryController {
     @Query("status") status?: string,
     @Query("productId") productId?: string,
     @Query("variantId") variantId?: string,
+    @Query("categoryId") categoryId?: string,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
   ) {
@@ -128,6 +130,7 @@ export class AdminInventoryController {
       status,
       productId: productId != null ? Number(productId) : undefined,
       variantId: variantId != null ? Number(variantId) : undefined,
+      categoryId: categoryId != null ? Number(categoryId) : undefined,
       page: page != null ? Number(page) : undefined,
       limit: limit != null ? Number(limit) : undefined,
     });

@@ -24,7 +24,10 @@ import {
   renderInvoiceHtml,
   renderPackingSlipHtml,
 } from "./order-documents.util";
-import { unitsToConsume } from "../product/products/product-stock-pool.util";
+import {
+  unitsToConsume,
+  unitsToDeductFromStoredPool,
+} from "../product/products/product-stock-pool.util";
 import {
   AdminAutoDeliverDto,
   AdminCancelOrderDto,
@@ -918,7 +921,15 @@ export class AdminOrdersService {
       order.status === OrderStatus.PENDING_PAYMENT &&
       order.paymentStatus !== PaymentStatus.PAID
     ) {
-      for (const [productId, units] of byProduct) {
+      for (const [productId, neededBase] of byProduct) {
+        const product = await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: { stockUnit: true },
+        });
+        const units = unitsToDeductFromStoredPool(
+          neededBase,
+          product.stockUnit,
+        );
         const rowsAffected = await tx.$executeRawUnsafe(
           `UPDATE ${T} SET ${reservedCol} = ${reservedCol} - ? WHERE id = ? AND ${reservedCol} >= ?`,
           units,
@@ -934,7 +945,12 @@ export class AdminOrdersService {
       return true;
     }
 
-    for (const [productId, units] of byProduct) {
+    for (const [productId, neededBase] of byProduct) {
+      const product = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: { stockUnit: true },
+      });
+      const units = unitsToDeductFromStoredPool(neededBase, product.stockUnit);
       await tx.product.update({
         where: { id: productId },
         data: { stock: { increment: units } },
