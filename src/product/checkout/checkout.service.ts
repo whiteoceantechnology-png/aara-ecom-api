@@ -61,6 +61,9 @@ export class CheckoutService {
       })),
       subtotal: totals.subtotal,
       discount: totals.discount,
+      ...(coupon?.percentOff != null && Number(coupon.percentOff) > 0
+        ? { discountPercent: Number(coupon.percentOff) }
+        : {}),
       tax: totals.tax,
       shipping: totals.shipping,
       total: totals.total,

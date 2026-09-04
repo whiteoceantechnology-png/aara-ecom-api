@@ -3,7 +3,9 @@
  * Variants are pack SKUs only — they do not hold independent stock.
  *
  * Modes:
- * - Pack-count (stockUnit empty / UNIT): 1 sold pack = 1 pool unit.
+ * - Piece/pack (stockUnit empty / UNIT): pool is individual pieces.
+ *   "Pack of 20" deducts 20, "Pack of 5" deducts 5, "Single piece" deducts 1.
+ *   If multiplicity cannot be parsed, fall back to 1 per sold line qty.
  * - Mass/volume (g, kg, ml, L): compare & deduct in base units (g or ml).
  *   Admin may send stock in KG/L; we normalize to g/ml on write.
  */
@@ -26,7 +28,7 @@ function normUnit(unit: string | null | undefined): string | null {
   return u.length ? u : null;
 }
 
-/** Pack-count pool (not weight/volume). */
+/** Pack-count / piece pool (not weight/volume). */
 export function isPackCountUnit(unit: string | null | undefined): boolean {
   const u = normUnit(unit);
   if (!u) return true;
@@ -144,8 +146,46 @@ export function parsePackLabelToBaseUnits(
 }
 
 /**
+ * Parse piece multiplicity for UNIT pools (bottles/containers etc.).
+ * "Pack of 20" → 20, "5 pcs" → 5, "Single piece" → 1.
+ * Returns null when label is mass/volume or unrecognized.
+ */
+export function parsePiecePackCount(
+  label: string | null | undefined,
+): number | null {
+  if (!label) return null;
+  const t = label.trim().toLowerCase();
+  if (!t) return null;
+
+  // Mass/volume labels belong to weight/volume mode, not piece packs.
+  if (parsePackLabelToBaseUnits(t) != null) return null;
+
+  if (
+    /^(single(\s+piece|\s+unit|\s+pc|\s+pcs)?|loose|each|1\s*(pc|pcs|piece|pieces|unit|units)?)$/i.test(
+      t,
+    )
+  ) {
+    return 1;
+  }
+
+  const packOf = t.match(/\bpack\s*(?:of\s*)?(\d+)\b/i);
+  if (packOf) {
+    const n = Number(packOf[1]);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  }
+
+  const pcs = t.match(/^(\d+)\s*(pcs?|pieces?|units?|nos?|bottles?)\b/i);
+  if (pcs) {
+    const n = Number(pcs[1]);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  }
+
+  return null;
+}
+
+/**
  * Units to consume from the product pool for one line.
- * Returns pack-count OR base mass/volume units (g/ml) matching poolAvailableInBase().
+ * Returns piece-count OR base mass/volume units (g/ml) matching poolAvailableInBase().
  */
 export function unitsToConsume(opts: {
   quantity: number;
@@ -161,6 +201,12 @@ export function unitsToConsume(opts: {
   if (!Number.isFinite(qty) || qty <= 0) return 0;
 
   if (isPackCountUnit(opts.stockUnit)) {
+    const pieces =
+      parsePiecePackCount(opts.variantName) ??
+      parsePiecePackCount(opts.packSize?.label);
+    // Prefer parsed piece multiplicity (Pack of 20 → 20). Ignore wrong
+    // mass PackSize rows (e.g. bottles wrongly linked to "25 g").
+    if (pieces != null && pieces > 0) return qty * pieces;
     return qty;
   }
 
@@ -177,7 +223,12 @@ export function unitsToConsume(opts: {
   }
 
   if (packBase == null || packBase <= 0) {
-    return qty; // safe fallback: treat as pack-count
+    // Fallback: try piece-pack names even if stockUnit was mis-set.
+    const pieces =
+      parsePiecePackCount(opts.variantName) ??
+      parsePiecePackCount(opts.packSize?.label);
+    if (pieces != null && pieces > 0) return qty * pieces;
+    return qty;
   }
   return qty * packBase;
 }

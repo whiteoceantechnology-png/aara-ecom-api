@@ -17,6 +17,7 @@ import { AdminOrdersService } from "./admin-orders.service";
 import { AdminInventoryService } from "./admin-inventory.service";
 import { AdminPaymentsService } from "./admin-payments.service";
 import { AdminLogisticsService } from "./admin-logistics.service";
+import { AdminLogisticsCouriersService } from "./admin-logistics-couriers.service";
 
 import { AdminAuthController } from "./admin-auth.controller";
 import { AdminDashboardController } from "./admin-dashboard.controller";
@@ -36,6 +37,7 @@ import { AdminSearchController } from "./admin-search.controller";
 import { AdminInventoryController } from "./admin-inventory.controller";
 import { AdminPaymentsController } from "./admin-payments.controller";
 import { AdminLogisticsController } from "./admin-logistics.controller";
+import { AdminLogisticsCouriersController } from "./admin-logistics-couriers.controller";
 import { AdminProductPoliciesService } from "./admin-product-policies.service";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
 
@@ -63,6 +65,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminSearchController,
     AdminInventoryController,
     AdminPaymentsController,
+    AdminLogisticsCouriersController,
     AdminLogisticsController,
   ],
   providers: [
@@ -80,6 +83,7 @@ import { AdminRoleGuard } from "../auth/admin-role.guard";
     AdminInventoryService,
     AdminPaymentsService,
     AdminLogisticsService,
+    AdminLogisticsCouriersService,
     AdminProductPoliciesService,
     AdminRoleGuard,
   ],

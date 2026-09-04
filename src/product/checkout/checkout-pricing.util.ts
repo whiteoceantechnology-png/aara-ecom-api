@@ -151,3 +151,16 @@ export function computeCheckoutTotals(
     total: Math.round(total * 100) / 100,
   };
 }
+
+/**
+ * GST embedded in an inclusive amount: amount × rate / (100 + rate).
+ */
+export function extractInclusiveTax(
+  inclusiveAmount: number,
+  taxPercent: number,
+): number {
+  const rate = Math.max(0, Number(taxPercent) || 0);
+  const amount = Number(inclusiveAmount) || 0;
+  if (rate <= 0 || amount <= 0) return 0;
+  return Math.round(((amount * rate) / (100 + rate)) * 100) / 100;
+}

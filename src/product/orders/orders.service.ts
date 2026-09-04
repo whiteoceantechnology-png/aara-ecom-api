@@ -14,6 +14,7 @@ import { OrderStatus } from "../constants/order-status";
 import {
   computeCheckoutTotals,
   toCartLineInputs,
+  extractInclusiveTax,
 } from "../checkout/checkout-pricing.util";
 import { assertCouponUsable } from "../checkout/assert-coupon-usable";
 import { DEFAULT_CHECKOUT_SHIPPING_FLAT } from "../checkout/checkout.constants";
@@ -40,7 +41,7 @@ const orderDetailInclude = {
       variant: {
         select: {
           id: true,
-          product: { select: { hsnCode: true } },
+          product: { select: { hsnCode: true, taxPercent: true } },
         },
       },
     },
@@ -142,10 +143,14 @@ export class OrdersService {
     const pricingSource: OrderPricingSource | null =
       couponRow ?? couponPricingFromCaller ?? null;
 
+    const discountPercent = decimalToNumberOrUndefined(
+      pricingSource?.percentOff,
+    );
+
     const lines = toCartLineInputs(cart.items);
     const totals = computeCheckoutTotals(lines, {
       shippingFlat,
-      discountPercent: decimalToNumberOrUndefined(pricingSource?.percentOff),
+      discountPercent,
       maxDiscountAmount: decimalToNumberOrNull(
         pricingSource?.maxDiscountAmount,
       ),
@@ -182,6 +187,7 @@ export class OrdersService {
           taxAmount: totals.tax,
           shippingAmount: totals.shipping,
           discountAmount: totals.discount,
+          ...(discountPercent != null ? { discountPercent } : {}),
           couponCode:
             couponCode?.trim().toUpperCase() ?? couponRow?.code ?? null,
           paymentStatus: "pending",
@@ -193,6 +199,8 @@ export class OrdersService {
               productName: pl.productName,
               sizeLabel: pl.sizeLabel,
               hsnCode: pl.hsnCode ?? null,
+              taxPercent: pl.taxPercent,
+              taxAmount: pl.taxAmount,
               price: pl.unitPrice,
               quantity: pl.quantity,
               subtotal: pl.lineSubtotal,
@@ -206,7 +214,7 @@ export class OrdersService {
                 include: {
                   packSize: true,
                   product: {
-                    select: { id: true, stockUnit: true },
+                    select: { id: true, stockUnit: true, taxPercent: true },
                   },
                 },
               },
@@ -1013,20 +1021,60 @@ export class OrdersService {
     return map;
   }
 
-  /** Flatten HSN onto each line (snapshot, else live product fallback). */
-
+  /** Flatten HSN + tax onto each line (snapshot, else live product fallback). */
   private mapOrderDetail(order: any) {
-    return {
+    const itemsRaw = order.items ?? [];
+    const merchandiseSubtotal = itemsRaw.reduce(
+      (sum: number, item: any) =>
+        sum + Number(item.price ?? 0) * Number(item.quantity ?? 0),
+      0,
+    );
+    const orderDiscount = Number(order.discountAmount ?? 0);
+
+    const items = itemsRaw.map((item: any) => {
+      const { variant, subtotal: _subtotal, ...rest } = item;
+      void _subtotal;
+
+      const taxPercent = Number(
+        rest.taxPercent ?? variant?.product?.taxPercent ?? 0,
+      );
+      let taxAmount = rest.taxAmount != null ? Number(rest.taxAmount) : null;
+      if (taxAmount == null) {
+        const lineGross = Number(rest.price ?? 0) * Number(rest.quantity ?? 0);
+        const share =
+          merchandiseSubtotal > 0 ? lineGross / merchandiseSubtotal : 0;
+        const lineAfterDiscount = Math.max(
+          0,
+          lineGross - orderDiscount * share,
+        );
+        taxAmount = extractInclusiveTax(lineAfterDiscount, taxPercent);
+      }
+
+      const mapped: Record<string, unknown> = {
+        ...rest,
+        hsnCode: rest.hsnCode ?? variant?.product?.hsnCode ?? null,
+        taxPercent,
+        taxAmount,
+      };
+      return mapped;
+    });
+
+    const discountPercent =
+      order.discountPercent != null ? Number(order.discountPercent) : null;
+
+    const result: Record<string, unknown> = {
       ...order,
-      items: (order.items ?? []).map((item: any) => {
-        const { variant, subtotal: _subtotal, ...rest } = item;
-        void _subtotal;
-        return {
-          ...rest,
-          hsnCode: rest.hsnCode ?? variant?.product?.hsnCode ?? null,
-        };
-      }),
+      items,
     };
+
+    // Prefer coupon % when known; otherwise keep discountAmount only.
+    if (discountPercent != null && discountPercent > 0) {
+      result.discountPercent = discountPercent;
+    } else {
+      delete result.discountPercent;
+    }
+
+    return result;
   }
 }
 

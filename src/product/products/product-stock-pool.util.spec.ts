@@ -3,6 +3,7 @@ import {
   resolveShippingAmount,
   unitsToConsume,
   parsePackLabelToBaseUnits,
+  parsePiecePackCount,
   poolAvailableInBase,
   normalizeStockForStorage,
   unitsToDeductFromStoredPool,
@@ -32,6 +33,21 @@ describe("product-stock-pool.util", () => {
     });
   });
 
+  describe("parsePiecePackCount", () => {
+    it("parses bottle/container pack names", () => {
+      expect(parsePiecePackCount("Pack of 20")).toBe(20);
+      expect(parsePiecePackCount("Pack of 10")).toBe(10);
+      expect(parsePiecePackCount("Pack of 5")).toBe(5);
+      expect(parsePiecePackCount("Single piece")).toBe(1);
+      expect(parsePiecePackCount("5 pcs")).toBe(5);
+    });
+
+    it("ignores mass/volume labels", () => {
+      expect(parsePiecePackCount("25 g")).toBeNull();
+      expect(parsePiecePackCount("100 ml")).toBeNull();
+    });
+  });
+
   describe("normalizeStockForStorage", () => {
     it("converts KG to grams", () => {
       expect(normalizeStockForStorage(100, "KG")).toEqual({
@@ -49,15 +65,48 @@ describe("product-stock-pool.util", () => {
   });
 
   describe("unitsToConsume + poolAvailableInBase", () => {
-    it("uses pack-count mode when stockUnit is unset/UNIT", () => {
+    it("uses 1:1 when UNIT and name has no piece multiplicity", () => {
       expect(
         unitsToConsume({
           quantity: 3,
           stockUnit: null,
-          variantName: "500 g",
+          variantName: "Default",
         }),
       ).toBe(3);
       expect(poolAvailableInBase(100, 0, "UNIT")).toBe(100);
+    });
+
+    it("deducts piece multiplicity for UNIT bottle packs", () => {
+      expect(
+        unitsToConsume({
+          quantity: 1,
+          stockUnit: "UNIT",
+          variantName: "Pack of 20",
+          packSize: { size: 25, unit: "g", label: "25 g" }, // wrong link ignored
+        }),
+      ).toBe(20);
+      expect(
+        unitsToConsume({
+          quantity: 2,
+          stockUnit: "UNIT",
+          variantName: "Pack of 5",
+        }),
+      ).toBe(10);
+      expect(
+        unitsToConsume({
+          quantity: 1,
+          stockUnit: "UNIT",
+          variantName: "Single piece",
+        }),
+      ).toBe(1);
+      const available = poolAvailableInBase(100, 0, "UNIT");
+      expect(
+        unitsToConsume({
+          quantity: 1,
+          stockUnit: "UNIT",
+          variantName: "Pack of 20",
+        }),
+      ).toBeLessThanOrEqual(available);
     });
 
     it("compares 1kg pack against 100 KG pool in base units", () => {
@@ -101,6 +150,10 @@ describe("product-stock-pool.util", () => {
 
     it("deducts whole KG from legacy KG rows", () => {
       expect(unitsToDeductFromStoredPool(1000, "KG")).toBe(1);
+    });
+
+    it("deducts piece counts as-is for UNIT", () => {
+      expect(unitsToDeductFromStoredPool(20, "UNIT")).toBe(20);
     });
   });
 

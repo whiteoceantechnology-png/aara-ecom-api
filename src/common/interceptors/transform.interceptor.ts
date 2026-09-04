@@ -12,7 +12,7 @@ import { Observable, map } from "rxjs";
  *
  *   { success: true, statusCode: 200, data: <payload> }
  *
- * This gives the frontend a predictable contract for every endpoint.
+ * If a handler returns `{ message, data }`, `message` is lifted to the envelope.
  * Error responses are NOT wrapped — they go through the exception filters.
  * StreamableFile responses are passed through without wrapping.
  */
@@ -26,6 +26,22 @@ export class TransformInterceptor implements NestInterceptor {
         const statusCode = context
           .switchToHttp()
           .getResponse<{ statusCode: number }>().statusCode;
+
+        if (
+          data != null &&
+          typeof data === "object" &&
+          !Array.isArray(data) &&
+          "message" in data &&
+          "data" in data
+        ) {
+          const payload = data as { message: unknown; data: unknown };
+          return {
+            success: true,
+            statusCode,
+            message: payload.message,
+            data: payload.data,
+          };
+        }
 
         return {
           success: true,

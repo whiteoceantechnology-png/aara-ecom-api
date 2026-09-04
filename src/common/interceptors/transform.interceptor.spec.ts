@@ -91,4 +91,25 @@ describe("TransformInterceptor", () => {
       done();
     });
   });
+
+  it("should lift { message, data } into the envelope", (done) => {
+    const ctx = createMockContext(201);
+    const next: CallHandler = {
+      handle: () =>
+        of({
+          message: "Courier created successfully",
+          data: { id: 1, name: "ST Courier" },
+        }),
+    };
+
+    interceptor.intercept(ctx, next).subscribe((value) => {
+      expect(value).toEqual({
+        success: true,
+        statusCode: 201,
+        message: "Courier created successfully",
+        data: { id: 1, name: "ST Courier" },
+      });
+      done();
+    });
+  });
 });
