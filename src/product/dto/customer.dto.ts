@@ -27,10 +27,62 @@ export class CreateCustomerDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({
+    example: "789654123",
+    description: "GSTIN (optional)",
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ obj, value }) => {
+    const raw = value ?? obj?.gstIn ?? obj?.gstln;
+    return typeof raw === "string" ? raw.trim() : raw;
+  })
+  gstIn?: string;
+
   @ApiProperty({ example: "Secret@123" })
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class UpdateCustomerDto {
+  @ApiPropertyOptional({ example: "John Doe" })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @ApiPropertyOptional({ example: "john@gmail.com" })
+  @IsOptional()
+  @IsEmail()
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value,
+  )
+  email?: string;
+
+  @ApiPropertyOptional({ example: "9876543210" })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({
+    example: "789654123",
+    description: "GSTIN (optional)",
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ obj, value }) => {
+    const raw = value ?? obj?.gstIn ?? obj?.gstln;
+    return typeof raw === "string" ? raw.trim() : raw;
+  })
+  gstIn?: string;
+
+  @ApiPropertyOptional({ example: "Secret@123" })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6)
+  password?: string;
 }
 
 export class CustomerLoginDto {

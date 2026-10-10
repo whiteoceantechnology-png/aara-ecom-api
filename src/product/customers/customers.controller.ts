@@ -22,6 +22,7 @@ import {
 import { CustomersService } from "./customers.service";
 import {
   CreateCustomerDto,
+  UpdateCustomerDto,
   CustomerLoginDto,
   CustomerForgotPasswordDto,
   CustomerResetPasswordDto,
@@ -46,6 +47,21 @@ export class CustomersController {
   @ApiResponse({ status: 400, description: "Email already registered" })
   register(@Body() dto: CreateCustomerDto) {
     return this.customersService.register(dto);
+  }
+
+  @Post("update/:id")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Update customer profile by ID" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ type: UpdateCustomerDto })
+  @ApiResponse({ status: 200, description: "Customer updated successfully" })
+  @ApiResponse({ status: 404, description: "Customer not found" })
+  @ApiResponse({ status: 409, description: "Email already registered" })
+  update(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateCustomerDto,
+  ) {
+    return this.customersService.update(id, dto);
   }
 
   @Public()

@@ -69,6 +69,8 @@ function createDtoToAdminUpdate(
   };
   if (dto.brandId !== undefined) u.brandId = dto.brandId;
   if (dto.description !== undefined) u.description = dto.description;
+  if (dto.metaDescription !== undefined)
+    u.metaDescription = dto.metaDescription;
   if (dto.hsnCode !== undefined) u.hsnCode = dto.hsnCode;
   if (dto.taxPercent !== undefined) u.taxPercent = dto.taxPercent;
   if (dto.taxId !== undefined) u.taxId = dto.taxId;

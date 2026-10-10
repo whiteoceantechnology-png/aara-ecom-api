@@ -146,7 +146,33 @@ async function main() {
   console.log(`   │  currency        : ${rpData.currency}`);
   console.log(`   │  keyId           : ${rpData.keyId}`);
   console.log(`   │  orderNumber     : ${rpData.orderNumber}`);
+  console.log(`   │  mode            : ${rpData.mode ?? "?"}`);
   console.log("   └─────────────────────────────────────────────┘\n");
+
+  // ── Step 7: Config + status sync (unprocessed until real payment) ─────────
+  const cfgRes = await request("GET", "/payments/razorpay/config", null, token);
+  const cfg = ok("Razorpay config", cfgRes);
+  const cfgData = cfg.data ?? cfg;
+  console.log(
+    `   mode=${cfgData.mode} configured=${cfgData.configured} whitelistRequired=${cfgData.websiteWhitelistRequired}\n`,
+  );
+
+  const statusRes = await request(
+    "GET",
+    `/payments/razorpay/status/${orderId}`,
+    null,
+    token,
+  );
+  const statusBody = ok("Razorpay status sync", statusRes);
+  const status = statusBody.data ?? statusBody;
+  console.log(
+    `   paymentStatus=${status.paymentStatus} razorpayPaymentStatus=${status.razorpayPaymentStatus} synced=${status.synced}`,
+  );
+  if (status.razorpayPaymentStatus !== "unprocessed" && status.paymentStatus !== "paid") {
+    console.error("❌  Expected unprocessed before Checkout payment");
+    process.exit(1);
+  }
+  console.log("   ✅  Status correctly reports unprocessed before payment\n");
 
   console.log("👉  Use the above values in Razorpay Checkout JS to simulate a payment.");
   console.log("    After payment, call POST /payments/razorpay/verify with:");
@@ -156,6 +182,9 @@ async function main() {
       "razorpayPaymentId": "<from razorpay callback>",
       "razorpaySignature": "<from razorpay callback>"
     }`);
+  console.log(
+    `    Or poll GET /payments/razorpay/status/${orderId} if the handler was skipped.`,
+  );
 }
 
 main().catch((err) => {

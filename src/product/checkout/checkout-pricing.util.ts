@@ -16,6 +16,7 @@ export function toCartLineInputs(
     variant: {
       id: number;
       price: { toString(): string } | string | number;
+      variantName?: string | null;
       product: {
         id: number;
         name: string;
@@ -32,7 +33,8 @@ export function toCartLineInputs(
     quantity: item.quantity,
     productName: item.variant.product.name,
     taxPercent: Number(item.variant.product.taxPercent),
-    sizeLabel: item.variant.packSize.label,
+    // Prefer variantName when set — matches shipping weight estimation.
+    sizeLabel: item.variant.variantName?.trim() || item.variant.packSize.label,
     currentVariantPrice: Number(item.variant.price),
     hsnCode: item.variant.product.hsnCode ?? null,
   }));

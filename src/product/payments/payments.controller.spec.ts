@@ -13,6 +13,9 @@ const mockPaymentsService = {
 const mockRazorpayService = {
   createOrder: jest.fn(),
   verifyAndCapturePayment: jest.fn(),
+  syncPaymentStatus: jest.fn(),
+  getConfigStatus: jest.fn(),
+  handleWebhook: jest.fn(),
 };
 
 describe("PaymentsController", () => {
@@ -132,6 +135,44 @@ describe("PaymentsController", () => {
     });
   });
 
+  describe("syncRazorpayStatus()", () => {
+    it("should sync Razorpay status for an order", async () => {
+      const result = {
+        orderId: 1,
+        paymentStatus: "pending",
+        razorpayPaymentStatus: "unprocessed",
+      };
+      mockRazorpayService.syncPaymentStatus.mockResolvedValue(result);
+      expect(await controller.syncRazorpayStatus(1)).toEqual(result);
+      expect(mockRazorpayService.syncPaymentStatus).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe("getRazorpayConfig()", () => {
+    it("should return config status", async () => {
+      const result = { configured: true, mode: "test" };
+      mockRazorpayService.getConfigStatus.mockReturnValue(result);
+      expect(controller.getRazorpayConfig()).toEqual(result);
+    });
+  });
+
+  describe("handleRazorpayWebhook()", () => {
+    it("should forward signature and body to service", async () => {
+      mockRazorpayService.handleWebhook.mockResolvedValue({
+        received: true,
+        handled: true,
+      });
+      const req = { body: { event: "payment.captured" } } as any;
+      const result = await controller.handleRazorpayWebhook(
+        "sig",
+        req,
+        req.body,
+      );
+      expect(mockRazorpayService.handleWebhook).toHaveBeenCalled();
+      expect(result).toEqual({ received: true, handled: true });
+    });
+  });
+
   // ──────────────────────────────────────────────
   // Authentication decorators
   // ──────────────────────────────────────────────
@@ -142,6 +183,14 @@ describe("PaymentsController", () => {
         PaymentsController,
       );
       expect(metadata).toEqual([{ bearer: [] }]);
+    });
+
+    it("should mark razorpay webhook as @Public()", () => {
+      const isPublic = Reflect.getMetadata(
+        IS_PUBLIC_KEY,
+        PaymentsController.prototype.handleRazorpayWebhook,
+      );
+      expect(isPublic).toBe(true);
     });
 
     it("should NOT mark findByOrder as @Public()", () => {

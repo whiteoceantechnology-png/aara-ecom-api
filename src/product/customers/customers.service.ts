@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateCustomerDto,
+  UpdateCustomerDto,
   CustomerLoginDto,
   CreateCustomerAddressDto,
   UpdateCustomerAddressDto,
@@ -146,6 +147,15 @@ function normalizeCreateAddress(
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private customerPublicSelect = {
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    gstIn: true,
+    createdAt: true,
+  } as const;
+
   async register(dto: CreateCustomerDto) {
     const email = normalizeCustomerEmail(dto.email);
     const existing = await this.prisma.customer.findUnique({
@@ -153,20 +163,56 @@ export class CustomersService {
     });
     if (existing) throw new ConflictException("Email already registered");
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const gstIn = dto.gstIn?.trim() || null;
     return this.prisma.customer.create({
       data: {
         name: dto.name,
         email,
         phone: dto.phone,
+        gstIn,
         passwordHash,
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        createdAt: true,
-      },
+      select: this.customerPublicSelect,
+    });
+  }
+
+  async update(id: number, dto: UpdateCustomerDto) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      select: { id: true, email: true },
+    });
+    if (!customer) throw new NotFoundException(`Customer #${id} not found`);
+
+    const data: Prisma.CustomerUpdateInput = {};
+
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
+    if (dto.gstIn !== undefined) data.gstIn = dto.gstIn?.trim() || null;
+
+    if (dto.email !== undefined) {
+      const email = normalizeCustomerEmail(dto.email);
+      if (email !== customer.email) {
+        const taken = await this.prisma.customer.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+        if (taken) throw new ConflictException("Email already registered");
+      }
+      data.email = email;
+    }
+
+    if (dto.password !== undefined) {
+      const password = dto.password.trim();
+      if (password.length < 6) {
+        throw new BadRequestException("Password must be at least 6 characters");
+      }
+      data.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    return this.prisma.customer.update({
+      where: { id },
+      data,
+      select: this.customerPublicSelect,
     });
   }
 
@@ -251,11 +297,7 @@ export class CustomersService {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        createdAt: true,
+        ...this.customerPublicSelect,
         addresses: true,
       },
     });

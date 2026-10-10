@@ -73,7 +73,7 @@ describe("courier-shipping.util", () => {
   });
 
   describe("quoteCourierShipping", () => {
-    it("charges ST Kerala slab rate for light parcels", () => {
+    it("charges ST Kerala ratePerKg × ceil(weight)", () => {
       const q = quoteCourierShipping({
         state: "Kerala",
         weightKg: 1.2,
@@ -83,7 +83,8 @@ describe("courier-shipping.util", () => {
       expect(q.source).toBe("courier_rate");
       expect(q.courierCode).toBe("ST");
       expect(q.matchedState).toBe("Kerala");
-      expect(q.shipping).toBe(45);
+      // ceil(1.2)=2 → 2×45
+      expect(q.shipping).toBe(90);
     });
 
     it("uses free shipping band for heavy DTDC KA", () => {
@@ -130,6 +131,74 @@ describe("courier-shipping.util", () => {
     it("picks correct weight band", () => {
       expect(pickRateRule(stCourier.rateRules, 0.5)?.ratePerKg).toBe(45);
       expect(pickRateRule(stCourier.rateRules, 8)?.ratePerKg).toBe(40);
+    });
+
+    it("uses lowest slab when weight is below first minWeight (not free open band)", () => {
+      const tcRules = [
+        { minWeight: 0.1, maxWeight: 7, ratePerKg: 80, freeShipping: false },
+        {
+          minWeight: 7,
+          maxWeight: null,
+          ratePerKg: 0,
+          freeShipping: true,
+        },
+      ];
+      const rule = pickRateRule(tcRules, 0.025);
+      expect(rule?.ratePerKg).toBe(80);
+      expect(rule?.freeShipping).toBe(false);
+    });
+  });
+
+  describe("quoteCourierShipping light NE parcels", () => {
+    const tc = {
+      id: 5,
+      name: "test courier",
+      code: "TC",
+      status: "ACTIVE",
+      states: [
+        { name: "Andaman and Nicobar Islands", code: "AN" },
+        { name: "Arunachal Pradesh", code: "AR" },
+      ],
+      rateRules: [
+        { minWeight: 0.1, maxWeight: 7, ratePerKg: 80, freeShipping: false },
+        {
+          minWeight: 7,
+          maxWeight: null,
+          ratePerKg: 0,
+          freeShipping: true,
+        },
+      ],
+    };
+
+    it("charges ₹80 for Arunachal under minWeight slab start", () => {
+      const q = quoteCourierShipping({
+        state: "Arunachal Pradesh",
+        weightKg: 0.025,
+        merchandiseTotal: 0.1,
+        couriers: [tc],
+      });
+      expect(q.source).toBe("courier_rate");
+      expect(q.courierCode).toBe("TC");
+      // ceil(0.025)=1 → 1×80
+      expect(q.shipping).toBe(80);
+    });
+
+    it("multiplies ratePerKg by ceil(weightKg)", () => {
+      const cases: Array<[number, number]> = [
+        [1, 80],
+        [2, 160],
+        [2.1, 240],
+        [2.5, 240],
+      ];
+      for (const [weightKg, shipping] of cases) {
+        const q = quoteCourierShipping({
+          state: "Arunachal Pradesh",
+          weightKg,
+          merchandiseTotal: 500,
+          couriers: [tc],
+        });
+        expect(q.shipping).toBe(shipping);
+      }
     });
   });
 

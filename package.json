@@ -14,7 +14,7 @@
     "start:prod": "node dist/src/main.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop aara-api",
-    "pm2:restart": "pm2 restart aara-api --update-env",
+    "pm2:restart": "pm2 restart aara-api",
     "pm2:delete": "pm2 delete aara-api",
     "pm2:logs": "pm2 logs aara-api",
     "pm2:status": "pm2 status aara-api",

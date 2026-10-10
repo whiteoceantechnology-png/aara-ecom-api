@@ -78,7 +78,11 @@ export class CourierRateRuleInputDto {
   @Type(() => Number)
   maxWeight?: number | null;
 
-  @ApiProperty({ example: 40 })
+  @ApiProperty({
+    example: 40,
+    description:
+      "₹ per kg. Checkout charges ratePerKg × ceil(cart weight kg), e.g. 80×3 for 2.1 kg.",
+  })
   @IsNumber()
   @Min(0)
   @Type(() => Number)

@@ -45,6 +45,22 @@ describe("PrismaExceptionFilter", () => {
     );
   });
 
+  it("should infer sku from P2002 message when meta.target is empty (MySQL)", () => {
+    const exception = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the constraint: `ProductVariant_sku_key`",
+      { code: "P2002", clientVersion: "7.0.0", meta: {} },
+    );
+
+    filter.catch(exception, mockHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("sku"),
+      }),
+    );
+  });
+
   it("should return 400 Bad Request for P2003 (foreign key constraint)", () => {
     const exception = new Prisma.PrismaClientKnownRequestError(
       "Foreign key constraint failed",

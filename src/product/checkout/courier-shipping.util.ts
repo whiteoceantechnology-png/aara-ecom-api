@@ -182,6 +182,12 @@ export function pickRateRule(
     }
   }
 
+  // Below the lowest band (e.g. 25 g cart when first slab starts at 0.1 kg):
+  // apply the lowest slab — do NOT fall through to an open-ended free-shipping band.
+  if (w + 1e-9 < sorted[0].minWeight) {
+    return sorted[0];
+  }
+
   // Over max band: use last open-ended or highest band.
   const open = [...sorted].reverse().find((r) => r.maxWeight == null);
   return open ?? sorted[sorted.length - 1] ?? null;
@@ -264,8 +270,9 @@ export function quoteCourierShipping(opts: {
     };
   }
 
-  // ratePerKg is the slab charge for the matched weight band (admin rate card).
-  const shipping = round2(Number(rule.ratePerKg || 0));
+  // ratePerKg × ceil(weight): 1kg→1×rate, 2kg→2×rate, 2.1kg→3×rate.
+  const chargedKg = Math.max(1, Math.ceil(billableWeight));
+  const shipping = round2(Number(rule.ratePerKg || 0) * chargedKg);
 
   return {
     shipping,

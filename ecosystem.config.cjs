@@ -15,9 +15,12 @@ module.exports = {
       node_args: "--max-old-space-size=256",
       env: {
         NODE_ENV: "development",
+        // Must stay the HTTP listen port — never MySQL/MariaDB 3306.
+        PORT: 3030,
       },
       env_production: {
         NODE_ENV: "production",
+        PORT: 3030,
       },
       error_file: "./logs/pm2-error.log",
       out_file: "./logs/pm2-out.log",

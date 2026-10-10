@@ -195,12 +195,58 @@ Order `paymentStatus` is updated to `paid` and stock is confirmed.
 
 ---
 
+## Step 9 — (Recovery) Sync status if verify was skipped
+
+If Checkout closed early or `handler` never ran, poll:
+
+**GET** `/payments/razorpay/status/:orderId`
+
+```json
+{
+  "data": {
+    "orderId": 3,
+    "paymentStatus": "pending",
+    "razorpayOrderId": "order_SepaFQGMX1qJZY",
+    "razorpayOrderStatus": "created",
+    "razorpayPaymentStatus": "unprocessed",
+    "synced": false,
+    "message": "Payment not completed at Razorpay yet..."
+  }
+}
+```
+
+- `razorpayPaymentStatus: "unprocessed"` = money was **not** captured (QR abandoned, invalid UPI VPA, or **website whitelist block**).
+- If Razorpay already captured payment, this endpoint marks the shop order `paid` (`synced: true`).
+
+Optional health: **GET** `/payments/razorpay/config`
+
+Webhook (Dashboard → Webhooks → `payment.captured` / `order.paid`):  
+**POST** `/payments/razorpay/webhook` with `RAZORPAY_WEBHOOK_SECRET`.
+
+---
+
+## Troubleshooting (live Checkout)
+
+| Error / symptom | Cause | Fix |
+|-----------------|-------|-----|
+| `Payment blocked as website does not match registered website(s)` | Live key + Checkout opened from a host not listed on the Razorpay account | Razorpay Dashboard → **Account & Settings → Website and app settings** → add exact storefront URL(s) (`https://aaraahomecare.com`, `https://www.aaraahomecare.com`, staging if needed). www vs non-www must match. |
+| `Invalid VPA` / `invalid_vpa` | Customer typed a bad UPI id | UPI must look like `name@bank` (e.g. `user@okaxis`). Not an API bug. |
+| QR / Checkout `status: "unprocessed"` | Payment never completed at Razorpay | Fix whitelist / complete UPI; then call **verify** or **GET status** sync. |
+| Shop order stuck `pending` after successful pay | Frontend did not call `/payments/razorpay/verify` | Call verify from `handler`, or poll status sync / enable webhook. |
+
+> **Security:** Never commit live key secrets. If a live `key_id` / secret was shared in browser logs or chat, rotate keys in the Razorpay Dashboard.
+
+---
+
 ## Available Payment Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/payments/razorpay/config` | Live/test mode + whitelist hint |
 | `POST` | `/payments/razorpay/create-order` | Create a Razorpay order (Step 6) |
 | `POST` | `/payments/razorpay/verify` | Verify signature & mark order paid (Step 8) |
+| `GET` | `/payments/razorpay/status/:orderId` | Poll/sync gateway status (Step 9) |
+| `POST` | `/payments/razorpay/webhook` | Public webhook (`payment.captured`) |
 | `GET` | `/payments/order/:orderId` | Get all payments for an order |
 | `GET` | `/payments/:id` | Get a single payment by ID |
 
@@ -215,8 +261,9 @@ POST /cart/add                         → add product to cart
 GET  /checkout/summary                 → (optional) see totals
 POST /checkout/place-order             → create order → get orderId
 POST /payments/razorpay/create-order   → get razorpayOrderId + keyId
-     [Razorpay Checkout JS on frontend]
+     [Razorpay Checkout JS on frontend — domain must be whitelisted for live]
 POST /payments/razorpay/verify         → confirm payment → order marked paid
+GET  /payments/razorpay/status/:id     → recovery if verify skipped
 ```
 
 ---

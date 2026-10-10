@@ -70,10 +70,11 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     switch (exception.code) {
       // Unique constraint violation
       case "P2002": {
-        const fields = (exception.meta?.target as string[]) ?? [];
+        const fields = this.resolveUniqueFields(exception);
+        const label = fields.length > 0 ? fields.join(", ") : "unique field";
         return {
           status: HttpStatus.CONFLICT,
-          message: `A record with this ${fields.join(", ")} already exists`,
+          message: `A record with this ${label} already exists`,
         };
       }
 
@@ -137,6 +138,29 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         };
       }
     }
+  }
+
+  /**
+   * MySQL/MariaDB often omits `meta.target` or returns a constraint name string
+   * instead of column names — normalize to a readable field list.
+   */
+  private resolveUniqueFields(
+    exception: Prisma.PrismaClientKnownRequestError,
+  ): string[] {
+    const target = exception.meta?.target;
+    if (Array.isArray(target) && target.length > 0) {
+      return target.map(String).filter(Boolean);
+    }
+    if (typeof target === "string" && target.trim()) {
+      const fromName = target.match(/(?:_|^)([a-zA-Z]+)(?:_key|_unique)?$/);
+      if (fromName?.[1] && fromName[1].toLowerCase() !== "productvariant") {
+        return [fromName[1]];
+      }
+      if (/sku/i.test(target)) return ["sku"];
+      return [target];
+    }
+    if (/sku/i.test(exception.message)) return ["sku"];
+    return [];
   }
 
   private getErrorName(status: number): string {

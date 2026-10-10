@@ -86,6 +86,15 @@ export class AdminCreateProductDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({
+    example: "Buy premium ashwagandha root powder online",
+    description: "SEO meta description (nullable)",
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  metaDescription?: string | null;
+
   @ApiPropertyOptional({ example: "12119029" })
   @IsOptional()
   @IsString()
@@ -205,6 +214,15 @@ export class AdminUpdateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    example: "Buy premium ashwagandha root powder online",
+    description: "SEO meta description (nullable; send null to clear)",
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  metaDescription?: string | null;
 
   @ApiPropertyOptional({ example: "12119029" })
   @IsOptional()

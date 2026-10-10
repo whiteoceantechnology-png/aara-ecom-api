@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateVariantDto, UpdateVariantDto } from "../dto/variant.dto";
@@ -43,49 +47,72 @@ export class VariantsService {
       );
     }
 
+    const sku = dto.sku.trim();
+    const existingSku = await this.prisma.productVariant.findUnique({
+      where: { sku },
+      select: {
+        id: true,
+        sku: true,
+        productId: true,
+        product: { select: { id: true, name: true } },
+      },
+    });
+    if (existingSku) {
+      throw new ConflictException(
+        `SKU "${sku}" already exists on variant #${existingSku.id} ` +
+          `(product #${existingSku.productId}: ${existingSku.product.name}). ` +
+          `Use a unique SKU (e.g. product-specific prefix) or update the existing variant.`,
+      );
+    }
+
     const { imagePath, discountedPrice, ...fields } = dto;
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.productVariant.create({
-        data: {
-          productId: fields.productId,
-          packSizeId: fields.packSizeId,
-          price: fields.price,
-          discountPrice:
-            discountedPrice != null ? discountedPrice : product.discountPrice,
-          sku: fields.sku,
-          status: fields.status ?? true,
-          ...(fields.variantName !== undefined && fields.variantName !== ""
-            ? { variantName: fields.variantName }
-            : {}),
-        },
-        include: {
-          packSize: true,
-          product: { select: { id: true, name: true } },
-        },
-      });
-
-      if (imagePath?.length) {
-        await tx.variantImage.createMany({
-          data: imagePath.map((imageUrl, sortOrder) => ({
-            variantId: row.id,
-            imageUrl: imageUrl.trim(),
-            sortOrder,
-          })),
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const row = await tx.productVariant.create({
+          data: {
+            productId: fields.productId,
+            packSizeId: fields.packSizeId,
+            price: fields.price,
+            discountPrice:
+              discountedPrice != null ? discountedPrice : product.discountPrice,
+            sku,
+            status: fields.status ?? true,
+            ...(fields.variantName !== undefined && fields.variantName !== ""
+              ? { variantName: fields.variantName }
+              : {}),
+          },
+          include: {
+            packSize: true,
+            product: { select: { id: true, name: true } },
+          },
         });
-      }
 
-      return tx.productVariant.findUniqueOrThrow({
-        where: { id: row.id },
-        include: {
-          packSize: true,
-          product: { select: { id: true, name: true } },
-          images: { orderBy: { sortOrder: "asc" } },
-        },
+        if (imagePath?.length) {
+          await tx.variantImage.createMany({
+            data: imagePath.map((imageUrl, sortOrder) => ({
+              variantId: row.id,
+              imageUrl: imageUrl.trim(),
+              sortOrder,
+            })),
+          });
+        }
+
+        return tx.productVariant.findUniqueOrThrow({
+          where: { id: row.id },
+          include: {
+            packSize: true,
+            product: { select: { id: true, name: true } },
+            images: { orderBy: { sortOrder: "asc" } },
+          },
+        });
       });
-    });
 
-    return serializeProductVariantForApi(created);
+      return serializeProductVariantForApi(created);
+    } catch (err) {
+      this.rethrowSkuConflict(err, sku);
+      throw err;
+    }
   }
 
   async update(id: number, dto: UpdateVariantDto) {
@@ -101,7 +128,26 @@ export class VariantsService {
       data.packSize = { connect: { id: rest.packSizeId } };
     }
     if (rest.price !== undefined) data.price = rest.price;
-    if (rest.sku !== undefined) data.sku = rest.sku;
+    if (rest.sku !== undefined) {
+      const sku = rest.sku.trim();
+      if (sku !== variant.sku) {
+        const existingSku = await this.prisma.productVariant.findUnique({
+          where: { sku },
+          select: {
+            id: true,
+            productId: true,
+            product: { select: { name: true } },
+          },
+        });
+        if (existingSku) {
+          throw new ConflictException(
+            `SKU "${sku}" already exists on variant #${existingSku.id} ` +
+              `(product #${existingSku.productId}: ${existingSku.product.name}).`,
+          );
+        }
+      }
+      data.sku = sku;
+    }
     if (rest.status !== undefined) data.status = rest.status;
     if (rest.variantName !== undefined) {
       data.variantName = rest.variantName === "" ? null : rest.variantName;
@@ -110,33 +156,38 @@ export class VariantsService {
       data.discountPrice = discountedPrice;
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.productVariant.update({ where: { id }, data });
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.productVariant.update({ where: { id }, data });
 
-      if (imagePath !== undefined) {
-        await tx.variantImage.deleteMany({ where: { variantId: id } });
-        if (imagePath.length > 0) {
-          await tx.variantImage.createMany({
-            data: imagePath.map((imageUrl, sortOrder) => ({
-              variantId: id,
-              imageUrl: imageUrl.trim(),
-              sortOrder,
-            })),
-          });
+        if (imagePath !== undefined) {
+          await tx.variantImage.deleteMany({ where: { variantId: id } });
+          if (imagePath.length > 0) {
+            await tx.variantImage.createMany({
+              data: imagePath.map((imageUrl, sortOrder) => ({
+                variantId: id,
+                imageUrl: imageUrl.trim(),
+                sortOrder,
+              })),
+            });
+          }
         }
-      }
 
-      return tx.productVariant.findUniqueOrThrow({
-        where: { id },
-        include: {
-          packSize: true,
-          product: { select: { id: true, name: true } },
-          images: { orderBy: { sortOrder: "asc" } },
-        },
+        return tx.productVariant.findUniqueOrThrow({
+          where: { id },
+          include: {
+            packSize: true,
+            product: { select: { id: true, name: true } },
+            images: { orderBy: { sortOrder: "asc" } },
+          },
+        });
       });
-    });
 
-    return serializeProductVariantForApi(updated);
+      return serializeProductVariantForApi(updated);
+    } catch (err) {
+      if (rest.sku !== undefined) this.rethrowSkuConflict(err, rest.sku.trim());
+      throw err;
+    }
   }
 
   async remove(id: number) {
@@ -146,5 +197,17 @@ export class VariantsService {
     if (!variant) throw new NotFoundException(`Variant #${id} not found`);
     await this.prisma.productVariant.delete({ where: { id } });
     return { message: "Variant deleted successfully" };
+  }
+
+  /** Map Prisma unique-SKU races to the same 409 as the pre-check. */
+  private rethrowSkuConflict(err: unknown, sku: string): void {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      throw new ConflictException(
+        `SKU "${sku}" already exists. Use a unique SKU (e.g. product-specific prefix) or update the existing variant.`,
+      );
+    }
   }
 }

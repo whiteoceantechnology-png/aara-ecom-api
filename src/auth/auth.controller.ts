@@ -28,11 +28,16 @@ import {
   UpdateUserResponseDto,
   MessageResponseDto,
 } from "./dto/auth-response.dto";
+import { CustomersService } from "../product/customers/customers.service";
+import { UpdateCustomerDto } from "../product/dto/customer.dto";
 
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly customersService: CustomersService,
+  ) {}
 
   @Public()
   @Post("register")
@@ -64,6 +69,25 @@ export class AuthController {
   @ApiResponse({ status: 401, description: "Invalid credentials" })
   async login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Post("update/:id")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Update customer profile by ID (name, email, phone, password, gstIn)",
+  })
+  @ApiParam({ name: "id", type: Number, description: "Customer ID" })
+  @ApiBody({ type: UpdateCustomerDto })
+  @ApiResponse({ status: 200, description: "Customer updated successfully" })
+  @ApiResponse({ status: 404, description: "Customer not found" })
+  @ApiResponse({ status: 409, description: "Email already registered" })
+  updateCustomer(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateCustomerDto,
+  ) {
+    return this.customersService.update(id, dto);
   }
 
   @Patch("update/:id")

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { CustomersService } from "../product/customers/customers.service";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 
 const mockAuthService = {
@@ -11,13 +12,20 @@ const mockAuthService = {
   resetPassword: jest.fn(),
 };
 
+const mockCustomersService = {
+  update: jest.fn(),
+};
+
 describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{ provide: AuthService, useValue: mockAuthService }],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: CustomersService, useValue: mockCustomersService },
+      ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -50,6 +58,28 @@ describe("AuthController", () => {
       const result = await controller.login(dto);
 
       expect(mockAuthService.login).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  // ─── updateCustomer ───────────────────────────────────────────────────────────
+
+  describe("updateCustomer()", () => {
+    it("should call customersService.update with id and dto and return result", async () => {
+      const dto = { name: "John Doe", gstIn: "789654123" };
+      const expected = {
+        id: 21,
+        name: "John Doe",
+        email: "john@gmail.com",
+        phone: "9876543210",
+        gstIn: "789654123",
+        createdAt: new Date(),
+      };
+      mockCustomersService.update.mockResolvedValue(expected);
+
+      const result = await controller.updateCustomer(21, dto);
+
+      expect(mockCustomersService.update).toHaveBeenCalledWith(21, dto);
       expect(result).toEqual(expected);
     });
   });

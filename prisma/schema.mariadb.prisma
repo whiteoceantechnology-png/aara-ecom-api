@@ -111,6 +111,7 @@ model Product {
   name           String
   // slug field removed
   description    String?                @db.LongText
+  metaDescription String?               @db.Text
   hsnCode        String?
   taxId          Int?
   tax            Tax?                   @relation(fields: [taxId], references: [id], onDelete: SetNull)
@@ -312,6 +313,7 @@ model Customer {
   name             String
   email            String    @unique
   phone            String?
+  gstIn            String?
   passwordHash     String
   isBlocked        Boolean   @default(false)
   resetToken       String?
