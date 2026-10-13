@@ -178,7 +178,7 @@ export class AdminMasterdataService {
       "",
       "",
       "",
-      "",
+      "Optional SEO meta description",
     ];
     const ws = XLSX.utils.aoa_to_sheet([header, example]);
     const wb = XLSX.utils.book_new();
@@ -201,6 +201,7 @@ export class AdminMasterdataService {
         taxId: true,
         discountPrice: true,
         productImage: true,
+        metaDescription: true,
       },
     });
 
@@ -215,6 +216,7 @@ export class AdminMasterdataService {
       taxId: p.taxId ?? "",
       discountPrice: p.discountPrice !== null ? Number(p.discountPrice) : "",
       productImage: p.productImage ?? "",
+      metaDescription: p.metaDescription ?? "",
     }));
 
     const wb = XLSX.utils.book_new();
@@ -229,8 +231,10 @@ export class AdminMasterdataService {
   }
 
   /**
-   * Parses the first worksheet: row 1 = headers, from row 2 = data.
-   * Rows with an **id** that exists in the DB are updated; otherwise created.
+   * Parses the Products worksheet: row 1 = headers, from row 2 = data.
+   * Validates **all** rows first; on any data error throws {@link BadRequestException}
+   * (HTTP 400) with `failed` row details — no partial write for invalid sheets.
+   * Rows with an existing **id** are updated; blank **id** creates a new product.
    */
   async importProductsFromExcel(buffer: Buffer): Promise<{
     summary: ProductImportSummary;
@@ -239,48 +243,53 @@ export class AdminMasterdataService {
     failed: ProductImportFailure[];
   }> {
     const filtered = parseExcelRows(buffer, MASTERDATA_SHEET_NAME);
+    const prepared = await this.validateProductImportRows(filtered);
 
     const created: ProductImportRowResult[] = [];
     const updated: ProductImportRowResult[] = [];
-    const failed: ProductImportFailure[] = [];
+    const applyFailed: ProductImportFailure[] = [];
 
-    for (let i = 0; i < filtered.length; i++) {
-      const excelRow = i + 2;
+    for (const item of prepared) {
       try {
-        const { productId, dto } = rowToProductImportPayload(filtered[i]);
-
-        if (productId !== undefined) {
-          const existing = await this.prisma.product.findUnique({
-            where: { id: productId },
-            select: { id: true },
-          });
-          if (!existing) {
-            failed.push({
-              row: excelRow,
-              reason: `Product id ${productId} not found — remove id or use an id from Export.`,
-            });
-            continue;
-          }
+        if (item.productId !== undefined) {
           const product = await this.productsService.adminUpdate(
-            productId,
-            createDtoToAdminUpdate(dto),
+            item.productId,
+            createDtoToAdminUpdate(item.dto),
           );
           updated.push({
-            row: excelRow,
+            row: item.excelRow,
             id: product.id,
             name: product.name,
           });
         } else {
-          const product = await this.productsService.adminCreate(dto);
+          const product = await this.productsService.adminCreate(item.dto);
           created.push({
-            row: excelRow,
+            row: item.excelRow,
             id: product.id,
             name: product.name,
           });
         }
       } catch (e) {
-        failed.push({ row: excelRow, reason: messageFromUnknown(e) });
+        applyFailed.push({
+          row: item.excelRow,
+          reason: messageFromUnknown(e),
+        });
       }
+    }
+
+    if (applyFailed.length > 0) {
+      throw new BadRequestException({
+        message: `Product import failed while saving ${applyFailed.length} row(s). Some earlier rows may already have been saved.`,
+        summary: {
+          totalRows: filtered.length,
+          created: created.length,
+          updated: updated.length,
+          failed: applyFailed.length,
+        },
+        created,
+        updated,
+        failed: applyFailed,
+      });
     }
 
     return {
@@ -288,12 +297,182 @@ export class AdminMasterdataService {
         totalRows: filtered.length,
         created: created.length,
         updated: updated.length,
-        failed: failed.length,
+        failed: 0,
       },
       created,
       updated,
-      failed,
+      failed: [],
     };
+  }
+
+  /**
+   * Parse + FK / id checks for every row. Throws BadRequestException if any row is invalid.
+   */
+  private async validateProductImportRows(
+    filtered: Record<string, unknown>[],
+  ): Promise<
+    Array<{
+      excelRow: number;
+      productId?: number;
+      dto: AdminCreateProductDto;
+    }>
+  > {
+    const parseFailed: ProductImportFailure[] = [];
+    const parsed: Array<{
+      excelRow: number;
+      productId?: number;
+      dto: AdminCreateProductDto;
+    }> = [];
+    const idsInFile = new Map<number, number>();
+
+    for (let i = 0; i < filtered.length; i++) {
+      const excelRow = i + 2;
+      try {
+        const { productId, dto } = rowToProductImportPayload(filtered[i]);
+        if (productId !== undefined) {
+          const firstRow = idsInFile.get(productId);
+          if (firstRow !== undefined) {
+            parseFailed.push({
+              row: excelRow,
+              reason: `Duplicate product id ${productId} in file (also on row ${firstRow}). Each id may appear only once.`,
+            });
+            continue;
+          }
+          idsInFile.set(productId, excelRow);
+        }
+        parsed.push({ excelRow, productId, dto });
+      } catch (e) {
+        parseFailed.push({ row: excelRow, reason: messageFromUnknown(e) });
+      }
+    }
+
+    if (parseFailed.length > 0 && parsed.length === 0) {
+      this.throwProductImportValidationError(filtered.length, parseFailed);
+    }
+
+    const productIds = [
+      ...new Set(
+        parsed
+          .map((p) => p.productId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+    const categoryIds = [...new Set(parsed.map((p) => p.dto.categoryId))];
+    const brandIds = [
+      ...new Set(
+        parsed
+          .map((p) => p.dto.brandId)
+          .filter((id): id is number => id !== undefined && id > 0),
+      ),
+    ];
+    const taxIds = [
+      ...new Set(
+        parsed
+          .map((p) => p.dto.taxId)
+          .filter((id): id is number => id !== undefined && id > 0),
+      ),
+    ];
+
+    const [
+      existingProducts,
+      existingCategories,
+      existingBrands,
+      existingTaxes,
+    ] = await Promise.all([
+      productIds.length
+        ? this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true },
+          })
+        : Promise.resolve([] as Array<{ id: number }>),
+      categoryIds.length
+        ? this.prisma.category.findMany({
+            where: { id: { in: categoryIds } },
+            select: { id: true },
+          })
+        : Promise.resolve([] as Array<{ id: number }>),
+      brandIds.length
+        ? this.prisma.brand.findMany({
+            where: { id: { in: brandIds } },
+            select: { id: true },
+          })
+        : Promise.resolve([] as Array<{ id: number }>),
+      taxIds.length
+        ? this.prisma.tax.findMany({
+            where: { id: { in: taxIds } },
+            select: { id: true },
+          })
+        : Promise.resolve([] as Array<{ id: number }>),
+    ]);
+
+    const productIdSet = new Set(existingProducts.map((p) => p.id));
+    const categoryIdSet = new Set(existingCategories.map((c) => c.id));
+    const brandIdSet = new Set(existingBrands.map((b) => b.id));
+    const taxIdSet = new Set(existingTaxes.map((t) => t.id));
+
+    const failed: ProductImportFailure[] = [...parseFailed];
+    const prepared: Array<{
+      excelRow: number;
+      productId?: number;
+      dto: AdminCreateProductDto;
+    }> = [];
+
+    for (const item of parsed) {
+      const rowFailed: string[] = [];
+
+      if (item.productId !== undefined && !productIdSet.has(item.productId)) {
+        rowFailed.push(
+          `Product id ${item.productId} not found — leave id blank to create, or use an id from Export.`,
+        );
+      }
+      if (!categoryIdSet.has(item.dto.categoryId)) {
+        rowFailed.push(`Category #${item.dto.categoryId} not found`);
+      }
+      if (
+        item.dto.brandId !== undefined &&
+        item.dto.brandId > 0 &&
+        !brandIdSet.has(item.dto.brandId)
+      ) {
+        rowFailed.push(`Brand #${item.dto.brandId} not found`);
+      }
+      if (
+        item.dto.taxId !== undefined &&
+        item.dto.taxId > 0 &&
+        !taxIdSet.has(item.dto.taxId)
+      ) {
+        rowFailed.push(`Tax #${item.dto.taxId} not found`);
+      }
+
+      if (rowFailed.length > 0) {
+        failed.push({ row: item.excelRow, reason: rowFailed.join("; ") });
+      } else {
+        prepared.push(item);
+      }
+    }
+
+    if (failed.length > 0) {
+      this.throwProductImportValidationError(filtered.length, failed);
+    }
+
+    return prepared;
+  }
+
+  private throwProductImportValidationError(
+    totalRows: number,
+    failed: ProductImportFailure[],
+  ): never {
+    throw new BadRequestException({
+      message: `Product import validation failed for ${failed.length} of ${totalRows} row(s). Fix the sheet and re-upload — nothing was imported.`,
+      summary: {
+        totalRows,
+        created: 0,
+        updated: 0,
+        failed: failed.length,
+      },
+      created: [],
+      updated: [],
+      failed,
+    });
   }
 
   // ─── Variants bulk upload ──────────────────────────────────────────────────
@@ -324,12 +503,12 @@ export class AdminMasterdataService {
     const example = [
       "", // id blank = create / upsert by sku
       1, // productId
+      "Example Product", // productName (informational; ignored on import)
       packSizes[0]?.id ?? 1, // packSizeId
       "SKU-EXAMPLE-25G",
       99.0,
       89.0,
       "Example 25g",
-      100,
       true,
       "", // imagePath — path1|path2
     ];
@@ -350,10 +529,13 @@ export class AdminMasterdataService {
       ["1. Fill the Variants sheet (one row per SKU)."],
       ["2. Leave id blank to create, or set id / reuse sku to update."],
       ["3. Required for create: productId, packSizeId, sku, price."],
-      ["4. Use PackSizes sheet for valid packSizeId values."],
-      ["5. imagePath: multiple paths separated by | (pipe)."],
-      ["6. Re-upload the same file safely: SKU is unique — upserts by sku."],
-      ["7. Max rows per file: " + String(MASTERDATA_MAX_ROWS)],
+      [
+        "4. productName is filled on export for readability; ignored on import.",
+      ],
+      ["5. Use PackSizes sheet for valid packSizeId values."],
+      ["6. imagePath: multiple paths separated by | (pipe)."],
+      ["7. Re-upload the same file safely: SKU is unique — upserts by sku."],
+      ["8. Max rows per file: " + String(MASTERDATA_MAX_ROWS)],
       [""],
       ["Upsert rules"],
       ["id exists → update that variant"],
@@ -377,6 +559,7 @@ export class AdminMasterdataService {
     const variants = await this.prisma.productVariant.findMany({
       orderBy: { id: "asc" },
       include: {
+        product: { select: { name: true } },
         images: { orderBy: { sortOrder: "asc" }, select: { imageUrl: true } },
       },
     });
@@ -385,6 +568,7 @@ export class AdminMasterdataService {
     const dataRows = variants.map((v) => [
       v.id,
       v.productId,
+      v.product.name,
       v.packSizeId,
       v.sku,
       Number(v.price),

@@ -35,6 +35,7 @@ export const MASTERDATA_PRODUCT_COLUMNS = [
   "taxId",
   "discountPrice",
   "productImage",
+  "metaDescription",
 ] as const;
 
 /**
@@ -42,10 +43,12 @@ export const MASTERDATA_PRODUCT_COLUMNS = [
  * - `id` optional → update that variant when present
  * - else match by unique `sku` → update if found, otherwise create
  * - `productId` + `packSizeId` + `sku` + `price` required for create
+ * - `productName` is informational (filled on export; ignored on import)
  */
 export const MASTERDATA_VARIANT_COLUMNS = [
   "id",
   "productId",
+  "productName",
   "packSizeId",
   "sku",
   "price",
@@ -162,7 +165,7 @@ function parseImagePaths(v: unknown): string[] | undefined {
 /**
  * Maps one sheet row to {@link AdminCreateProductDto}.
  * Headers (case/spacing flexible): categoryId / category_id; name;
- * optional: brandId, description, hsnCode, taxPercent, taxId.
+ * optional: brandId, description, metaDescription, hsnCode, taxPercent, taxId.
  */
 export function rowToAdminCreateProductDto(
   raw: Record<string, unknown>,
@@ -190,6 +193,11 @@ export function rowToAdminCreateProductDto(
     getFirstDefined(r, ["description", "desc"]),
   );
   if (description !== undefined) dto.description = description;
+
+  const metaDescription = optionalString(
+    getFirstDefined(r, ["meta_description", "metadescription", "meta"]),
+  );
+  if (metaDescription !== undefined) dto.metaDescription = metaDescription;
 
   const hsnCode = optionalString(
     getFirstDefined(r, ["hsn_code", "hsncode", "hsn"]),

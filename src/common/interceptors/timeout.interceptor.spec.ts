@@ -1,25 +1,36 @@
 import { TimeoutInterceptor } from "./timeout.interceptor";
+import { TIMEOUT_MS_KEY } from "../decorators/timeout.decorator";
 import { of, delay } from "rxjs";
 import {
   ExecutionContext,
   CallHandler,
   RequestTimeoutException,
 } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 
 describe("TimeoutInterceptor", () => {
   let interceptor: TimeoutInterceptor;
+  let reflector: Reflector;
 
   beforeEach(() => {
-    interceptor = new TimeoutInterceptor();
+    reflector = new Reflector();
+    interceptor = new TimeoutInterceptor(reflector);
   });
 
-  const createMockContext = (): ExecutionContext =>
-    ({
+  const createMockContext = (handlerMeta?: number): ExecutionContext => {
+    const handler = () => undefined;
+    if (handlerMeta !== undefined) {
+      Reflect.defineMetadata(TIMEOUT_MS_KEY, handlerMeta, handler);
+    }
+    return {
+      getHandler: () => handler,
+      getClass: () => class TestController {},
       switchToHttp: () => ({
         getRequest: () => ({ method: "GET", url: "/test" }),
         getResponse: () => ({ statusCode: 200 }),
       }),
-    }) as unknown as ExecutionContext;
+    } as unknown as ExecutionContext;
+  };
 
   it("should be defined", () => {
     expect(interceptor).toBeDefined();
@@ -55,6 +66,25 @@ describe("TimeoutInterceptor", () => {
     });
 
     jest.advanceTimersByTime(16_000);
+    jest.useRealTimers();
+  });
+
+  it("should honor @Timeout override for longer handlers", (done) => {
+    jest.useFakeTimers();
+    const ctx = createMockContext(60_000);
+    const next: CallHandler = {
+      handle: () => of({ ok: true }).pipe(delay(20_000)),
+    };
+
+    interceptor.intercept(ctx, next).subscribe({
+      next: (value) => {
+        expect(value).toEqual({ ok: true });
+        done();
+      },
+      error: () => done.fail("should not timeout under override"),
+    });
+
+    jest.advanceTimersByTime(20_000);
     jest.useRealTimers();
   });
 });

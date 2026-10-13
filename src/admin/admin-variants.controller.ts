@@ -16,6 +16,7 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { Timeout } from "../common/decorators/timeout.decorator";
 import {
   ApiTags,
   ApiOperation,
@@ -35,6 +36,7 @@ import { AdminMasterdataService } from "./admin-masterdata.service";
 import { assertExcelUpload } from "./masterdata-excel.util";
 
 const MAX_EXCEL_BYTES = 10 * 1024 * 1024;
+const BULK_IMPORT_TIMEOUT_MS = 5 * 60_000;
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -144,6 +146,7 @@ export class AdminVariantsController {
 
   @Post("import")
   @HttpCode(HttpStatus.OK)
+  @Timeout(BULK_IMPORT_TIMEOUT_MS)
   @UseInterceptors(
     FileInterceptor("file", {
       limits: { fileSize: MAX_EXCEL_BYTES },

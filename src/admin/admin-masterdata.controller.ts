@@ -20,10 +20,13 @@ import {
   ApiProduces,
 } from "@nestjs/swagger";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
+import { Timeout } from "../common/decorators/timeout.decorator";
 import { AdminMasterdataService } from "./admin-masterdata.service";
 import { assertExcelUpload } from "./masterdata-excel.util";
 
 const MAX_EXCEL_BYTES = 10 * 1024 * 1024;
+/** Bulk Excel import can update up to MASTERDATA_MAX_ROWS sequentially. */
+const BULK_IMPORT_TIMEOUT_MS = 5 * 60_000;
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -72,6 +75,7 @@ export class AdminMasterdataController {
 
   @Post("products/import")
   @HttpCode(HttpStatus.OK)
+  @Timeout(BULK_IMPORT_TIMEOUT_MS)
   @UseInterceptors(
     FileInterceptor("file", {
       limits: { fileSize: MAX_EXCEL_BYTES },
@@ -81,8 +85,9 @@ export class AdminMasterdataController {
     summary: "Bulk import products from Excel",
     description:
       "Upload `.xlsx` or `.xls`. First row: headers. From row 2: one product per row. " +
-      "Required: **categoryId**, **name**. Optional: brandId, description, hsnCode, taxPercent, taxId, prices. " +
-      "Rows with existing **id** are updated; otherwise created.",
+      "Required: **categoryId**, **name**. Optional: brandId, description, metaDescription, hsnCode, taxPercent, taxId, prices. " +
+      "Rows with existing **id** are updated; blank **id** creates. " +
+      "All rows are validated first; any data error returns **400** with `failed[]` (nothing imported).",
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({
@@ -101,9 +106,13 @@ export class AdminMasterdataController {
   @ApiResponse({
     status: 200,
     description:
-      "Import finished — check `summary` and `failed` for per-row errors",
+      "All rows imported successfully — see `summary`, `created`, `updated`",
   })
-  @ApiResponse({ status: 400, description: "Invalid file or empty sheet" })
+  @ApiResponse({
+    status: 400,
+    description:
+      "Invalid file, empty sheet, or row validation/save errors. Body includes `message`, `summary`, and `failed` (excel row + reason).",
+  })
   async importProducts(@UploadedFile() file: Express.Multer.File) {
     const uploaded = assertExcelUpload(file);
     return this.masterdataService.importProductsFromExcel(uploaded.buffer);
@@ -149,6 +158,7 @@ export class AdminMasterdataController {
 
   @Post("variants/import")
   @HttpCode(HttpStatus.OK)
+  @Timeout(BULK_IMPORT_TIMEOUT_MS)
   @UseInterceptors(
     FileInterceptor("file", {
       limits: { fileSize: MAX_EXCEL_BYTES },
@@ -190,6 +200,7 @@ export class AdminMasterdataController {
 
   @Post("variants/upload")
   @HttpCode(HttpStatus.OK)
+  @Timeout(BULK_IMPORT_TIMEOUT_MS)
   @UseInterceptors(
     FileInterceptor("file", {
       limits: { fileSize: MAX_EXCEL_BYTES },
