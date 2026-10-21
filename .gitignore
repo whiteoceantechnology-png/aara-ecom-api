@@ -6,8 +6,8 @@
 /node_modules
 
 # ── Environment Variables ─────────────────────────────────────────────────────
-# `.env` is tracked so shared dev layout (DATABASE_PROVIDER / URL notes) stays in sync.
-# Do not put production secrets here; use placeholders or a private deploy secret store.
+# Never commit real secrets. Copy `.env.example` to `.env` and fill in values locally.
+.env
 .env.*
 !.env.example
 
