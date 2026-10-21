@@ -4,9 +4,9 @@ import {
   BadRequestException,
   Logger,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AppSettingsService } from "../../settings/app-settings.service";
 import { OrdersService } from "../orders/orders.service";
 import Razorpay from "razorpay";
 import * as crypto from "crypto";
@@ -28,30 +28,47 @@ type RazorpayPaymentLike = {
 @Injectable()
 export class RazorpayService {
   private readonly logger = new Logger(RazorpayService.name);
-  private readonly razorpay: Razorpay | null;
-  private readonly keyId: string;
-  private readonly keySecret: string;
-  private readonly webhookSecret: string;
+  private client: {
+    keyId: string;
+    keySecret: string;
+    instance: Razorpay;
+  } | null = null;
 
   constructor(
-    private readonly config: ConfigService,
+    private readonly settings: AppSettingsService,
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
-  ) {
-    this.keyId = this.config.get<string>("RAZORPAY_KEY_ID")?.trim() ?? "";
-    this.keySecret =
-      this.config.get<string>("RAZORPAY_KEY_SECRET")?.trim() ?? "";
-    this.webhookSecret =
-      this.config.get<string>("RAZORPAY_WEBHOOK_SECRET")?.trim() ?? "";
+  ) {}
 
-    if (this.keyId && this.keySecret) {
-      this.razorpay = new Razorpay({
-        key_id: this.keyId,
-        key_secret: this.keySecret,
-      });
-    } else {
-      this.razorpay = null;
+  private get keyId(): string {
+    return this.settings.get("RAZORPAY_KEY_ID");
+  }
+
+  private get keySecret(): string {
+    return this.settings.get("RAZORPAY_KEY_SECRET");
+  }
+
+  private get webhookSecret(): string {
+    return this.settings.get("RAZORPAY_WEBHOOK_SECRET");
+  }
+
+  /** Razorpay SDK client; rebuilt when credentials in the DB change. */
+  private get razorpay(): Razorpay | null {
+    const keyId = this.keyId;
+    const keySecret = this.keySecret;
+    if (!keyId || !keySecret) return null;
+    if (
+      !this.client ||
+      this.client.keyId !== keyId ||
+      this.client.keySecret !== keySecret
+    ) {
+      this.client = {
+        keyId,
+        keySecret,
+        instance: new Razorpay({ key_id: keyId, key_secret: keySecret }),
+      };
     }
+    return this.client.instance;
   }
 
   isConfigured(): boolean {
@@ -77,14 +94,14 @@ export class RazorpayService {
           ? "Live mode: Checkout domain must be listed in Razorpay Dashboard → Account & Settings → Website and app settings. Also call POST /payments/razorpay/verify (or GET status sync) after payment."
           : mode === "test"
             ? "Test mode keys are active — use Razorpay test cards/UPI."
-            : "Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+            : "Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET via PUT /admin/settings/credentials.",
     };
   }
 
   async createOrder(dto: CreateRazorpayOrderDto) {
     if (!this.razorpay) {
       throw new BadRequestException(
-        "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET via PUT /admin/settings/credentials.",
       );
     }
 
@@ -159,7 +176,7 @@ export class RazorpayService {
   async verifyAndCapturePayment(dto: VerifyRazorpayPaymentDto) {
     if (!this.keySecret) {
       throw new BadRequestException(
-        "Razorpay is not configured. Set RAZORPAY_KEY_SECRET.",
+        "Razorpay is not configured. Set RAZORPAY_KEY_SECRET via PUT /admin/settings/credentials.",
       );
     }
 
@@ -238,7 +255,7 @@ export class RazorpayService {
   async syncPaymentStatus(orderId: number) {
     if (!this.razorpay) {
       throw new BadRequestException(
-        "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET via PUT /admin/settings/credentials.",
       );
     }
 

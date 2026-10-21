@@ -1,14 +1,14 @@
 import { Controller, Get } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AppService } from "./app.service";
 import { Public } from "./auth/public.decorator";
+import { AppSettingsService } from "./settings/app-settings.service";
 
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly config: ConfigService,
+    private readonly settings: AppSettingsService,
   ) {}
 
   @Public()
@@ -23,8 +23,8 @@ export class AppController {
   @ApiOperation({ summary: "Get Delhivery login credentials" })
   getDelhiveryCredentials() {
     return {
-      email: this.config.get<string>("DELHIVERY_EMAIL", ""),
-      password: this.config.get<string>("DELHIVERY_PASSWORD", ""),
+      email: this.settings.get("DELHIVERY_EMAIL"),
+      password: this.settings.get("DELHIVERY_PASSWORD"),
     };
   }
 }

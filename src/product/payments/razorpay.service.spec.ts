@@ -1,10 +1,10 @@
 import * as crypto from "crypto";
 import { Test, TestingModule } from "@nestjs/testing";
-import { ConfigService } from "@nestjs/config";
 import { NotFoundException, BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { RazorpayService } from "./razorpay.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AppSettingsService } from "../../settings/app-settings.service";
 import { OrdersService } from "../orders/orders.service";
 
 const TEST_KEY_ID = "rzp_test_xxx";
@@ -79,7 +79,7 @@ async function buildModule(configOverride?: {
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       RazorpayService,
-      { provide: ConfigService, useValue: configOverride ?? mockConfig },
+      { provide: AppSettingsService, useValue: configOverride ?? mockConfig },
       { provide: PrismaService, useValue: mockPrisma },
       { provide: OrdersService, useValue: mockOrdersService },
     ],

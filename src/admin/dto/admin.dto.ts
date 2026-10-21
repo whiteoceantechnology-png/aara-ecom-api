@@ -810,6 +810,36 @@ export class AdminUpdateShippingRuleDto {
   priority?: number;
 }
 
+// ─── Integration credentials (stored in AppSetting table) ────────────────────
+
+/** Send only keys to change; empty string removes the DB value. */
+export class AdminUpdateCredentialsDto {
+  @ApiPropertyOptional({ example: "rzp_live_xxxxxxxx" })
+  @IsOptional()
+  @IsString()
+  RAZORPAY_KEY_ID?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  RAZORPAY_KEY_SECRET?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  RAZORPAY_WEBHOOK_SECRET?: string;
+
+  @ApiPropertyOptional({ example: "ops@example.com" })
+  @IsOptional()
+  @IsString()
+  DELHIVERY_EMAIL?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  DELHIVERY_PASSWORD?: string;
+}
+
 // ─── Notification settings ───────────────────────────────────────────────────
 
 export class AdminUpdateNotificationSettingsDto {

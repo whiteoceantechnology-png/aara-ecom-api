@@ -568,6 +568,13 @@ model StoreProfile {
   updatedAt    DateTime @updatedAt
 }
 
+/// Integration credentials (Razorpay, Delhivery, …) — kept out of .env / git.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Admin payments / logistics ops ──────────────────────────────────────────
 
 model PaymentLink {

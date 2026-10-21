@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { ConfigService } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
+import { AppSettingsService } from "./settings/app-settings.service";
 
 describe("AppController", () => {
   let appController: AppController;
@@ -12,12 +12,12 @@ describe("AppController", () => {
       providers: [
         AppService,
         {
-          provide: ConfigService,
+          provide: AppSettingsService,
           useValue: {
-            get: (key: string, fallback?: string) => {
+            get: (key: string) => {
               if (key === "DELHIVERY_EMAIL") return "test@example.com";
               if (key === "DELHIVERY_PASSWORD") return "secret";
-              return fallback ?? "";
+              return "";
             },
           },
         },
@@ -34,7 +34,7 @@ describe("AppController", () => {
   });
 
   describe("delhivery/credentials", () => {
-    it("should return Delhivery credentials from config", () => {
+    it("should return Delhivery credentials from settings", () => {
       expect(appController.getDelhiveryCredentials()).toEqual({
         email: "test@example.com",
         password: "secret",

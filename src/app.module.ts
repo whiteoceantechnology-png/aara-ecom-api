@@ -8,6 +8,7 @@ import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 import { UserModule } from "./user/user.module";
 import { ProductModule } from "./product/product.module";
 import { AdminModule } from "./admin/admin.module";
+import { AppSettingsModule } from "./settings/app-settings.module";
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AdminModule } from "./admin/admin.module";
       // `.env.local` (gitignored) overrides `.env` — use for live Razorpay / secrets
       envFilePath: [".env.local", ".env"],
     }),
+    AppSettingsModule,
     AuthModule,
     UserModule,
     ProductModule,
