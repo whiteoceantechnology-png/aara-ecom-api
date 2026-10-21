@@ -502,7 +502,6 @@ export class ProductRepository {
       );
     }
 
-    const orderNumber = `ORD-${Date.now()}`;
     let total = 0;
     const orderItems = cart.items.map((item) => {
       const subtotal = Number(item.price) * item.quantity;
@@ -520,10 +519,17 @@ export class ProductRepository {
     const order = await this.prisma.order.create({
       data: {
         customerId: dto.customerId,
-        orderNumber,
+        orderNumber: `TMP-${Date.now()}`,
         totalAmount: total,
         items: { create: orderItems },
       },
+      include: { items: true },
+    });
+
+    const orderNumber = `ORD-${order.id}`;
+    const numbered = await this.prisma.order.update({
+      where: { id: order.id },
+      data: { orderNumber },
       include: { items: true },
     });
 
@@ -540,7 +546,7 @@ export class ProductRepository {
     // Clear the cart
     await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-    return order;
+    return numbered;
   }
 
   async getOrders(customerId?: number) {

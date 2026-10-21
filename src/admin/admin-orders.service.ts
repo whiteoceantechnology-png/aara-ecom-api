@@ -42,7 +42,7 @@ type AdminActor = { name?: string | null };
 
 const adminOrderDetailInclude = {
   customer: {
-    select: { id: true, name: true, email: true, phone: true },
+    select: { id: true, name: true, email: true, phone: true, gstIn: true },
   },
   items: {
     include: {
@@ -131,7 +131,13 @@ export class AdminOrdersService {
         where,
         include: {
           customer: {
-            select: { id: true, name: true, email: true, phone: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              gstIn: true,
+            },
           },
           items: true,
           payments: {

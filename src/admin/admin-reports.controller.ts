@@ -1,4 +1,11 @@
-import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Query,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -37,6 +44,71 @@ export class AdminReportsController {
   @ApiResponse({ status: 200, description: "Product analytics" })
   getProducts(@Query("range") range?: string) {
     return this.reportsService.getProducts(range);
+  }
+
+  @Get("sales-export")
+  @ApiOperation({
+    summary:
+      "Export SaleTransaction sales ledger (GST template columns) for a month",
+  })
+  @ApiQuery({
+    name: "month",
+    required: true,
+    example: "2026-10",
+    description: "Month filter as YYYY-MM",
+  })
+  @ApiQuery({
+    name: "productId",
+    required: false,
+    description: "Filter by product id",
+  })
+  @ApiQuery({
+    name: "sku",
+    required: false,
+    description: "Filter by variant SKU",
+  })
+  @ApiQuery({
+    name: "format",
+    required: false,
+    enum: ["xlsx", "json", "csv"],
+    description: "xlsx (default) downloads Excel; json returns rows in body",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Excel/CSV download or JSON rows",
+  })
+  async salesExport(
+    @Res() res: Response,
+    @Query("month") month?: string,
+    @Query("productId") productId?: string,
+    @Query("sku") sku?: string,
+    @Query("format") format?: string,
+  ) {
+    const result = await this.reportsService.exportSalesLedger({
+      month,
+      productId,
+      sku,
+      format,
+    });
+
+    if (result.kind === "json") {
+      res.status(HttpStatus.OK).json({
+        month: result.month,
+        productId: result.productId,
+        sku: result.sku,
+        totalRows: result.totalRows,
+        columns: result.columns,
+        rows: result.rows,
+      });
+      return;
+    }
+
+    res.setHeader("Content-Type", result.contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${result.filename}"`,
+    );
+    res.status(HttpStatus.OK).send(result.buffer);
   }
 
   @Get("export")

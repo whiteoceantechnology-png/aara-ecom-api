@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   Req,
+  StreamableFile,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -15,6 +16,7 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -31,6 +33,9 @@ import {
   AdminUpdateStockDto,
 } from "./dto/admin.dto";
 
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 @ApiBearerAuth()
 @ApiTags("Admin — Inventory")
 @UseGuards(AdminRoleGuard)
@@ -39,26 +44,37 @@ export class AdminInventoryController {
   constructor(private readonly inventory: AdminInventoryService) {}
 
   @Get("low-stock")
-  @ApiOperation({ summary: "Paginated low-stock products (product pool)" })
-  @ApiQuery({
-    name: "threshold",
-    required: false,
-    type: Number,
+  @ApiOperation({
+    summary: "Paginated low-stock products (product pool)",
     description:
-      "Product stock <= threshold (default: NotificationSettings.lowStockThreshold or 10)",
+      "Active products whose total stock is below unit-specific cutoffs: " +
+      "< 1000 g, < 1000 ml, or < 25 units (UNIT / null).",
   })
   @ApiQuery({ name: "page", required: false, example: 1 })
   @ApiQuery({ name: "limit", required: false, example: 25 })
   @ApiResponse({ status: 200, description: "Low stock list" })
-  lowStock(
-    @Query("threshold") threshold?: string,
-    @Query("page") page?: string,
-    @Query("limit") limit?: string,
-  ) {
+  lowStock(@Query("page") page?: string, @Query("limit") limit?: string) {
     return this.inventory.lowStock({
-      threshold: threshold != null ? Number(threshold) : undefined,
       page: page != null ? Number(page) : undefined,
       limit: limit != null ? Number(limit) : undefined,
+    });
+  }
+
+  @Get("low-stock/export")
+  @ApiOperation({
+    summary: "Export low-stock products to Excel (.xlsx)",
+    description:
+      "Same unit-aware thresholds as GET /admin/inventory/low-stock " +
+      "(< 1000 g, < 1000 ml, < 25 units).",
+  })
+  @ApiProduces(XLSX_MIME)
+  @ApiResponse({ status: 200, description: "Excel (.xlsx) file download" })
+  async exportLowStock(): Promise<StreamableFile> {
+    const buf = await this.inventory.exportLowStockExcel();
+    const date = new Date().toISOString().slice(0, 10);
+    return new StreamableFile(buf, {
+      type: XLSX_MIME,
+      disposition: `attachment; filename="low-stock-export-${date}.xlsx"`,
     });
   }
 

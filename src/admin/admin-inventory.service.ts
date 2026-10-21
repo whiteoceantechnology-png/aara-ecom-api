@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import * as XLSX from "xlsx";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   affectedRowsCount,
@@ -23,6 +24,137 @@ import {
 } from "../product/products/inventory-ledger";
 
 type AdminActor = { name?: string | null };
+
+/** Low-stock cutoffs by pool unit (total product.stock). */
+export const LOW_STOCK_THRESHOLDS = {
+  /** Mass pools stored in g (legacy kg: stock &lt; 1). */
+  massG: 1000,
+  /** Volume pools stored in ml (legacy L: stock &lt; 1). */
+  volumeMl: 1000,
+  /** Piece / UNIT / null stockUnit pools. */
+  unit: 25,
+} as const;
+
+const MASS_G_UNITS = ["g", "G", "gram", "grams", "Gram", "Grams"];
+const MASS_KG_UNITS = [
+  "kg",
+  "KG",
+  "Kg",
+  "kilogram",
+  "kilograms",
+  "Kilogram",
+  "Kilograms",
+];
+const VOLUME_ML_UNITS = ["ml", "ML", "Ml"];
+const VOLUME_L_UNITS = [
+  "l",
+  "L",
+  "lt",
+  "Lt",
+  "LT",
+  "liter",
+  "litre",
+  "liters",
+  "litres",
+  "Liter",
+  "Litre",
+  "Liters",
+  "Litres",
+];
+const PACK_UNITS = [
+  "UNIT",
+  "unit",
+  "units",
+  "Unit",
+  "Units",
+  "pcs",
+  "pc",
+  "PCS",
+  "PC",
+  "pack",
+  "packs",
+  "Pack",
+  "Packs",
+  "nos",
+  "no",
+  "Nos",
+  "No",
+  "each",
+  "Each",
+];
+
+/** Prisma where: total stock below unit-specific low-stock thresholds. */
+export function lowStockWhere(): Prisma.ProductWhereInput {
+  const { massG, volumeMl, unit } = LOW_STOCK_THRESHOLDS;
+  return {
+    status: true,
+    OR: [
+      { AND: [{ stockUnit: { in: MASS_G_UNITS } }, { stock: { lt: massG } }] },
+      {
+        AND: [{ stockUnit: { in: MASS_KG_UNITS } }, { stock: { lt: 1 } }],
+      },
+      {
+        AND: [
+          { stockUnit: { in: VOLUME_ML_UNITS } },
+          { stock: { lt: volumeMl } },
+        ],
+      },
+      {
+        AND: [{ stockUnit: { in: VOLUME_L_UNITS } }, { stock: { lt: 1 } }],
+      },
+      {
+        AND: [
+          {
+            OR: [
+              { stockUnit: null },
+              { stockUnit: "" },
+              { stockUnit: { in: PACK_UNITS } },
+            ],
+          },
+          { stock: { lt: unit } },
+        ],
+      },
+    ],
+  };
+}
+
+const LOW_STOCK_SELECT = {
+  id: true,
+  name: true,
+  stock: true,
+  reservedStock: true,
+  stockUnit: true,
+  status: true,
+  variants: {
+    where: { status: true },
+    select: { id: true, sku: true, variantName: true },
+    take: 5,
+    orderBy: { id: "asc" as const },
+  },
+} satisfies Prisma.ProductSelect;
+
+function mapLowStockRow(p: {
+  id: number;
+  name: string;
+  stock: number;
+  reservedStock: number;
+  stockUnit: string | null;
+  status: boolean;
+  variants: Array<{ id: number; sku: string; variantName: string | null }>;
+}) {
+  const available = Math.max(0, p.stock - p.reservedStock);
+  return {
+    productId: p.id,
+    productName: p.name,
+    productStock: p.stock,
+    productReservedStock: p.reservedStock,
+    availableProductStock: available,
+    availableQuantity: available,
+    stockUnit: p.stockUnit,
+    status: p.status,
+    variants: p.variants,
+  };
+}
 
 function parseStatusFilter(status?: string): boolean | undefined {
   if (status == null || status === "") return undefined;
@@ -377,46 +509,16 @@ export class AdminInventoryService {
     };
   }
 
-  async lowStock(params: {
-    threshold?: number;
-    page?: number;
-    limit?: number;
-  }) {
-    let threshold = params.threshold;
-    if (threshold == null || !Number.isFinite(threshold)) {
-      const settings = await this.prisma.notificationSettings.findUnique({
-        where: { id: 1 },
-        select: { lowStockThreshold: true },
-      });
-      threshold = settings?.lowStockThreshold ?? 10;
-    }
-
+  async lowStock(params: { page?: number; limit?: number }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 25));
     const skip = (page - 1) * limit;
-
-    const where: Prisma.ProductWhereInput = {
-      status: true,
-      stock: { lte: threshold },
-    };
+    const where = lowStockWhere();
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where,
-        select: {
-          id: true,
-          name: true,
-          stock: true,
-          reservedStock: true,
-          stockUnit: true,
-          status: true,
-          variants: {
-            where: { status: true },
-            select: { id: true, sku: true, variantName: true },
-            take: 5,
-            orderBy: { id: "asc" },
-          },
-        },
+        select: LOW_STOCK_SELECT,
         orderBy: { stock: "asc" },
         skip,
         take: limit,
@@ -425,23 +527,61 @@ export class AdminInventoryService {
     ]);
 
     return {
-      inventory: rows.map((p) => ({
-        productId: p.id,
-        productName: p.name,
-        productStock: p.stock,
-        productReservedStock: p.reservedStock,
-        availableProductStock: Math.max(0, p.stock - p.reservedStock),
-        availableQuantity: Math.max(0, p.stock - p.reservedStock),
-        stockUnit: p.stockUnit,
-        status: p.status,
-        variants: p.variants,
-      })),
+      inventory: rows.map(mapLowStockRow),
       total,
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
-      threshold,
+      thresholds: { ...LOW_STOCK_THRESHOLDS },
     };
+  }
+
+  async exportLowStockExcel(): Promise<Buffer> {
+    const rows = await this.prisma.product.findMany({
+      where: lowStockWhere(),
+      select: LOW_STOCK_SELECT,
+      orderBy: { stock: "asc" },
+      take: 10000,
+    });
+
+    const sheetRows = rows.map((p) => {
+      const mapped = mapLowStockRow(p);
+      return {
+        "Product ID": mapped.productId,
+        "Product Name": mapped.productName,
+        "Total Stock": mapped.productStock,
+        "Reserved Stock": mapped.productReservedStock,
+        "Available Stock": mapped.availableProductStock,
+        "Stock Unit": mapped.stockUnit ?? "UNIT",
+        Status: mapped.status ? "Active" : "Inactive",
+        "Variant SKUs": mapped.variants.map((v) => v.sku).join(", "),
+        "Variant Names": mapped.variants
+          .map((v) => v.variantName ?? "")
+          .filter(Boolean)
+          .join(", "),
+      };
+    });
+
+    const sheet = XLSX.utils.json_to_sheet(
+      sheetRows.length
+        ? sheetRows
+        : [
+            {
+              "Product ID": "",
+              "Product Name": "",
+              "Total Stock": "",
+              "Reserved Stock": "",
+              "Available Stock": "",
+              "Stock Unit": "",
+              Status: "",
+              "Variant SKUs": "",
+              "Variant Names": "",
+            },
+          ],
+    );
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Low Stock");
+    return XLSX.write(book, { type: "buffer", bookType: "xlsx" }) as Buffer;
   }
 
   async history(variantId: number, params: { page?: number; limit?: number }) {

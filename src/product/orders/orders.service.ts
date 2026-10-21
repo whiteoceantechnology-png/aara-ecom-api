@@ -172,8 +172,6 @@ export class OrdersService {
       customerId,
     );
 
-    const orderNumber = this.generateOrderNumber();
-
     return this.prisma.$transaction(async (tx) => {
       const stockDelta = await this.applyInventoryForPaymentMode(
         tx,
@@ -181,10 +179,11 @@ export class OrdersService {
         paymentMethod,
       );
 
+      // Temporary unique number until id is assigned, then ORD-{id} (1, 2, 3…).
       const created = await tx.order.create({
         data: {
           customerId,
-          orderNumber,
+          orderNumber: `TMP-${randomUUID()}`,
           status:
             paymentMethod === "COD"
               ? OrderStatus.PROCESSING
@@ -231,6 +230,12 @@ export class OrdersService {
         },
       });
 
+      const orderNumber = `ORD-${created.id}`;
+      await tx.order.update({
+        where: { id: created.id },
+        data: { orderNumber },
+      });
+
       if (paymentMethod === "COD" && stockDelta.size > 0) {
         await this.writeSaleLedger(tx, {
           orderId: created.id,
@@ -254,7 +259,7 @@ export class OrdersService {
 
       await tx.checkoutSession.deleteMany({ where: { customerId } });
 
-      return this.mapOrderDetail(created);
+      return this.mapOrderDetail({ ...created, orderNumber });
     });
   }
 
@@ -761,10 +766,6 @@ export class OrdersService {
   }
 
   // ─── Internals ─────────────────────────────────────────────────────────────
-
-  private generateOrderNumber(): string {
-    return `ORD-${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-  }
 
   private async findOrderByIdempotencyKey(
     customerId: number,

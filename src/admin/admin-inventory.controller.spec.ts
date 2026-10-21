@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import { NotFoundException, StreamableFile } from "@nestjs/common";
 import { AdminInventoryController } from "./admin-inventory.controller";
 import { AdminInventoryService } from "./admin-inventory.service";
 import { AdminRoleGuard } from "../auth/admin-role.guard";
@@ -21,6 +21,7 @@ const mockInventory = {
   reserveStock: jest.fn(),
   releaseStock: jest.fn(),
   lowStock: jest.fn(),
+  exportLowStockExcel: jest.fn(),
   history: jest.fn(),
   productHistory: jest.fn(),
   listSales: jest.fn(),
@@ -231,15 +232,23 @@ describe("AdminInventoryController", () => {
         page: 1,
         limit: 25,
         totalPages: 1,
-        threshold: 10,
+        thresholds: { massG: 1000, volumeMl: 1000, unit: 25 },
       });
-      const result = await controller.lowStock("10", "1", "25");
+      const result = await controller.lowStock("1", "25");
       expect(mockInventory.lowStock).toHaveBeenCalledWith({
-        threshold: 10,
         page: 1,
         limit: 25,
       });
       expect(result.total).toBe(12);
+    });
+  });
+
+  describe("exportLowStock()", () => {
+    it("should return StreamableFile", async () => {
+      mockInventory.exportLowStockExcel.mockResolvedValue(Buffer.from("xlsx"));
+      const out = await controller.exportLowStock();
+      expect(mockInventory.exportLowStockExcel).toHaveBeenCalled();
+      expect(out).toBeInstanceOf(StreamableFile);
     });
   });
 

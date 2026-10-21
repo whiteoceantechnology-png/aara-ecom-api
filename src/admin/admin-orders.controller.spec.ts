@@ -20,6 +20,7 @@ const mockOrder = {
     name: "John Doe",
     email: "john@gmail.com",
     phone: "9876543210",
+    gstIn: "1223432525",
   },
   items: [],
   payments: [],
