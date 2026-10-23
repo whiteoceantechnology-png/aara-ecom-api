@@ -14,6 +14,7 @@ export const SALES_EXPORT_COLUMNS = [
   "Customer Phone",
   "Customer Email",
   "Billing State *",
+  "Shipping Address",
   "Shipping State",
   "Shipping Pincode",
   "Line Type *",
@@ -53,6 +54,7 @@ export type SalesExportSource = {
   customerPhone: string | null;
   customerEmail: string | null;
   billingState: string | null;
+  shippingAddressLine: string | null;
   shippingState: string | null;
   shippingPincode: string | null;
   storeState: string | null;
@@ -180,6 +182,9 @@ function money(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Seller's registered state; used as the home-state fallback when StoreProfile.state isn't configured. */
+const DEFAULT_SELLER_STATE = "Tamil Nadu";
+
 function splitGst(opts: {
   taxAmount: number;
   billingState: string | null;
@@ -189,13 +194,8 @@ function splitGst(opts: {
   if (tax <= 0) return { cgst: 0, sgst: 0, igst: 0 };
 
   const bill = normalizeStateKey(opts.billingState);
-  const store = normalizeStateKey(opts.storeState);
-  const intra =
-    bill.length > 0 && store.length > 0 && bill === store
-      ? true
-      : bill.length > 0 && store.length === 0
-        ? true // default home-state assumption when store state unset
-        : false;
+  const store = normalizeStateKey(opts.storeState || DEFAULT_SELLER_STATE);
+  const intra = bill.length > 0 && bill === store;
 
   if (intra) {
     const half = money(tax / 2);
@@ -243,6 +243,7 @@ export function mapSaleToExportRow(src: SalesExportSource): SalesExportRow {
     "Customer Phone": empty(src.customerPhone),
     "Customer Email": empty(src.customerEmail),
     "Billing State *": billingState,
+    "Shipping Address": empty(src.shippingAddressLine),
     "Shipping State": empty(src.shippingState),
     "Shipping Pincode": empty(src.shippingPincode),
     "Line Type *": "Product",
@@ -288,12 +289,17 @@ export function parseMonthRange(month: string): { from: Date; to: Date } {
 export function addressFields(
   snapshot: unknown,
   shipping: {
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
     state?: string | null;
     postalCode?: string | null;
+    country?: string | null;
   } | null,
 ): {
   state: string | null;
   pincode: string | null;
+  line: string | null;
 } {
   if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
     const s = snapshot as Record<string, unknown>;
@@ -308,13 +314,36 @@ export function addressFields(
       typeof pincodeRaw === "string" || typeof pincodeRaw === "number"
         ? String(pincodeRaw)
         : null;
+    const line1 = s.addressLine1 ?? s.line1 ?? s.address1;
+    const line2 = s.addressLine2 ?? s.line2 ?? s.address2;
+    const city = s.city ?? s.City;
+    const line = joinAddressLine(line1, line2, city);
     return {
       state: state || shipping?.state || null,
       pincode: pincode || shipping?.postalCode || null,
+      line:
+        line ||
+        joinAddressLine(
+          shipping?.addressLine1,
+          shipping?.addressLine2,
+          shipping?.city,
+        ),
     };
   }
   return {
     state: shipping?.state ?? null,
     pincode: shipping?.postalCode ?? null,
+    line: joinAddressLine(
+      shipping?.addressLine1,
+      shipping?.addressLine2,
+      shipping?.city,
+    ),
   };
+}
+
+function joinAddressLine(...parts: unknown[]): string | null {
+  const strs = parts
+    .map((p) => (typeof p === "string" ? p.trim() : ""))
+    .filter((p) => p.length > 0);
+  return strs.length > 0 ? strs.join(", ") : null;
 }

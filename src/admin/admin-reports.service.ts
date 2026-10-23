@@ -275,7 +275,14 @@ export class AdminReportsService {
                 },
               },
               shippingAddress: {
-                select: { state: true, postalCode: true },
+                select: {
+                  addressLine1: true,
+                  addressLine2: true,
+                  city: true,
+                  state: true,
+                  postalCode: true,
+                  country: true,
+                },
               },
               payments: {
                 orderBy: { paymentDate: "desc" },
@@ -345,6 +352,7 @@ export class AdminReportsService {
         customerPhone: order.customer.phone,
         customerEmail: order.customer.email,
         billingState: addr.state,
+        shippingAddressLine: addr.line,
         shippingState: addr.state,
         shippingPincode: addr.pincode,
         storeState,
