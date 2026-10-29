@@ -120,17 +120,22 @@ describe("PaymentsController", () => {
         razorpayPaymentId: "pay_xxx",
         razorpaySignature: "sig_xxx",
       };
+      const req = {
+        headers: { "user-agent": "jest-test-agent" },
+        socket: { remoteAddress: "127.0.0.1" },
+      };
       const result = {
         success: true,
         payment: { id: 1, orderId: 1, paymentMethod: "razorpay" },
       };
       mockRazorpayService.verifyAndCapturePayment.mockResolvedValue(result);
 
-      expect(await controller.verifyRazorpayPayment(dto as any)).toEqual(
-        result,
-      );
+      expect(
+        await controller.verifyRazorpayPayment(dto as any, req as any),
+      ).toEqual(result);
       expect(mockRazorpayService.verifyAndCapturePayment).toHaveBeenCalledWith(
         dto,
+        { clientIpAddress: "127.0.0.1", clientUserAgent: "jest-test-agent" },
       );
     });
   });
@@ -149,7 +154,7 @@ describe("PaymentsController", () => {
   });
 
   describe("getRazorpayConfig()", () => {
-    it("should return config status", async () => {
+    it("should return config status", () => {
       const result = { configured: true, mode: "test" };
       mockRazorpayService.getConfigStatus.mockReturnValue(result);
       expect(controller.getRazorpayConfig()).toEqual(result);

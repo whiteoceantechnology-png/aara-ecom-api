@@ -171,9 +171,15 @@ After the user completes payment, Razorpay calls `handler` with the signature. S
   "orderId": 3,
   "razorpayOrderId": "order_SepaFQGMX1qJZY",
   "razorpayPaymentId": "pay_xxxxxxxxxxxxxxx",
-  "razorpaySignature": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  "razorpaySignature": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metaEventId": "purchase_order_AARA-0003",
+  "fbp": "fb.1.1699999999999.1234567890",
+  "fbc": "fb.1.1699999999999.AbCdEfGh",
+  "eventSourceUrl": "https://aaraahomecare.com/order-confirmation/AARA-0003"
 }
 ```
+
+`metaEventId`, `fbp`, `fbc`, `eventSourceUrl` are optional and only used for the server-side Meta Conversions API Purchase event (see below) — omit them and the backend still works exactly as before.
 
 **Response (success):**
 ```json
@@ -192,6 +198,44 @@ After the user completes payment, Razorpay calls `handler` with the signature. S
 ```
 
 Order `paymentStatus` is updated to `paid` and stock is confirmed.
+
+---
+
+## Meta (Facebook) Conversions API — Purchase event
+
+After an ONLINE order is confirmed via `verify` / the Razorpay webhook / status sync, the backend
+sends a server-side **Purchase** event to Meta Conversions API (never for COD or unpaid/cancelled
+orders — COD confirmation never calls this code path).
+
+**Deduplication with the browser Pixel:** Meta dedupes a Pixel event and a CAPI event when they
+share the same `event_id`. Two ways to achieve this:
+
+1. **Recommended** — when calling `fbq('track', 'Purchase', {...}, { eventID })` on the order
+   confirmation page, use `eventID = "purchase_order_" + orderNumber` (e.g.
+   `purchase_order_AARA-0003`). The backend derives the *same* id automatically when `metaEventId`
+   isn't sent, so no extra coordination is required.
+2. **Explicit** — generate any event id on the frontend and send it as `metaEventId` in the
+   `/payments/razorpay/verify` body; the backend will use that exact id instead.
+
+Also forward the browser's `_fbp` / `_fbc` cookies and the current page URL as `fbp` / `fbc` /
+`eventSourceUrl` in the same `verify` call to improve Meta's Event Match Quality score.
+
+**Configuration** (backend `.env` / `.env.local` — never exposed to the frontend):
+
+```
+META_PIXEL_ID=<Meta Pixel / Dataset ID>
+META_CAPI_ACCESS_TOKEN=<Conversions API access token>
+# META_CAPI_API_VERSION=v21.0        (optional, defaults to v21.0)
+# META_CAPI_TEST_EVENT_CODE=TEST1234 (optional — set while testing in Events Manager → Test Events, then unset)
+```
+
+If either `META_PIXEL_ID` or `META_CAPI_ACCESS_TOKEN` is unset, the Purchase event is skipped (logged) and the
+order/payment flow is unaffected — Meta API outages or missing config never break checkout.
+
+To verify in **Meta Events Manager → Test Events**: set `META_CAPI_TEST_EVENT_CODE` to the code shown in that
+tab, restart the API, complete a real/test online payment, and confirm a server-side `Purchase` event appears
+and is marked "Deduplicated" against the browser Pixel event (fired with the matching `event_id`). Unset the
+test code afterwards so production traffic isn't flagged as test events.
 
 ---
 

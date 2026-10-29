@@ -423,6 +423,8 @@ model Order {
   discountPercent    Decimal?    @db.Decimal(5, 2)
   couponCode         String?
   paymentStatus      String      @default("pending")
+  /** Checkout payment method chosen when the order was placed ("COD" | "ONLINE"). */
+  paymentMethod      String?
   trackingId         String?
   notes              String?
   shippingAddressId  Int?

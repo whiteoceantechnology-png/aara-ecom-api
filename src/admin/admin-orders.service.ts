@@ -28,6 +28,7 @@ import {
   unitsToConsume,
   unitsToDeductFromStoredPool,
 } from "../product/products/product-stock-pool.util";
+import { MailService } from "../common/mail/mail.service";
 import {
   AdminAutoDeliverDto,
   AdminCancelOrderDto,
@@ -66,6 +67,7 @@ export class AdminOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
+    private readonly mail: MailService,
   ) {}
 
   /** Documents stock reservation policy for admin UI / ops. */
@@ -284,7 +286,34 @@ export class AdminOrdersService {
       }
     });
 
-    return this.findOne(id);
+    const refreshed = await this.findOne(id);
+
+    // Status update succeeded — notify the customer only when it just became SHIPPED.
+    if (nextStatus === OrderStatus.SHIPPED) {
+      await this.sendOrderShippedEmail(refreshed);
+    }
+
+    return refreshed;
+  }
+
+  /** Sends the shipment email only after the status update is confirmed (not on failed transitions). */
+  private async sendOrderShippedEmail(order: {
+    orderNumber: string;
+    trackingId: string | null;
+    customer: { name: string; email: string };
+  }) {
+    const settings = await this.prisma.notificationSettings.findUnique({
+      where: { id: 1 },
+    });
+    if (settings && !settings.orderShippedEmail) return;
+    if (!order.customer?.email) return;
+
+    await this.mail.sendOrderShippedEmail({
+      to: order.customer.email,
+      customerName: order.customer.name ?? "Customer",
+      orderNumber: order.orderNumber,
+      trackingId: order.trackingId,
+    });
   }
 
   async recordPayment(

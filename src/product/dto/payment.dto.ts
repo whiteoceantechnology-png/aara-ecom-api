@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsInt, IsString } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsInt, IsOptional, IsString } from "class-validator";
 import { Type } from "class-transformer";
 
 export class CreateRazorpayOrderDto {
@@ -35,4 +35,36 @@ export class VerifyRazorpayPaymentDto {
   })
   @IsString()
   razorpaySignature: string;
+
+  @ApiPropertyOptional({
+    example: "purchase_order_AARA-0001",
+    description:
+      "Same event ID used by the browser Meta Pixel Purchase event (fbq 'eventID' option) — required to deduplicate the server-side Meta Conversions API event against the Pixel event. If omitted, the backend derives `purchase_order_<orderNumber>`.",
+  })
+  @IsOptional()
+  @IsString()
+  metaEventId?: string;
+
+  @ApiPropertyOptional({
+    description: "Browser `_fbp` cookie value, for Meta CAPI match quality",
+  })
+  @IsOptional()
+  @IsString()
+  fbp?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Browser `_fbc` cookie value (or derived from fbclid), for Meta CAPI match quality",
+  })
+  @IsOptional()
+  @IsString()
+  fbc?: string;
+
+  @ApiPropertyOptional({
+    example: "https://aaraahomecare.com/order-confirmation/AARA-0001",
+    description: "Page URL where the Purchase event fires, for Meta CAPI",
+  })
+  @IsOptional()
+  @IsString()
+  eventSourceUrl?: string;
 }

@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AppSettingsService } from "../../settings/app-settings.service";
 import { OrdersService } from "../orders/orders.service";
+import type { MetaEventContext } from "../orders/orders.service";
 import Razorpay from "razorpay";
 import * as crypto from "crypto";
 import {
@@ -24,6 +25,19 @@ type RazorpayPaymentLike = {
   amount?: number;
   notes?: Record<string, string>;
 };
+
+/** Drops empty/undefined keys; returns undefined when nothing meaningful remains. */
+function cleanMetaContext(
+  ctx: MetaEventContext | undefined,
+): MetaEventContext | undefined {
+  if (!ctx) return undefined;
+  const entries = Object.entries(ctx).filter(
+    ([, v]) => v !== undefined && v !== null && v !== "",
+  );
+  return entries.length
+    ? (Object.fromEntries(entries) as MetaEventContext)
+    : undefined;
+}
 
 @Injectable()
 export class RazorpayService {
@@ -173,7 +187,10 @@ export class RazorpayService {
     );
   }
 
-  async verifyAndCapturePayment(dto: VerifyRazorpayPaymentDto) {
+  async verifyAndCapturePayment(
+    dto: VerifyRazorpayPaymentDto,
+    metaContext?: MetaEventContext,
+  ) {
     if (!this.keySecret) {
       throw new BadRequestException(
         "Razorpay is not configured. Set RAZORPAY_KEY_SECRET via PUT /admin/settings/credentials.",
@@ -232,6 +249,13 @@ export class RazorpayService {
       razorpayOrderId: dto.razorpayOrderId,
       razorpayPaymentId: dto.razorpayPaymentId,
       amount: order.totalAmount,
+      metaContext: cleanMetaContext({
+        eventId: dto.metaEventId,
+        fbp: dto.fbp,
+        fbc: dto.fbc,
+        eventSourceUrl: dto.eventSourceUrl,
+        ...metaContext,
+      }),
     });
 
     return {
@@ -538,6 +562,7 @@ export class RazorpayService {
     razorpayOrderId: string;
     razorpayPaymentId: string;
     amount?: Prisma.Decimal | number | string;
+    metaContext?: MetaEventContext;
   }) {
     const already = await this.prisma.payment.findFirst({
       where: {
@@ -554,7 +579,14 @@ export class RazorpayService {
     });
 
     if (already?.paymentStatus === "paid") {
-      await this.ordersService.applyPaymentSuccess(params.orderId);
+      if (params.metaContext) {
+        await this.ordersService.applyPaymentSuccess(
+          params.orderId,
+          params.metaContext,
+        );
+      } else {
+        await this.ordersService.applyPaymentSuccess(params.orderId);
+      }
       return already;
     }
 
@@ -598,7 +630,14 @@ export class RazorpayService {
       });
     }
 
-    await this.ordersService.applyPaymentSuccess(params.orderId);
+    if (params.metaContext) {
+      await this.ordersService.applyPaymentSuccess(
+        params.orderId,
+        params.metaContext,
+      );
+    } else {
+      await this.ordersService.applyPaymentSuccess(params.orderId);
+    }
     return payment;
   }
 

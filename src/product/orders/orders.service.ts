@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -39,6 +40,8 @@ import {
   recordStockMovement,
   type SaleLineInput,
 } from "../products/inventory-ledger";
+import { MailService } from "../../common/mail/mail.service";
+import { MetaCapiService } from "../../common/meta-capi/meta-capi.service";
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
@@ -104,9 +107,31 @@ type OrderPricingSource =
   | Coupon
   | NonNullable<PlaceOrderParams["couponPricing"]>;
 
+/**
+ * Browser context forwarded from a live request (Razorpay verify call) so the
+ * Meta Conversions API Purchase event matches the browser Pixel event for
+ * deduplication and has better match quality. All fields are optional —
+ * server-to-server triggers (webhook, admin, status sync) omit them.
+ */
+export type MetaEventContext = {
+  /** Shared with the browser Pixel's Purchase `eventID` — required for dedup. */
+  eventId?: string | null;
+  fbp?: string | null;
+  fbc?: string | null;
+  clientIpAddress?: string | null;
+  clientUserAgent?: string | null;
+  eventSourceUrl?: string | null;
+};
+
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(OrdersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly metaCapi: MetaCapiService,
+  ) {}
 
   // ─── Public API ────────────────────────────────────────────────────────────
 
@@ -172,7 +197,7 @@ export class OrdersService {
       customerId,
     );
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const stockDelta = await this.applyInventoryForPaymentMode(
         tx,
         cart.items,
@@ -196,6 +221,7 @@ export class OrdersService {
           couponCode:
             couponCode?.trim().toUpperCase() ?? couponRow?.code ?? null,
           paymentStatus: "pending",
+          paymentMethod,
           shippingAddressId: shippingId ?? null,
           ...(snapshot !== undefined ? { addressSnapshot: snapshot } : {}),
           items: {
@@ -261,14 +287,22 @@ export class OrdersService {
 
       return this.mapOrderDetail({ ...created, orderNumber });
     });
+
+    // COD orders are confirmed immediately; ONLINE orders confirm on payment success.
+    if (paymentMethod === "COD") {
+      await this.sendOrderConfirmationEmail(customerId, result, paymentMethod);
+    }
+
+    return result;
   }
 
   /**
    * After a successful payment: commit reserved units to stock for ONLINE orders,
    * or only flip payment flags for COD / already-deducted flows.
    */
-  async applyPaymentSuccess(orderId: number) {
-    return this.prisma.$transaction(async (tx) => {
+  async applyPaymentSuccess(orderId: number, metaContext?: MetaEventContext) {
+    let justConfirmed = false;
+    const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: {
@@ -295,6 +329,7 @@ export class OrdersService {
       }
 
       if (order.status === OrderStatus.PENDING_PAYMENT) {
+        justConfirmed = true;
         const byProduct = this.aggregateProductPoolUnits(
           order.items.map((item) => ({
             productId: item.variant.product.id,
@@ -372,6 +407,23 @@ export class OrdersService {
         include: orderDetailInclude,
       });
     });
+
+    // Online payment just confirmed the order (PENDING_PAYMENT → PROCESSING).
+    if (justConfirmed && result) {
+      await this.sendOrderConfirmationEmail(
+        result.customerId,
+        result,
+        "ONLINE",
+      );
+      // Meta Conversions API Purchase event — ONLINE payments only (COD is
+      // confirmed at placeOrder, never via this path; see requirement to
+      // skip failed/cancelled/offline payments).
+      if (result.paymentMethod === "ONLINE") {
+        await this.sendMetaPurchaseEvent(result, metaContext);
+      }
+    }
+
+    return result;
   }
 
   async cancel(orderId: number, customerId: number) {
@@ -766,6 +818,125 @@ export class OrdersService {
   }
 
   // ─── Internals ─────────────────────────────────────────────────────────────
+
+  /** Sends the confirmation email only for orders that are actually confirmed (not failed/pending). */
+  private async sendOrderConfirmationEmail(
+    customerId: number,
+    order: Record<string, unknown> | null,
+    paymentMethod: "COD" | "ONLINE",
+  ) {
+    if (!order) return;
+    const settings = await this.prisma.notificationSettings.findUnique({
+      where: { id: 1 },
+    });
+    if (settings && !settings.orderPlacedEmail) return;
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, email: true },
+    });
+    if (!customer?.email) return;
+
+    await this.mail.sendOrderConfirmationEmail({
+      to: customer.email,
+      customerName: customer.name ?? "Customer",
+      orderNumber:
+        typeof order.orderNumber === "string" ? order.orderNumber : "",
+      totalAmount: Number(order.totalAmount ?? 0),
+      paymentMethod,
+    });
+  }
+
+  /**
+   * Meta Conversions API Purchase event — server-side mirror of the browser
+   * Pixel Purchase event, deduplicated via a shared `event_id`. Best-effort:
+   * never throws, so a Meta outage can't block payment/order confirmation.
+   * Only called for ONLINE orders that just transitioned to paid (see
+   * `applyPaymentSuccess`) — never for COD, failed, or cancelled payments.
+   */
+  private async sendMetaPurchaseEvent(
+    order: Record<string, unknown> | null,
+    context?: MetaEventContext,
+  ) {
+    if (!order || !this.metaCapi.isConfigured()) return;
+    try {
+      const customerId = Number(order.customerId);
+      const shippingAddressId = order.shippingAddressId
+        ? Number(order.shippingAddressId)
+        : null;
+      const items = Array.isArray(order.items)
+        ? (order.items as Array<{
+            variantId: number;
+            quantity: number;
+            price: Prisma.Decimal | number | string;
+          }>)
+        : [];
+      const orderNumber =
+        typeof order.orderNumber === "string"
+          ? order.orderNumber
+          : String(order.id);
+
+      const [customer, address] = await Promise.all([
+        this.prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { name: true, email: true, phone: true },
+        }),
+        shippingAddressId
+          ? this.prisma.customerAddress.findUnique({
+              where: { id: shippingAddressId },
+              select: {
+                name: true,
+                phone: true,
+                city: true,
+                state: true,
+                postalCode: true,
+                country: true,
+              },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const nameParts = (customer?.name ?? address?.name ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      await this.metaCapi.sendPurchaseEvent({
+        // Fallback keeps the browser Pixel and server CAPI event IDs aligned
+        // (frontend should fire Purchase with eventID `purchase_order_<orderNumber>`
+        // unless it sends an explicit `metaEventId` with the verify call).
+        eventId: context?.eventId || `purchase_order_${orderNumber}`,
+        eventTime: Math.floor(Date.now() / 1000),
+        value: Number(order.totalAmount ?? 0),
+        currency: "INR",
+        orderId: orderNumber,
+        numItems: items.reduce((sum, i) => sum + Number(i.quantity ?? 0), 0),
+        contentIds: items.map((i) => String(i.variantId)),
+        contents: items.map((i) => ({
+          id: String(i.variantId),
+          quantity: Number(i.quantity ?? 0),
+          item_price: Number(i.price ?? 0),
+        })),
+        email: customer?.email ?? null,
+        phone: customer?.phone ?? address?.phone ?? null,
+        firstName: nameParts[0] ?? null,
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : null,
+        city: address?.city ?? null,
+        state: address?.state ?? null,
+        postalCode: address?.postalCode ?? null,
+        country: address?.country ?? null,
+        clientIpAddress: context?.clientIpAddress ?? null,
+        clientUserAgent: context?.clientUserAgent ?? null,
+        fbp: context?.fbp ?? null,
+        fbc: context?.fbc ?? null,
+        eventSourceUrl: context?.eventSourceUrl ?? null,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Meta CAPI Purchase event setup failed for order #${String(order.id)}: ${String(err)}`,
+      );
+    }
+  }
 
   private async findOrderByIdempotencyKey(
     customerId: number,

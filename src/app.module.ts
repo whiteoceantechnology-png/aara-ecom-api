@@ -9,6 +9,8 @@ import { UserModule } from "./user/user.module";
 import { ProductModule } from "./product/product.module";
 import { AdminModule } from "./admin/admin.module";
 import { AppSettingsModule } from "./settings/app-settings.module";
+import { MailModule } from "./common/mail/mail.module";
+import { MetaCapiModule } from "./common/meta-capi/meta-capi.module";
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { AppSettingsModule } from "./settings/app-settings.module";
       // `.env.local` (gitignored) overrides `.env` — use for live Razorpay / secrets
       envFilePath: [".env.local", ".env"],
     }),
+    MailModule,
+    MetaCapiModule,
     AppSettingsModule,
     AuthModule,
     UserModule,

@@ -85,8 +85,22 @@ export class PaymentsController {
     description: "Invalid signature or order already paid",
   })
   @ApiResponse({ status: 404, description: "Order not found" })
-  verifyRazorpayPayment(@Body() dto: VerifyRazorpayPaymentDto) {
-    return this.razorpayService.verifyAndCapturePayment(dto);
+  verifyRazorpayPayment(
+    @Body() dto: VerifyRazorpayPaymentDto,
+    @Req() req: Request,
+  ) {
+    return this.razorpayService.verifyAndCapturePayment(dto, {
+      clientIpAddress: this.resolveClientIp(req),
+      clientUserAgent: req.headers["user-agent"] ?? null,
+    });
+  }
+
+  /** Prefers the original client IP from a reverse proxy (X-Forwarded-For) over the socket address. */
+  private resolveClientIp(req: Request): string | null {
+    const forwarded = req.headers["x-forwarded-for"];
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const fromHeader = first?.split(",")[0]?.trim();
+    return fromHeader || req.socket.remoteAddress || null;
   }
 
   @Get("razorpay/status/:orderId")
