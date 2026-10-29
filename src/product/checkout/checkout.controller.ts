@@ -67,7 +67,7 @@ export class CheckoutController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
-      "Place order — idempotent with Idempotency-Key header; reserves stock until payment (non-COD)",
+      "Place order — idempotent with Idempotency-Key header; reserves stock until payment (non-COD). Sends Meta InitiateCheckout (CAPI) when metaEventId is provided.",
   })
   @ApiHeader({
     name: "idempotency-key",
@@ -81,7 +81,13 @@ export class CheckoutController {
     @CurrentCustomerId() customerId: number,
     @Body() dto: PlaceOrderDto,
     @Headers("idempotency-key") idempotencyKey?: string,
+    @Headers("user-agent") userAgent?: string,
   ) {
-    return this.checkoutService.placeOrder(customerId, dto, idempotencyKey);
+    return this.checkoutService.placeOrder(
+      customerId,
+      dto,
+      idempotencyKey,
+      userAgent,
+    );
   }
 }

@@ -1,7 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CartService } from "../cart/cart.service";
 import { OrdersService } from "../orders/orders.service";
+import { MetaCapiService } from "../../common/meta-capi/meta-capi.service";
 import {
   computeCheckoutTotals,
   toCartLineInputs,
@@ -27,11 +28,66 @@ import {
  */
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
     private readonly ordersService: OrdersService,
+    private readonly metaCapi: MetaCapiService,
   ) {}
+
+  /**
+   * Server-side Meta InitiateCheckout event, priced from the same summary the
+   * customer sees. Runs before the cart is consumed, and never throws so a
+   * Meta outage can't block order placement.
+   */
+  private async trackInitiateCheckout(
+    customerId: number,
+    dto: PlaceOrderDto,
+    clientUserAgent?: string,
+  ) {
+    if (!dto.metaEventId) return;
+    try {
+      const summary = await this.getSummary(customerId, dto.addressId);
+      if (!summary.items.length) return;
+
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { name: true, email: true, phone: true },
+      });
+      const [firstName, ...lastNameParts] = (customer?.name ?? "")
+        .trim()
+        .split(/\s+/);
+
+      await this.metaCapi.sendInitiateCheckoutEvent({
+        eventId: dto.metaEventId,
+        eventTime: Math.floor(Date.now() / 1000),
+        value: summary.total,
+        currency: "INR",
+        numItems: summary.items.reduce((sum, i) => sum + i.quantity, 0),
+        contentIds: summary.items.map((i) => String(i.variantId)),
+        contents: summary.items.map((i) => ({
+          id: String(i.variantId),
+          quantity: i.quantity,
+          item_price: i.unitPrice,
+        })),
+        email: customer?.email ?? null,
+        phone: customer?.phone ?? null,
+        firstName: firstName || null,
+        lastName: lastNameParts.join(" ") || null,
+        state: summary.shippingState,
+        clientUserAgent: clientUserAgent ?? null,
+        fbp: dto.fbp ?? null,
+        fbc: dto.fbc ?? null,
+        eventSourceUrl: dto.eventSourceUrl ?? null,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Meta InitiateCheckout tracking failed for customer #${customerId}: ${String(err)}`,
+      );
+    }
+  }
 
   async getSummary(customerId: number, addressId?: number) {
     const cart = await this.cartService.getOrCreate(customerId);
@@ -127,7 +183,10 @@ export class CheckoutService {
     customerId: number,
     dto: PlaceOrderDto,
     idempotencyKey?: string,
+    clientUserAgent?: string,
   ) {
+    await this.trackInitiateCheckout(customerId, dto, clientUserAgent);
+
     const cart = await this.cartService.getOrCreate(customerId);
     await this.expireStaleSessionIfNeeded(customerId);
 

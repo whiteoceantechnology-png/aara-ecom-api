@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  Headers,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -45,8 +46,12 @@ export class CartController {
   @ApiBody({ type: AddToCartDto })
   @ApiResponse({ status: 201, description: "Item added to cart" })
   @ApiResponse({ status: 404, description: "Variant not found" })
-  addItem(@CurrentCustomerId() customerId: number, @Body() dto: AddToCartDto) {
-    return this.cartService.addItem(customerId, dto);
+  addItem(
+    @CurrentCustomerId() customerId: number,
+    @Body() dto: AddToCartDto,
+    @Headers("user-agent") userAgent?: string,
+  ) {
+    return this.cartService.addItem(customerId, dto, userAgent);
   }
 
   @Put("update")

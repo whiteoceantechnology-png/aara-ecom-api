@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MinLength,
@@ -48,4 +49,38 @@ export class PlaceOrderDto {
   @IsOptional()
   @IsString()
   couponCode?: string;
+
+  @ApiPropertyOptional({
+    example: "initiate_checkout_1730000000000_ab12cd",
+    description:
+      "Same event ID as the browser Meta Pixel InitiateCheckout event (fbq 'eventID'). Required to send the server-side InitiateCheckout event; without it no CAPI event is sent.",
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  metaEventId?: string;
+
+  @ApiPropertyOptional({
+    description: "Browser `_fbp` cookie value, for Meta CAPI match quality",
+  })
+  @IsOptional()
+  @IsString()
+  fbp?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Browser `_fbc` cookie value (or derived from fbclid), for Meta CAPI match quality",
+  })
+  @IsOptional()
+  @IsString()
+  fbc?: string;
+
+  @ApiPropertyOptional({
+    example: "https://aaraahomecare.com/checkout",
+    description:
+      "Page URL where the InitiateCheckout event fires, for Meta CAPI",
+  })
+  @IsOptional()
+  @IsString()
+  eventSourceUrl?: string;
 }

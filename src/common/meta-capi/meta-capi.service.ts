@@ -1,17 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { createHash } from "crypto";
 
-export type MetaPurchaseEventParams = {
-  /** Shared with the browser Meta Pixel Purchase event for deduplication. */
-  eventId: string;
-  /** Unix seconds. */
-  eventTime: number;
-  value: number;
-  currency: string;
-  orderId: string;
-  numItems: number;
-  contentIds: string[];
-  contents: Array<{ id: string; quantity: number; item_price: number }>;
+/** Customer and browser fields attached to every CAPI event as user_data. */
+export type MetaUserFields = {
   email?: string | null;
   phone?: string | null;
   firstName?: string | null;
@@ -29,11 +20,28 @@ export type MetaPurchaseEventParams = {
   eventSourceUrl?: string | null;
 };
 
+/** Shared shape for commerce events (AddToCart, InitiateCheckout, Purchase). */
+export type MetaCommerceEventParams = MetaUserFields & {
+  /** Shared with the browser Meta Pixel event for deduplication. */
+  eventId: string;
+  /** Unix seconds. */
+  eventTime: number;
+  value: number;
+  currency: string;
+  numItems: number;
+  contentIds: string[];
+  contents: Array<{ id: string; quantity: number; item_price: number }>;
+};
+
+export type MetaPurchaseEventParams = MetaCommerceEventParams & {
+  orderId: string;
+};
+
 /**
- * Meta (Facebook) Conversions API client — sends server-side Purchase events
- * so they can be deduplicated against the browser Pixel's Purchase event via
- * a shared `event_id`. Configured entirely from environment variables; never
- * throws so a Meta API outage can't break the payment/order confirmation flow.
+ * Meta (Facebook) Conversions API client — sends server-side events so they
+ * can be deduplicated against the browser Pixel via a shared `event_id`.
+ * Configured entirely from environment variables; never throws so a Meta API
+ * outage can't break the cart, checkout, or payment/order confirmation flow.
  * https://developers.facebook.com/docs/marketing-api/conversions-api
  */
 @Injectable()
@@ -75,9 +83,38 @@ export class MetaCapiService {
   }
 
   async sendPurchaseEvent(params: MetaPurchaseEventParams): Promise<void> {
+    await this.sendEvent(
+      "Purchase",
+      params,
+      { order_id: params.orderId },
+      `order ${params.orderId}`,
+    );
+  }
+
+  async sendAddToCartEvent(params: MetaCommerceEventParams): Promise<void> {
+    await this.sendEvent("AddToCart", params, {}, `event_id=${params.eventId}`);
+  }
+
+  async sendInitiateCheckoutEvent(
+    params: MetaCommerceEventParams,
+  ): Promise<void> {
+    await this.sendEvent(
+      "InitiateCheckout",
+      params,
+      {},
+      `event_id=${params.eventId}`,
+    );
+  }
+
+  private async sendEvent(
+    eventName: string,
+    params: MetaCommerceEventParams,
+    extraCustomData: Record<string, unknown>,
+    logContext: string,
+  ): Promise<void> {
     if (!this.isConfigured()) {
       this.logger.warn(
-        "Meta CAPI not configured (META_PIXEL_ID / META_CAPI_ACCESS_TOKEN) — skipping Purchase event",
+        `Meta CAPI not configured (META_PIXEL_ID / META_CAPI_ACCESS_TOKEN) — skipping ${eventName} event`,
       );
       return;
     }
@@ -102,7 +139,7 @@ export class MetaCapiService {
     const payload = {
       data: [
         {
-          event_name: "Purchase",
+          event_name: eventName,
           event_time: params.eventTime,
           event_id: params.eventId,
           action_source: "website",
@@ -117,7 +154,7 @@ export class MetaCapiService {
             contents: params.contents,
             content_type: "product",
             num_items: params.numItems,
-            order_id: params.orderId,
+            ...extraCustomData,
           },
         },
       ],
@@ -135,18 +172,18 @@ export class MetaCapiService {
       const body: unknown = await res.json().catch(() => ({}));
       if (!res.ok) {
         this.logger.error(
-          `Meta CAPI Purchase event failed for order ${params.orderId}: ${res.status} ${JSON.stringify(body)}`,
+          `Meta CAPI ${eventName} event failed (${logContext}): ${res.status} ${JSON.stringify(body)}`,
         );
         return;
       }
       const eventsReceived =
         (body as { events_received?: number })?.events_received ?? "?";
       this.logger.log(
-        `Meta CAPI Purchase event sent for order ${params.orderId} (event_id=${params.eventId}, events_received=${eventsReceived})`,
+        `Meta CAPI ${eventName} event sent (${logContext}, event_id=${params.eventId}, events_received=${eventsReceived})`,
       );
     } catch (err) {
       this.logger.error(
-        `Meta CAPI request error for order ${params.orderId}: ${String(err)}`,
+        `Meta CAPI ${eventName} request error (${logContext}): ${String(err)}`,
       );
     }
   }

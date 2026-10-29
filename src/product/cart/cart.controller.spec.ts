@@ -50,9 +50,9 @@ describe("CartController", () => {
     it("should add an item to the cart", async () => {
       const dto: AddToCartDto = { productId: 1, variantId: 1, quantity: 2 };
       service.addItem.mockResolvedValue(mockCartItem);
-      const result = await controller.addItem(1, dto);
+      const result = await controller.addItem(1, dto, "jest-agent");
       expect(result).toEqual(mockCartItem);
-      expect(service.addItem).toHaveBeenCalledWith(1, dto);
+      expect(service.addItem).toHaveBeenCalledWith(1, dto, "jest-agent");
     });
 
     it("should throw NotFoundException when variant not found", async () => {

@@ -85,6 +85,7 @@ describe("CheckoutController", () => {
         3,
         dto,
         "idem-key-1",
+        undefined,
       );
       expect(result).toEqual(order);
     });
@@ -99,6 +100,7 @@ describe("CheckoutController", () => {
       expect(mockCheckoutService.placeOrder).toHaveBeenCalledWith(
         2,
         { paymentMethod: "COD" },
+        undefined,
         undefined,
       );
     });

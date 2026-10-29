@@ -1,9 +1,11 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { MetaCapiService } from "../../common/meta-capi/meta-capi.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 import {
   unitsToConsume,
@@ -34,7 +36,12 @@ const cartInclude = {
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CartService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metaCapi: MetaCapiService,
+  ) {}
 
   async getOrCreate(customerId: number) {
     let cart = await this.prisma.cart.findFirst({
@@ -50,7 +57,11 @@ export class CartService {
     return cart;
   }
 
-  async addItem(customerId: number, dto: AddToCartDto) {
+  async addItem(
+    customerId: number,
+    dto: AddToCartDto,
+    clientUserAgent?: string,
+  ) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
       include: {
@@ -111,22 +122,78 @@ export class CartService {
       );
     }
 
-    if (existing) {
-      return this.prisma.cartItem.update({
-        where: { id: existing.id },
-        data: { quantity: nextQty },
-      });
-    }
+    const item = existing
+      ? await this.prisma.cartItem.update({
+          where: { id: existing.id },
+          data: { quantity: nextQty },
+        })
+      : await this.prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            variantId: dto.variantId,
+            productId: variant.productId,
+            quantity: dto.quantity,
+            price: variant.price,
+          },
+        });
 
-    return this.prisma.cartItem.create({
-      data: {
-        cartId: cart.id,
-        variantId: dto.variantId,
-        productId: variant.productId,
-        quantity: dto.quantity,
-        price: variant.price,
-      },
-    });
+    void this.trackAddToCart(
+      customerId,
+      dto,
+      Number(variant.price),
+      clientUserAgent,
+    );
+    return item;
+  }
+
+  /**
+   * Server-side Meta AddToCart event, deduplicated against the browser Pixel by
+   * `metaEventId`. Fire-and-forget so Meta latency never slows the cart response.
+   */
+  private async trackAddToCart(
+    customerId: number,
+    dto: AddToCartDto,
+    unitPrice: number,
+    clientUserAgent?: string,
+  ) {
+    if (!dto.metaEventId) return;
+    try {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { name: true, email: true, phone: true },
+      });
+      const [firstName, ...lastNameParts] = (customer?.name ?? "")
+        .trim()
+        .split(/\s+/);
+
+      await this.metaCapi.sendAddToCartEvent({
+        eventId: dto.metaEventId,
+        eventTime: Math.floor(Date.now() / 1000),
+        value: unitPrice * dto.quantity,
+        currency: "INR",
+        numItems: dto.quantity,
+        contentIds: [String(dto.variantId)],
+        contents: [
+          {
+            id: String(dto.variantId),
+            quantity: dto.quantity,
+            item_price: unitPrice,
+          },
+        ],
+        email: customer?.email ?? null,
+        phone: customer?.phone ?? null,
+        firstName: firstName || null,
+        lastName: lastNameParts.join(" ") || null,
+        clientUserAgent: clientUserAgent ?? null,
+        fbp: dto.fbp ?? null,
+        fbc: dto.fbc ?? null,
+        eventSourceUrl: dto.eventSourceUrl ?? null,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Meta AddToCart tracking failed for customer #${customerId}: ${String(err)}`,
+      );
+    }
   }
 
   async updateItem(dto: UpdateCartItemDto) {
