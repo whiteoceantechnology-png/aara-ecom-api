@@ -28,6 +28,11 @@ export class CreateBrandDto {
   @IsOptional()
   @IsString()
   logoUrl?: string;
+
+  @ApiPropertyOptional({ example: true, description: "Defaults to true" })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateBrandDto {
@@ -179,6 +184,14 @@ export class AdminCreateProductDto {
   @IsOptional()
   @IsString()
   stockUnit?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: "Active/visible flag. Defaults to true",
+  })
+  @IsOptional()
+  @IsBoolean()
+  status?: boolean;
 }
 
 export class AdminUpdateProductDto {

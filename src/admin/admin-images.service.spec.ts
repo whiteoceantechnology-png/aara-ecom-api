@@ -48,12 +48,12 @@ describe("AdminImagesService", () => {
 
   describe("uploadOne()", () => {
     it("should throw BadRequestException when no file provided", async () => {
-      await expect(service.uploadOne(undefined)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.uploadOne(undefined)).rejects.toThrow(
-        "No file provided",
-      );
+      await expect(
+        service.uploadOne(undefined as unknown as Express.Multer.File),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.uploadOne(undefined as unknown as Express.Multer.File),
+      ).rejects.toThrow("No file provided");
     });
 
     it("should throw BadRequestException when file has no buffer", async () => {

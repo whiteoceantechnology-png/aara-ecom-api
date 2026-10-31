@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CheckoutController } from "./checkout.controller";
 import { CheckoutService } from "./checkout.service";
+import { CheckoutPaymentMethod } from "../dto/checkout.dto";
 import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
 const mockCheckoutService = {
@@ -75,7 +76,7 @@ describe("CheckoutController", () => {
 
       const dto = {
         addressId: 1,
-        paymentMethod: "CARD" as const,
+        paymentMethod: CheckoutPaymentMethod.CARD,
         couponCode: "SAVE10",
       };
 

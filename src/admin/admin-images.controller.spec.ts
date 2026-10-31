@@ -94,12 +94,12 @@ describe("AdminImagesController", () => {
     });
 
     it("should throw BadRequestException when files is undefined", async () => {
-      await expect(controller.upload(undefined)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(controller.upload(undefined)).rejects.toThrow(
-        "No files provided. Use form field 'files'.",
-      );
+      await expect(
+        controller.upload(undefined as unknown as Express.Multer.File[]),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.upload(undefined as unknown as Express.Multer.File[]),
+      ).rejects.toThrow("No files provided. Use form field 'files'.");
     });
 
     it("should throw BadRequestException for invalid file type", async () => {
@@ -168,9 +168,9 @@ describe("AdminImagesController", () => {
     });
 
     it("should throw BadRequestException when path is undefined", async () => {
-      await expect(controller.getByPath(undefined)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        controller.getByPath(undefined as unknown as string),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw NotFoundException when image not found", async () => {

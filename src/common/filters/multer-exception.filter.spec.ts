@@ -12,7 +12,7 @@ const createMockHost = () => {
       getResponse: () => res,
     }),
     res,
-  } as unknown as ArgumentsHost;
+  } as unknown as ArgumentsHost & { res: typeof res };
 };
 
 describe("MulterExceptionFilter", () => {

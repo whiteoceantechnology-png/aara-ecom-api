@@ -130,7 +130,7 @@ describe("ProductsController", () => {
         name: "Updated Root",
       });
       const result = await controller.update(1, dto);
-      expect(result.name).toBe("Updated Root");
+      expect(result).toEqual(expect.objectContaining({ name: "Updated Root" }));
     });
 
     it("should throw NotFoundException when product not found", async () => {
