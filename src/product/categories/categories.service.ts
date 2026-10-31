@@ -136,6 +136,7 @@ export class CategoriesService {
       data: {
         name: dto.name,
         ...(dto.categoryImage != null && { categoryImage: dto.categoryImage }),
+        ...(dto.isActive != null && { isActive: dto.isActive }),
       },
     });
   }

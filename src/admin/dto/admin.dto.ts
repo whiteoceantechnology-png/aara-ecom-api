@@ -465,6 +465,11 @@ export class AdminCreateCategoryDto {
   @IsOptional()
   @IsString()
   categoryImage?: string;
+
+  @ApiPropertyOptional({ example: true, description: "Defaults to true" })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class AdminUpdateCategoryDto {
