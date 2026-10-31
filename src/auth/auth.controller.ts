@@ -8,6 +8,8 @@ import {
   Param,
   ParseIntPipe,
 } from "@nestjs/common";
+import { assertSelfOrAdmin, CurrentPrincipal } from "./principal";
+import type { AuthPrincipal } from "./principal";
 import {
   ApiTags,
   ApiOperation,
@@ -86,7 +88,9 @@ export class AuthController {
   updateCustomer(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateCustomerDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ) {
+    assertSelfOrAdmin(principal, "customerId", id);
     return this.customersService.update(id, dto);
   }
 
@@ -107,7 +111,9 @@ export class AuthController {
   async updateUser(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateUserDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<UpdateUserResponseDto> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.authService.updateUser(id, dto);
   }
 

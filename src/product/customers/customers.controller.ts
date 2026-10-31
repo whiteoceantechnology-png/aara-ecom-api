@@ -11,6 +11,8 @@ import {
   HttpStatus,
   ParseIntPipe,
 } from "@nestjs/common";
+import { assertSelfOrAdmin, CurrentPrincipal } from "../../auth/principal";
+import type { AuthPrincipal } from "../../auth/principal";
 import {
   ApiTags,
   ApiOperation,
@@ -60,7 +62,9 @@ export class CustomersController {
   update(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateCustomerDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ) {
+    assertSelfOrAdmin(principal, "customerId", id);
     return this.customersService.update(id, dto);
   }
 
@@ -166,7 +170,11 @@ export class CustomersController {
   @ApiParam({ name: "id", type: Number })
   @ApiResponse({ status: 200, description: "Customer profile" })
   @ApiResponse({ status: 404, description: "Customer not found" })
-  findOne(@Param("id", ParseIntPipe) id: number) {
+  findOne(
+    @Param("id", ParseIntPipe) id: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    assertSelfOrAdmin(principal, "customerId", id);
     return this.customersService.findOne(id);
   }
 }

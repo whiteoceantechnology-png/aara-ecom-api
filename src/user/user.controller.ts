@@ -10,6 +10,8 @@ import {
   HttpStatus,
   ParseIntPipe,
 } from "@nestjs/common";
+import { assertSelfOrAdmin, CurrentPrincipal } from "../auth/principal";
+import type { AuthPrincipal } from "../auth/principal";
 import {
   ApiTags,
   ApiOperation,
@@ -69,7 +71,9 @@ export class UserController {
   @ApiResponse({ status: 404, description: "Profile not found" })
   async getProfile(
     @Param("id", ParseIntPipe) id: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<UserProfileResponseDto> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.userService.getProfile(id);
   }
 
@@ -86,7 +90,9 @@ export class UserController {
   })
   async getAddresses(
     @Param("id", ParseIntPipe) id: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<AddressResponseDto[]> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.userService.getAddresses(id);
   }
 
@@ -106,7 +112,9 @@ export class UserController {
   async createAddress(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: CreateAddressDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<AddressResponseDto> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.userService.createAddress(id, dto);
   }
 
@@ -128,7 +136,9 @@ export class UserController {
     @Param("id", ParseIntPipe) id: number,
     @Param("addressId", ParseIntPipe) addressId: number,
     @Body() dto: UpdateAddressDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<AddressResponseDto> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.userService.updateAddress(id, addressId, dto);
   }
 
@@ -144,7 +154,9 @@ export class UserController {
   async removeAddress(
     @Param("id", ParseIntPipe) id: number,
     @Param("addressId", ParseIntPipe) addressId: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
   ): Promise<{ message: string }> {
+    assertSelfOrAdmin(principal, "userId", id);
     return this.userService.removeAddress(id, addressId);
   }
 }

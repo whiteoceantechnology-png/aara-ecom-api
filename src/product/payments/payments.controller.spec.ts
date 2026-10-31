@@ -1,13 +1,17 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import { NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PaymentsController } from "./payments.controller";
 import { PaymentsService } from "./payments.service";
 import { RazorpayService } from "./razorpay.service";
 import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
 
+const owner = { customerId: 1 };
+
 const mockPaymentsService = {
   findByOrder: jest.fn(),
   findOne: jest.fn(),
+  assertOrderAccess: jest.fn().mockResolvedValue(undefined),
+  assertPaymentAccess: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockRazorpayService = {
@@ -49,7 +53,7 @@ describe("PaymentsController", () => {
       ];
       mockPaymentsService.findByOrder.mockResolvedValue(payments);
 
-      const result = await controller.findByOrder(1);
+      const result = await controller.findByOrder(1, owner);
 
       expect(mockPaymentsService.findByOrder).toHaveBeenCalledWith(1);
       expect(result).toEqual(payments);
@@ -60,7 +64,7 @@ describe("PaymentsController", () => {
         new NotFoundException("Order #99 not found"),
       );
 
-      await expect(controller.findByOrder(99)).rejects.toThrow(
+      await expect(controller.findByOrder(99, owner)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -74,7 +78,7 @@ describe("PaymentsController", () => {
       const payment = { id: 1, orderId: 1, paymentStatus: "paid" };
       mockPaymentsService.findOne.mockResolvedValue(payment);
 
-      const result = await controller.findOne(1);
+      const result = await controller.findOne(1, owner);
 
       expect(mockPaymentsService.findOne).toHaveBeenCalledWith(1);
       expect(result).toEqual(payment);
@@ -85,7 +89,9 @@ describe("PaymentsController", () => {
         new NotFoundException("Payment #999 not found"),
       );
 
-      await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(999, owner)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -104,7 +110,9 @@ describe("PaymentsController", () => {
       };
       mockRazorpayService.createOrder.mockResolvedValue(result);
 
-      expect(await controller.createRazorpayOrder(dto as any)).toEqual(result);
+      expect(await controller.createRazorpayOrder(dto as any, owner)).toEqual(
+        result,
+      );
       expect(mockRazorpayService.createOrder).toHaveBeenCalledWith(dto);
     });
   });
@@ -148,8 +156,18 @@ describe("PaymentsController", () => {
         razorpayPaymentStatus: "unprocessed",
       };
       mockRazorpayService.syncPaymentStatus.mockResolvedValue(result);
-      expect(await controller.syncRazorpayStatus(1)).toEqual(result);
+      expect(await controller.syncRazorpayStatus(1, owner)).toEqual(result);
       expect(mockRazorpayService.syncPaymentStatus).toHaveBeenCalledWith(1);
+    });
+
+    it("should not sync when the caller does not own the order", async () => {
+      mockPaymentsService.assertOrderAccess.mockRejectedValueOnce(
+        new ForbiddenException(),
+      );
+      await expect(controller.syncRazorpayStatus(2, owner)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockRazorpayService.syncPaymentStatus).not.toHaveBeenCalledWith(2);
     });
   });
 

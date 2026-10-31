@@ -22,6 +22,8 @@ import {
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 import { CurrentCustomerId } from "../decorators/current-customer.decorator";
+import { assertSelfOrAdmin, CurrentPrincipal } from "../../auth/principal";
+import type { AuthPrincipal } from "../../auth/principal";
 
 @ApiBearerAuth()
 @ApiTags("Cart")
@@ -33,7 +35,11 @@ export class CartController {
   @ApiOperation({ summary: "Get or create cart for a customer" })
   @ApiParam({ name: "customerId", type: Number })
   @ApiResponse({ status: 200, description: "Cart with items" })
-  getCart(@Param("customerId", ParseIntPipe) customerId: number) {
+  getCart(
+    @Param("customerId", ParseIntPipe) customerId: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    assertSelfOrAdmin(principal, "customerId", customerId);
     return this.cartService.getOrCreate(customerId);
   }
 
@@ -59,8 +65,11 @@ export class CartController {
   @ApiBody({ type: UpdateCartItemDto })
   @ApiResponse({ status: 200, description: "Cart item updated" })
   @ApiResponse({ status: 404, description: "Cart item not found" })
-  updateItem(@Body() dto: UpdateCartItemDto) {
-    return this.cartService.updateItem(dto);
+  updateItem(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() dto: UpdateCartItemDto,
+  ) {
+    return this.cartService.updateItem(principal, dto);
   }
 
   @Delete("remove/:cartItemId")
@@ -68,7 +77,10 @@ export class CartController {
   @ApiParam({ name: "cartItemId", type: Number })
   @ApiResponse({ status: 200, description: "Item removed" })
   @ApiResponse({ status: 404, description: "Cart item not found" })
-  removeItem(@Param("cartItemId", ParseIntPipe) cartItemId: number) {
-    return this.cartService.removeItem(cartItemId);
+  removeItem(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("cartItemId", ParseIntPipe) cartItemId: number,
+  ) {
+    return this.cartService.removeItem(principal, cartItemId);
   }
 }

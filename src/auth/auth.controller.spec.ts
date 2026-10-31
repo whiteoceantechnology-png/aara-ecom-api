@@ -1,3 +1,4 @@
+import { ForbiddenException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
@@ -17,6 +18,13 @@ const mockCustomersService = {
 };
 
 describe("AuthController", () => {
+  // Denial tests exercise enforcing mode; report-only mode is covered in principal.spec.
+  beforeEach(() => {
+    process.env.AUTHZ_ENFORCE = "true";
+  });
+  afterEach(() => {
+    delete process.env.AUTHZ_ENFORCE;
+  });
   let controller: AuthController;
 
   beforeEach(async () => {
@@ -77,10 +85,20 @@ describe("AuthController", () => {
       };
       mockCustomersService.update.mockResolvedValue(expected);
 
-      const result = await controller.updateCustomer(21, dto);
+      const result = await controller.updateCustomer(21, dto, {
+        customerId: 21,
+      });
 
       expect(mockCustomersService.update).toHaveBeenCalledWith(21, dto);
       expect(result).toEqual(expected);
+    });
+
+    it("should forbid a customer from updating another customer", () => {
+      expect(() =>
+        controller.updateCustomer(22, { name: "x" } as never, {
+          customerId: 21,
+        }),
+      ).toThrow(ForbiddenException);
     });
   });
 
@@ -92,10 +110,17 @@ describe("AuthController", () => {
       const expected = { id: 1, username: "new_username" };
       mockAuthService.updateUser.mockResolvedValue(expected);
 
-      const result = await controller.updateUser(1, dto);
+      const result = await controller.updateUser(1, dto, { userId: 1 });
 
       expect(mockAuthService.updateUser).toHaveBeenCalledWith(1, dto);
       expect(result).toEqual(expected);
+    });
+
+    it("should forbid updating another user's account", async () => {
+      await expect(
+        controller.updateUser(2, { username: "x" }, { userId: 1 }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockAuthService.updateUser).not.toHaveBeenCalled();
     });
   });
 

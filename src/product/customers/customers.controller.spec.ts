@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { CustomersController } from "./customers.controller";
 import { CustomersService } from "./customers.service";
@@ -31,6 +32,13 @@ const mockCustomersService = {
 };
 
 describe("CustomersController", () => {
+  // Denial tests exercise enforcing mode; report-only mode is covered in principal.spec.
+  beforeEach(() => {
+    process.env.AUTHZ_ENFORCE = "true";
+  });
+  afterEach(() => {
+    delete process.env.AUTHZ_ENFORCE;
+  });
   let controller: CustomersController;
   let service: typeof mockCustomersService;
 
@@ -125,14 +133,22 @@ describe("CustomersController", () => {
   describe("findOne", () => {
     it("should return customer profile", async () => {
       service.findOne.mockResolvedValue(mockCustomer);
-      const result = await controller.findOne(1);
+      const result = await controller.findOne(1, { customerId: 1 });
       expect(result).toEqual(mockCustomer);
       expect(service.findOne).toHaveBeenCalledWith(1);
     });
 
     it("should throw NotFoundException when customer not found", async () => {
       service.findOne.mockRejectedValue(new NotFoundException());
-      await expect(controller.findOne(99)).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(99, { role: "admin" })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should forbid reading another customer's profile", () => {
+      expect(() => controller.findOne(2, { customerId: 1 })).toThrow(
+        ForbiddenException,
+      );
     });
   });
 

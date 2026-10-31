@@ -5,7 +5,9 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from "@nestjs/common";
+import { StorefrontAdminGuard } from "../../auth/storefront-admin.guard";
 import {
   ApiTags,
   ApiOperation,
@@ -39,6 +41,7 @@ export class TaxController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(StorefrontAdminGuard)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

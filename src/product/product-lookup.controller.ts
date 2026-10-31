@@ -7,7 +7,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  UseGuards,
 } from "@nestjs/common";
+import { StorefrontAdminGuard } from "../auth/storefront-admin.guard";
 import {
   ApiTags,
   ApiOperation,
@@ -57,6 +59,7 @@ export class ProductLookupController {
   }
 
   @ApiBearerAuth()
+  @UseGuards(StorefrontAdminGuard)
   @Post("specification/:id")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

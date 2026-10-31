@@ -1,8 +1,9 @@
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { getJwtSecret } from "./auth/jwt-secret";
 import {
   HttpExceptionFilter,
   PrismaExceptionFilter,
@@ -16,6 +17,18 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
+  const logger = new Logger("Bootstrap");
+
+  // Warn loudly (without blocking startup) when JWT_SECRET is missing —
+  // logins and authenticated requests cannot work without it.
+  try {
+    getJwtSecret();
+  } catch {
+    logger.error("JWT_SECRET is not set — authentication will fail");
+  }
+
+  // Let PM2 / container stops close HTTP + Prisma connections cleanly.
+  app.enableShutdownHooks();
   // Allow large product descriptions / HTML moreInfo payloads
   app.useBodyParser("json", { limit: "10mb" });
   app.useBodyParser("urlencoded", { extended: true, limit: "10mb" });
@@ -96,7 +109,7 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3008;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Swagger docs available at: http://localhost:${port}/api/docs`);
 }
 void bootstrap();

@@ -9,7 +9,9 @@ import {
   HttpStatus,
   ParseIntPipe,
   ForbiddenException,
+  UseGuards,
 } from "@nestjs/common";
+import { StorefrontAdminGuard } from "../../auth/storefront-admin.guard";
 import {
   ApiTags,
   ApiOperation,
@@ -105,6 +107,7 @@ export class OrdersController {
     return this.ordersService.findOneForCustomer(id, customerId);
   }
 
+  @UseGuards(StorefrontAdminGuard)
   @Put(":id/status")
   @ApiOperation({ summary: "Update order status" })
   @ApiParam({ name: "id", type: Number })

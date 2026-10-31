@@ -1,5 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
 import { CartController } from "./cart.controller";
 import { CartService } from "./cart.service";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
@@ -22,7 +26,16 @@ const mockCartService = {
   removeItem: jest.fn(),
 };
 
+const owner = { customerId: 1 };
+
 describe("CartController", () => {
+  // Denial tests exercise enforcing mode; report-only mode is covered in principal.spec.
+  beforeEach(() => {
+    process.env.AUTHZ_ENFORCE = "true";
+  });
+  afterEach(() => {
+    delete process.env.AUTHZ_ENFORCE;
+  });
   let controller: CartController;
   let service: typeof mockCartService;
 
@@ -40,9 +53,22 @@ describe("CartController", () => {
   describe("getCart", () => {
     it("should return the cart for a customer", async () => {
       service.getOrCreate.mockResolvedValue(mockCart);
-      const result = await controller.getCart(1);
+      const result = await controller.getCart(1, { customerId: 1 });
       expect(result).toEqual(mockCart);
       expect(service.getOrCreate).toHaveBeenCalledWith(1);
+    });
+
+    it("should forbid reading another customer's cart", () => {
+      expect(() => controller.getCart(2, { customerId: 1 })).toThrow(
+        ForbiddenException,
+      );
+      expect(service.getOrCreate).not.toHaveBeenCalled();
+    });
+
+    it("should allow admins to read any cart", async () => {
+      service.getOrCreate.mockResolvedValue(mockCart);
+      await controller.getCart(2, { role: "admin" });
+      expect(service.getOrCreate).toHaveBeenCalledWith(2);
     });
   });
 
@@ -79,22 +105,22 @@ describe("CartController", () => {
       const dto: UpdateCartItemDto = { cartItemId: 1, quantity: 3 };
       const updated = { ...mockCartItem, quantity: 3 };
       service.updateItem.mockResolvedValue(updated);
-      const result = await controller.updateItem(dto);
+      const result = await controller.updateItem(owner, dto);
       expect((result as unknown as typeof updated).quantity).toBe(3);
-      expect(service.updateItem).toHaveBeenCalledWith(dto);
+      expect(service.updateItem).toHaveBeenCalledWith(owner, dto);
     });
 
     it("should remove item when quantity is 0", async () => {
       const dto: UpdateCartItemDto = { cartItemId: 1, quantity: 0 };
       service.updateItem.mockResolvedValue({ message: "Cart item removed" });
-      const result = await controller.updateItem(dto);
+      const result = await controller.updateItem(owner, dto);
       expect(result).toEqual({ message: "Cart item removed" });
     });
 
     it("should throw NotFoundException when cart item not found", async () => {
       service.updateItem.mockRejectedValue(new NotFoundException());
       await expect(
-        controller.updateItem({ cartItemId: 99, quantity: 1 }),
+        controller.updateItem(owner, { cartItemId: 99, quantity: 1 }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -104,14 +130,14 @@ describe("CartController", () => {
       service.removeItem.mockResolvedValue({
         message: "Item removed from cart",
       });
-      const result = await controller.removeItem(1);
+      const result = await controller.removeItem(owner, 5);
       expect(result).toEqual({ message: "Item removed from cart" });
-      expect(service.removeItem).toHaveBeenCalledWith(1);
+      expect(service.removeItem).toHaveBeenCalledWith(owner, 5);
     });
 
     it("should throw NotFoundException when cart item not found", async () => {
       service.removeItem.mockRejectedValue(new NotFoundException());
-      await expect(controller.removeItem(99)).rejects.toThrow(
+      await expect(controller.removeItem(owner, 99)).rejects.toThrow(
         NotFoundException,
       );
     });

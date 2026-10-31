@@ -9,7 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  UseGuards,
 } from "@nestjs/common";
+import { StorefrontAdminGuard } from "../../auth/storefront-admin.guard";
 import {
   ApiTags,
   ApiOperation,
@@ -56,6 +58,7 @@ export class CategoriesController {
     return this.categoriesService.findOne(id);
   }
 
+  @UseGuards(StorefrontAdminGuard)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -69,6 +72,7 @@ export class CategoriesController {
     return this.categoriesService.create(dto);
   }
 
+  @UseGuards(StorefrontAdminGuard)
   @Put(":id")
   @ApiOperation({ summary: "Update a category" })
   @ApiParam({ name: "id", type: Number })
@@ -82,6 +86,7 @@ export class CategoriesController {
     return this.categoriesService.update(id, dto);
   }
 
+  @UseGuards(StorefrontAdminGuard)
   @Delete(":id")
   @ApiOperation({ summary: "Delete a category" })
   @ApiParam({ name: "id", type: Number })

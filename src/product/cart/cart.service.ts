@@ -6,6 +6,11 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { MetaCapiService } from "../../common/meta-capi/meta-capi.service";
+import {
+  isAdminPrincipal,
+  isAuthzEnforced,
+  type AuthPrincipal,
+} from "../../auth/principal";
 import { AddToCartDto, UpdateCartItemDto } from "../dto/cart.dto";
 import {
   unitsToConsume,
@@ -196,12 +201,8 @@ export class CartService {
     }
   }
 
-  async updateItem(dto: UpdateCartItemDto) {
-    const item = await this.prisma.cartItem.findUnique({
-      where: { id: dto.cartItemId },
-    });
-    if (!item)
-      throw new NotFoundException(`Cart item #${dto.cartItemId} not found`);
+  async updateItem(principal: AuthPrincipal, dto: UpdateCartItemDto) {
+    await this.findOwnedItemOrFail(principal, dto.cartItemId);
     if (dto.quantity <= 0) {
       await this.prisma.cartItem.delete({ where: { id: dto.cartItemId } });
       return { message: "Cart item removed" };
@@ -212,13 +213,34 @@ export class CartService {
     });
   }
 
-  async removeItem(cartItemId: number) {
+  async removeItem(principal: AuthPrincipal, cartItemId: number) {
+    await this.findOwnedItemOrFail(principal, cartItemId);
+    await this.prisma.cartItem.delete({ where: { id: cartItemId } });
+    return { message: "Item removed from cart" };
+  }
+
+  /**
+   * 404 for missing items. Other customers' items are 404 too when
+   * AUTHZ_ENFORCE=true (so ids can't be probed); otherwise logged and allowed.
+   */
+  private async findOwnedItemOrFail(
+    principal: AuthPrincipal,
+    cartItemId: number,
+  ) {
     const item = await this.prisma.cartItem.findUnique({
       where: { id: cartItemId },
+      include: { cart: { select: { customerId: true } } },
     });
     if (!item)
       throw new NotFoundException(`Cart item #${cartItemId} not found`);
-    await this.prisma.cartItem.delete({ where: { id: cartItemId } });
-    return { message: "Item removed from cart" };
+    const customerId = principal.customerId;
+    if (!isAdminPrincipal(principal) && item.cart.customerId !== customerId) {
+      if (isAuthzEnforced())
+        throw new NotFoundException(`Cart item #${cartItemId} not found`);
+      this.logger.warn(
+        `[report-only] would deny: customer #${String(customerId)} changing cart item #${cartItemId} of customer #${item.cart.customerId}`,
+      );
+    }
+    return item;
   }
 }

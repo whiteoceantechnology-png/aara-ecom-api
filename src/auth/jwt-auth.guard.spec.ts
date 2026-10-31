@@ -1,4 +1,8 @@
-import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
+import {
+  ExecutionContext,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import * as jwt from "jsonwebtoken";
@@ -113,17 +117,16 @@ describe("JwtAuthGuard", () => {
       expect(jwt.verify).toHaveBeenCalledWith("my.jwt.token", "test-secret");
     });
 
-    it("should use fallback secret when JWT_SECRET env is undefined", () => {
+    it("should refuse to verify (no insecure fallback) when JWT_SECRET is unset", () => {
       delete process.env.JWT_SECRET;
-      const payload = { userId: 1 };
-      (jwt.verify as jest.Mock).mockReturnValue(payload);
       const ctx = createMockContext({
         authorization: "Bearer my.jwt.token",
       });
 
-      guard.canActivate(ctx);
-
-      expect(jwt.verify).toHaveBeenCalledWith("my.jwt.token", "secret");
+      expect(() => guard.canActivate(ctx)).toThrow(
+        InternalServerErrorException,
+      );
+      expect(jwt.verify).not.toHaveBeenCalled();
     });
   });
 });

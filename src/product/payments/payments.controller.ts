@@ -27,6 +27,8 @@ import {
   VerifyRazorpayPaymentDto,
 } from "../dto/payment.dto";
 import { Public } from "../../auth/public.decorator";
+import { CurrentPrincipal } from "../../auth/principal";
+import type { AuthPrincipal } from "../../auth/principal";
 
 @ApiBearerAuth()
 @ApiTags("Payments")
@@ -65,7 +67,11 @@ export class PaymentsController {
     description: "Order already paid or Razorpay not configured",
   })
   @ApiResponse({ status: 404, description: "Order not found" })
-  createRazorpayOrder(@Body() dto: CreateRazorpayOrderDto) {
+  async createRazorpayOrder(
+    @Body() dto: CreateRazorpayOrderDto,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    await this.paymentsService.assertOrderAccess(dto.orderId, principal);
     return this.razorpayService.createOrder(dto);
   }
 
@@ -111,7 +117,11 @@ export class PaymentsController {
   @ApiParam({ name: "orderId", type: Number })
   @ApiResponse({ status: 200, description: "Payment status snapshot" })
   @ApiResponse({ status: 404, description: "Order not found" })
-  syncRazorpayStatus(@Param("orderId", ParseIntPipe) orderId: number) {
+  async syncRazorpayStatus(
+    @Param("orderId", ParseIntPipe) orderId: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    await this.paymentsService.assertOrderAccess(orderId, principal);
     return this.razorpayService.syncPaymentStatus(orderId);
   }
 
@@ -145,7 +155,11 @@ export class PaymentsController {
   @ApiParam({ name: "orderId", type: Number })
   @ApiResponse({ status: 200, description: "List of payments for the order" })
   @ApiResponse({ status: 404, description: "Order not found" })
-  findByOrder(@Param("orderId", ParseIntPipe) orderId: number) {
+  async findByOrder(
+    @Param("orderId", ParseIntPipe) orderId: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    await this.paymentsService.assertOrderAccess(orderId, principal);
     return this.paymentsService.findByOrder(orderId);
   }
 
@@ -154,7 +168,11 @@ export class PaymentsController {
   @ApiParam({ name: "id", type: Number })
   @ApiResponse({ status: 200, description: "Payment details" })
   @ApiResponse({ status: 404, description: "Payment not found" })
-  findOne(@Param("id", ParseIntPipe) id: number) {
+  async findOne(
+    @Param("id", ParseIntPipe) id: number,
+    @CurrentPrincipal() principal: AuthPrincipal,
+  ) {
+    await this.paymentsService.assertPaymentAccess(id, principal);
     return this.paymentsService.findOne(id);
   }
 }

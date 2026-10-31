@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
+import { getJwtSecret } from "./jwt-secret";
 import * as crypto from "crypto";
 import { UserRepository } from "./user.repository";
 import { RegisterDto } from "./dto/register.dto";
@@ -57,11 +58,9 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new UnauthorizedException("Invalid credentials");
     }
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1h" },
-    );
+    const token = jwt.sign({ userId: user.id }, getJwtSecret(), {
+      expiresIn: "1h",
+    });
     return { token };
   }
 

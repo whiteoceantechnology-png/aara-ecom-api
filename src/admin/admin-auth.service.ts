@@ -7,6 +7,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AdminLoginDto, CreateAdminDto } from "./dto/admin-auth.dto";
 import * as bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
+import { getJwtSecret } from "../auth/jwt-secret";
 
 @Injectable()
 export class AdminAuthService {
@@ -37,7 +38,7 @@ export class AdminAuthService {
 
     const token = jwt.sign(
       { sub: admin.id, username: admin.username, role: admin.role },
-      process.env.JWT_SECRET ?? "secret",
+      getJwtSecret(),
       { expiresIn: "8h" },
     );
 

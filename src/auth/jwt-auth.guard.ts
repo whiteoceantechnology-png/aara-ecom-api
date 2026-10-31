@@ -7,6 +7,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import * as jwt from "jsonwebtoken";
 import { IS_PUBLIC_KEY } from "./public.decorator";
+import { getJwtSecret } from "./jwt-secret";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -31,8 +32,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const token = authHeader.split(" ")[1];
+    const secret = getJwtSecret();
     try {
-      const secret = process.env.JWT_SECRET ?? "secret";
       const payload = jwt.verify(token, secret);
       request.user = payload;
       return true;
