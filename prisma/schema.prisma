@@ -427,6 +427,8 @@ model Order {
   /** Checkout payment method chosen when the order was placed ("COD" | "ONLINE"). */
   paymentMethod      String?
   trackingId         String?
+  /** Upload path or absolute URL of the tracking image sent with shipped notifications. */
+  trackingImageUrl   String?
   notes              String?
   shippingAddressId  Int?
   shippingAddress    CustomerAddress? @relation(fields: [shippingAddressId], references: [id])

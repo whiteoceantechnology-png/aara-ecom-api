@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import * as XLSX from "xlsx";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../product/orders/orders.service";
+import { WhatsAppService } from "../common/whatsapp/whatsapp.service";
 import {
   affectedRowsCount,
   quoteSqlIdentifier,
@@ -20,6 +21,7 @@ import {
   canTransitionOrderStatus,
   normalizeOrderStatus,
 } from "../product/constants/order-status";
+import { toAbsoluteImageUrl } from "../common/image-url";
 import {
   renderInvoiceHtml,
   renderPackingSlipHtml,
@@ -68,6 +70,7 @@ export class AdminOrdersService {
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
     private readonly mail: MailService,
+    private readonly whatsapp: WhatsAppService,
   ) {}
 
   /** Documents stock reservation policy for admin UI / ops. */
@@ -240,6 +243,13 @@ export class AdminOrdersService {
       }
     }
     if (dto.trackingId !== undefined) data.trackingId = dto.trackingId;
+    const trackingImageUrl =
+      dto.trackingImageUrl !== undefined
+        ? dto.trackingImageUrl
+        : dto.trackingImage;
+    if (trackingImageUrl !== undefined) {
+      data.trackingImageUrl = trackingImageUrl?.trim() || null;
+    }
     if (dto.notes !== undefined) data.notes = dto.notes;
 
     if (Object.keys(data).length === 0) {
@@ -291,6 +301,7 @@ export class AdminOrdersService {
     // Status update succeeded — notify the customer only when it just became SHIPPED.
     if (nextStatus === OrderStatus.SHIPPED) {
       await this.sendOrderShippedEmail(refreshed);
+      await this.sendOrderShippedWhatsApp(refreshed);
     }
 
     return refreshed;
@@ -300,6 +311,7 @@ export class AdminOrdersService {
   private async sendOrderShippedEmail(order: {
     orderNumber: string;
     trackingId: string | null;
+    trackingImageUrl: string | null;
     customer: { name: string; email: string };
   }) {
     const settings = await this.prisma.notificationSettings.findUnique({
@@ -313,6 +325,37 @@ export class AdminOrdersService {
       customerName: order.customer.name ?? "Customer",
       orderNumber: order.orderNumber,
       trackingId: order.trackingId,
+      trackingImageUrl: this.resolveTrackingImageUrl(order.trackingImageUrl),
+    });
+  }
+
+  private resolveTrackingImageUrl(path: string | null): string | null {
+    return toAbsoluteImageUrl(path, process.env.PUBLIC_API_BASE_URL);
+  }
+
+  /** Sends the WhatsApp shipped template. Skipped when no template id is configured. */
+  private async sendOrderShippedWhatsApp(order: {
+    orderNumber: string;
+    totalAmount: Prisma.Decimal | number | string;
+    trackingImageUrl: string | null;
+    customer: { name: string; phone: string | null };
+  }) {
+    const templateId = process.env.WHATSAPP_SHIPPED_TEMPLATE_ID?.trim();
+    if (!templateId) return;
+
+    const trackingImage = this.resolveTrackingImageUrl(order.trackingImageUrl);
+    await this.whatsapp.sendTemplateMessage({
+      to: order.customer?.phone ?? "",
+      templateId,
+      variables: {
+        name: order.customer?.name ?? "Customer",
+        order_id: order.orderNumber,
+        amount: `Rs.${Number(order.totalAmount)}`,
+        // Required by the template's URL button.
+        Visit_Website:
+          process.env.WHATSAPP_VISIT_WEBSITE?.trim() || "https://kural.nzen.in",
+        ...(trackingImage && { tracking_image_url: trackingImage }),
+      },
     });
   }
 

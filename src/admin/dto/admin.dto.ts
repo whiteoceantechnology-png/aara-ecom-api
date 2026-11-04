@@ -3,6 +3,7 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
+  MaxLength,
   IsNumber,
   IsInt,
   IsArray,
@@ -529,6 +530,27 @@ export class AdminUpdateOrderDto {
   @IsOptional()
   @IsString()
   trackingId?: string;
+
+  @ApiPropertyOptional({
+    example: "2026/11/03/1793717363404-0-2b5bb5db.jpeg",
+    description:
+      "Tracking image: upload path (from the image upload API) or absolute URL. Sent with shipped WhatsApp/email. null clears it.",
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  trackingImageUrl?: string | null;
+
+  /** Alias accepted from clients that send `trackingImage`. Same meaning as trackingImageUrl. */
+  @ApiPropertyOptional({
+    description: "Alias of trackingImageUrl.",
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  trackingImage?: string | null;
 
   @ApiPropertyOptional({ example: "Packed successfully" })
   @IsOptional()

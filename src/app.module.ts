@@ -11,6 +11,7 @@ import { AdminModule } from "./admin/admin.module";
 import { AppSettingsModule } from "./settings/app-settings.module";
 import { MailModule } from "./common/mail/mail.module";
 import { MetaCapiModule } from "./common/meta-capi/meta-capi.module";
+import { WhatsAppModule } from "./common/whatsapp/whatsapp.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { MetaCapiModule } from "./common/meta-capi/meta-capi.module";
       envFilePath: [".env.local", ".env"],
     }),
     MailModule,
+    WhatsAppModule,
     MetaCapiModule,
     AppSettingsModule,
     AuthModule,

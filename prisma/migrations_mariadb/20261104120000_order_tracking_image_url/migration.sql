@@ -1,0 +1,1 @@
+ALTER TABLE `Order` ADD COLUMN `trackingImageUrl` VARCHAR(512) NULL;

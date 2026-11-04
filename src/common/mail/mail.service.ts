@@ -14,6 +14,7 @@ export type OrderShippedEmailParams = {
   customerName: string;
   orderNumber: string;
   trackingId?: string | null;
+  trackingImageUrl?: string | null;
   courierName?: string | null;
 };
 
@@ -82,6 +83,11 @@ export class MailService {
         ${
           params.trackingId
             ? `<p>Tracking ID: <strong>${params.trackingId}</strong></p>`
+            : ""
+        }
+        ${
+          params.trackingImageUrl
+            ? `<p><img src="${params.trackingImageUrl}" alt="Tracking" style="max-width:100%;height:auto" /></p>`
             : ""
         }
         <p>Thank you for shopping with Aaraa Homecare.</p>

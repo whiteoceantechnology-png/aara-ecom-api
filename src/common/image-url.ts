@@ -11,6 +11,24 @@ export function toImageUrl(path: string | null | undefined): string | null {
 }
 
 /**
+ * Absolute link for messages sent outside the app (WhatsApp, email).
+ * Full http(s) URLs pass through; upload paths are resolved against baseUrl.
+ * Returns null when a relative path cannot be resolved (no base URL).
+ */
+export function toAbsoluteImageUrl(
+  path: string | null | undefined,
+  baseUrl: string | null | undefined,
+): string | null {
+  const trimmed = typeof path === "string" ? path.trim() : "";
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const relative = toImageUrl(trimmed);
+  const base = baseUrl?.trim().replace(/\/+$/, "");
+  if (!relative || !base) return null;
+  return `${base}${relative}`;
+}
+
+/**
  * @deprecated Use toImageUrl instead. Kept for backwards compatibility.
  * @see toImageUrl
  */
