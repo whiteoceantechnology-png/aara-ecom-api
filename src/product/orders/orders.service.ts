@@ -42,6 +42,7 @@ import {
 } from "../products/inventory-ledger";
 import { MailService } from "../../common/mail/mail.service";
 import { MetaCapiService } from "../../common/meta-capi/meta-capi.service";
+import { WhatsAppService } from "../../common/whatsapp/whatsapp.service";
 
 /** Standard relation graph for storefront order responses. */
 const orderDetailInclude = {
@@ -131,6 +132,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly metaCapi: MetaCapiService,
+    private readonly whatsapp: WhatsAppService,
   ) {}
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -291,6 +293,7 @@ export class OrdersService {
     // COD orders are confirmed immediately; ONLINE orders confirm on payment success.
     if (paymentMethod === "COD") {
       await this.sendOrderConfirmationEmail(customerId, result, paymentMethod);
+      await this.sendOrderPlacedWhatsApp(customerId, result);
     }
 
     return result;
@@ -415,6 +418,7 @@ export class OrdersService {
         result,
         "ONLINE",
       );
+      await this.sendOrderPlacedWhatsApp(result.customerId, result);
       // Meta Conversions API Purchase event — ONLINE payments only (COD is
       // confirmed at placeOrder, never via this path; see requirement to
       // skip failed/cancelled/offline payments).
@@ -844,6 +848,49 @@ export class OrdersService {
         typeof order.orderNumber === "string" ? order.orderNumber : "",
       totalAmount: Number(order.totalAmount ?? 0),
       paymentMethod,
+    });
+  }
+
+  /**
+   * WhatsApp "order placed" template to the customer who placed the order.
+   * Recipient is looked up in the DB: Customer.phone, falling back to the
+   * phone on the order's shipping address. Skipped when no template id is set.
+   */
+  private async sendOrderPlacedWhatsApp(
+    customerId: number,
+    order: Record<string, unknown> | null,
+  ) {
+    if (!order) return;
+    const templateId = process.env.WHATSAPP_ORDER_PLACED_TEMPLATE_ID?.trim();
+    if (!templateId) return;
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, phone: true },
+    });
+    const snapshot = order.addressSnapshot as { phone?: unknown } | null;
+    const snapshotPhone =
+      typeof snapshot?.phone === "string" ? snapshot.phone : "";
+    const to = customer?.phone?.trim() || snapshotPhone.trim();
+    if (!to) {
+      this.logger.warn(
+        `Order-placed WhatsApp skipped for customer #${customerId} — no phone on file`,
+      );
+      return;
+    }
+
+    await this.whatsapp.sendTemplateMessage({
+      to,
+      templateId,
+      variables: {
+        name: customer?.name ?? "Customer",
+        order_id:
+          typeof order.orderNumber === "string" ? order.orderNumber : "",
+        amount: `Rs.${Number(order.totalAmount ?? 0)}`,
+        // Required by the template's URL button.
+        Visit_Website:
+          process.env.WHATSAPP_VISIT_WEBSITE?.trim() || "https://kural.nzen.in",
+      },
     });
   }
 
