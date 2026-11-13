@@ -185,5 +185,21 @@ describe("AdminImagesController", () => {
         "Image not found: invalid/path.jpg",
       );
     });
+
+    it("should resolve legacy ?path= query over the literal 'serve' wildcard param", async () => {
+      const buffer = Buffer.from("image-data");
+      mockAdminImagesService.getByPath.mockResolvedValue({
+        buffer,
+        mimeType: "image/jpeg",
+        originalName: "photo.jpg",
+      });
+
+      const result = await controller.getByPath("serve", "2026/11/13/123.jpg");
+
+      expect(mockAdminImagesService.getByPath).toHaveBeenCalledWith(
+        "2026/11/13/123.jpg",
+      );
+      expect(result).toBeInstanceOf(StreamableFile);
+    });
   });
 });

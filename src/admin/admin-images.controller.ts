@@ -5,6 +5,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   Param,
+  Query,
   BadRequestException,
   StreamableFile,
 } from "@nestjs/common";
@@ -16,6 +17,7 @@ import {
   ApiConsumes,
   ApiBody,
   ApiParam,
+  ApiQuery,
   ApiResponse,
 } from "@nestjs/swagger";
 import { AdminImagesService } from "./admin-images.service";
@@ -73,13 +75,28 @@ export class AdminImagesController {
     type: String,
     description: "Image path (e.g. 2026/03/18/12345678-abc12345.jpg)",
   })
+  @ApiQuery({
+    name: "path",
+    required: false,
+    type: String,
+    description:
+      "Legacy form: /admin/images/serve?path=2026/03/18/12345678-abc12345.jpg",
+  })
   @ApiResponse({ status: 200, description: "Image file" })
   @ApiResponse({ status: 404, description: "Image not found" })
-  async getByPath(@Param("0") pathParam: string) {
-    if (!pathParam)
+  async getByPath(
+    @Param("0") pathParam: string,
+    @Query("path") queryPath?: string,
+  ) {
+    // Supports both the direct wildcard path (/admin/images/2026/..) and the
+    // legacy ?path= query form (/admin/images/serve?path=2026/..) still used
+    // by toImageUrl()/toAbsoluteImageUrl() across the app (products, wishlist,
+    // order tracking, emails).
+    const resolvedPath = queryPath || pathParam;
+    if (!resolvedPath)
       throw new BadRequestException("path query parameter is required");
     const { buffer, mimeType } =
-      await this.adminImagesService.getByPath(pathParam);
+      await this.adminImagesService.getByPath(resolvedPath);
     return new StreamableFile(buffer, { type: mimeType });
   }
 }
