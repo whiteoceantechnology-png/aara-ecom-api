@@ -51,7 +51,6 @@ describe("OrdersService order-placed WhatsApp", () => {
         name: "Sarmi",
         order_id: "ORD-44",
         amount: "Rs.400",
-        Visit_Website: "https://kural.nzen.in",
       },
     });
   });

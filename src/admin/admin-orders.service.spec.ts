@@ -79,7 +79,6 @@ describe("AdminOrdersService — shipped notifications", () => {
         name: "AARAA HOMECARE",
         order_id: "73211",
         amount: "Rs.11643.06",
-        Visit_Website: "https://kural.nzen.in",
       },
     });
   });

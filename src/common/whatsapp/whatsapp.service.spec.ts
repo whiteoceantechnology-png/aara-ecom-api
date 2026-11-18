@@ -6,6 +6,7 @@ describe("WhatsAppService", () => {
     "WHATSAPP_API_TOKEN",
     "WHATSAPP_FROM_NUMBER",
     "WHATSAPP_OVERRIDE_RECIPIENT",
+    "WHATSAPP_VISIT_WEBSITE",
   ] as const;
   const original = { ...process.env };
   let fetchMock: jest.Mock;
@@ -62,6 +63,21 @@ describe("WhatsAppService", () => {
         order_id: "73211",
         amount: "Rs.11643.06",
       },
+      visit_url: "https://kural.nzen.in",
+    });
+  });
+
+  it("uses the configured URL as the top-level visit_url", async () => {
+    process.env.WHATSAPP_VISIT_WEBSITE = " https://example.com/orders ";
+
+    await service.sendTemplateMessage(message);
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      from: "919999999999",
+      to: "918122031856",
+      template_id: "aaraa_home_care",
+      variables: message.variables,
+      visit_url: "https://example.com/orders",
     });
   });
 

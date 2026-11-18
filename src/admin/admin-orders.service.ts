@@ -351,9 +351,6 @@ export class AdminOrdersService {
         name: order.customer?.name ?? "Customer",
         order_id: order.orderNumber,
         amount: `Rs.${Number(order.totalAmount)}`,
-        // Required by the template's URL button.
-        Visit_Website:
-          process.env.WHATSAPP_VISIT_WEBSITE?.trim() || "https://kural.nzen.in",
         ...(trackingImage && { tracking_image_url: trackingImage }),
       },
     });

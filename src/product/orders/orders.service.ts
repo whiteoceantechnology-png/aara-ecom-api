@@ -887,9 +887,6 @@ export class OrdersService {
         order_id:
           typeof order.orderNumber === "string" ? order.orderNumber : "",
         amount: `Rs.${Number(order.totalAmount ?? 0)}`,
-        // Required by the template's URL button.
-        Visit_Website:
-          process.env.WHATSAPP_VISIT_WEBSITE?.trim() || "https://kural.nzen.in",
       },
     });
   }

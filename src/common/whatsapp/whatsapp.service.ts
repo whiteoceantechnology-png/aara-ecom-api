@@ -7,6 +7,7 @@ export type WhatsAppTemplateMessage = {
 };
 
 const DEFAULT_API_URL = "https://kural.nzen.in/App/api/whatsapp/sendmessage";
+const DEFAULT_VISIT_URL = "https://kural.nzen.in";
 
 /**
  * Thin client for the Kural WhatsApp gateway. Like MailService, it is a no-op
@@ -62,6 +63,8 @@ export class WhatsAppService {
           to,
           template_id: message.templateId,
           variables: message.variables,
+          visit_url:
+            process.env.WHATSAPP_VISIT_WEBSITE?.trim() || DEFAULT_VISIT_URL,
         }),
       });
       if (!res.ok) {

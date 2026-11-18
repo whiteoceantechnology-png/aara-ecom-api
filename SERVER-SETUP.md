@@ -98,6 +98,12 @@ Optional variables used by the code:
 | Checkout | `CHECKOUT_SHIPPING_FLAT` |
 | Access control | `AUTHZ_ENFORCE` (leave unset or `false` first) |
 
+For WhatsApp, set the gateway token privately in `.env` or `.env.local`, along
+with the sender number and approved template IDs. `WHATSAPP_VISIT_WEBSITE`
+is sent as the gateway's top-level `visit_url` (default: `https://kural.nzen.in`);
+`name`, `order_id`, and `amount` are sent in `variables`. The optional
+recipient override is for testing only.
+
 ---
 
 ## 6. Install and build the app
