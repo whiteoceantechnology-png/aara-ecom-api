@@ -723,6 +723,13 @@ curl -X PUT http://localhost:3008/admin/products/7/specification \
 ```
 
 ### Example: Register Customer
+
+After a customer account is created, the API attempts to send an AARAA HOMECARE
+welcome email to the registered address using the existing SMTP settings
+(`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`).
+Registration does not wait for email delivery. If SMTP is not configured or
+delivery fails, the API logs it and the account remains registered.
+
 ```bash
 curl -X POST http://localhost:3008/customers/register \
   -H "Content-Type: application/json" \

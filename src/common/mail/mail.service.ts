@@ -18,10 +18,17 @@ export type OrderShippedEmailParams = {
   courierName?: string | null;
 };
 
+function escapeHtmlText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 /**
  * Thin SMTP wrapper (nodemailer). Transport is only built when SMTP_HOST is
  * configured — in environments without mail credentials, sends are skipped
- * (logged) instead of throwing, so order/shipment flows never fail on email.
+ * (logged) instead of throwing, so application flows never fail on email.
  */
 @Injectable()
 export class MailService {
@@ -38,7 +45,7 @@ export class MailService {
     const host = process.env.SMTP_HOST;
     if (!host) {
       this.logger.warn(
-        "SMTP_HOST not configured — order emails will be logged, not sent.",
+        "SMTP_HOST not configured — emails will be logged, not sent.",
       );
       return null;
     }
@@ -49,6 +56,41 @@ export class MailService {
       auth: process.env.SMTP_USER
         ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
         : undefined,
+    });
+  }
+
+  async sendCustomerWelcomeEmail(params: {
+    to: string;
+    customerName: string;
+  }): Promise<void> {
+    const name = escapeHtmlText(params.customerName);
+    const email = escapeHtmlText(params.to);
+    const thanks =
+      "Thank you for registering with us. We're delighted to have you as part of our family.";
+    const accountCreated =
+      "Your account has been successfully created. You can now log in to our website and explore our products.";
+    const closing =
+      "Thank you for choosing AARAA HOMECARE. We look forward to serving you!";
+    await this.send({
+      to: params.to,
+      subject: "Welcome to AARAA HOMECARE!",
+      text: [
+        `Dear ${params.customerName},`,
+        "Welcome to AARAA HOMECARE!",
+        thanks,
+        accountCreated,
+        `Your Account Details:\n- Name: ${params.customerName}\n- Email: ${params.to}`,
+        closing,
+      ].join("\n\n"),
+      html: `
+        <p>Dear ${name},</p>
+        <p>Welcome to <strong>AARAA HOMECARE!</strong></p>
+        <p>${thanks}</p>
+        <p>${accountCreated}</p>
+        <p><strong>Your Account Details:</strong></p>
+        <ul><li>Name: ${name}</li><li>Email: ${email}</li></ul>
+        <p>${closing}</p>
+      `,
     });
   }
 
@@ -99,6 +141,7 @@ export class MailService {
     to: string;
     subject: string;
     html: string;
+    text?: string;
   }): Promise<void> {
     if (!message.to) {
       this.logger.warn(`Skipping email "${message.subject}" — no recipient`);
@@ -111,12 +154,9 @@ export class MailService {
     try {
       await this.transporter.sendMail({
         from: this.fromAddress,
-        to: message.to,
-        subject: message.subject,
-        html: message.html,
+        ...message,
       });
     } catch (err) {
-      // Email delivery failures must never break order/shipment flows.
       this.logger.error(
         `Failed to send email "${message.subject}" to ${message.to}: ${
           (err as Error).message

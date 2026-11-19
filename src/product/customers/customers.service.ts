@@ -5,8 +5,10 @@ import {
   UnauthorizedException,
   NotFoundException,
   InternalServerErrorException,
+  Logger,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { MailService } from "../../common/mail/mail.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CreateCustomerDto,
@@ -145,7 +147,12 @@ function normalizeCreateAddress(
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CustomersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   private customerPublicSelect = {
     id: true,
@@ -164,7 +171,7 @@ export class CustomersService {
     if (existing) throw new ConflictException("Email already registered");
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const gstIn = dto.gstIn?.trim() || null;
-    return this.prisma.customer.create({
+    const customer = await this.prisma.customer.create({
       data: {
         name: dto.name,
         email,
@@ -174,6 +181,20 @@ export class CustomersService {
       },
       select: this.customerPublicSelect,
     });
+
+    void this.mail
+      .sendCustomerWelcomeEmail({
+        to: customer.email,
+        customerName: customer.name,
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Failed to prepare welcome email for customer #${customer.id}`,
+          error,
+        );
+      });
+
+    return customer;
   }
 
   async update(id: number, dto: UpdateCustomerDto) {
