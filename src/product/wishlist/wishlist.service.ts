@@ -13,12 +13,16 @@ export class WishlistService {
   async add(customerId: number, productId: number) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        category: { select: { isActive: true } },
+      },
     });
     if (!product) {
       throw new NotFoundException(`Product #${productId} not found`);
     }
-    if (!product.status) {
+    if (!product.status || !product.category.isActive) {
       throw new BadRequestException("Product is not available");
     }
 
@@ -41,7 +45,7 @@ export class WishlistService {
     const safeLimit = Math.min(Math.max(1, limit), 100);
     const safePage = Math.max(1, page);
     const skip = (safePage - 1) * safeLimit;
-    const where = { customerId };
+    const where = { customerId, product: { category: { isActive: true } } };
 
     const [rows, total] = await Promise.all([
       this.prisma.wishlist.findMany({

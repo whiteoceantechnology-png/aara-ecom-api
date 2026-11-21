@@ -33,6 +33,7 @@ export class ProductsService {
   async findAll(filter: ProductFilterDto) {
     const products = await this.prisma.product.findMany({
       where: {
+        category: { isActive: true },
         ...(filter.category ? { categoryId: filter.category } : {}),
         ...(filter.search ? { name: stringContainsFilter(filter.search) } : {}),
         ...(filter.specKey && filter.specValue
@@ -71,8 +72,15 @@ export class ProductsService {
   }
 
   async findOne(id: number) {
+    return this.findProduct(id, true);
+  }
+
+  private async findProduct(id: number, activeCategoryOnly: boolean) {
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: {
+        id,
+        ...(activeCategoryOnly && { category: { isActive: true } }),
+      },
       include: {
         category: { select: { id: true, name: true } },
         tax: { select: { id: true, name: true, percent: true } },
@@ -117,7 +125,7 @@ export class ProductsService {
   }
 
   async update(id: number, dto: UpdateProductDto) {
-    await this.findOne(id);
+    await this.findProduct(id, false);
     const { taxId, taxPercent, ...rest } = dto;
     const data: Prisma.ProductUpdateInput = { ...rest };
     if (taxId !== undefined) {
@@ -165,7 +173,7 @@ export class ProductsService {
   }
 
   private async deleteProductById(id: number): Promise<void> {
-    await this.findOne(id);
+    await this.findProduct(id, false);
 
     const variants = await this.prisma.productVariant.findMany({
       where: { productId: id },
@@ -212,7 +220,7 @@ export class ProductsService {
 
   async findVariantsByProductId(productId: number) {
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: { id: productId, category: { isActive: true } },
       select: {
         id: true,
         name: true,
@@ -261,8 +269,18 @@ export class ProductsService {
   }
 
   async findSpecification(productId: number) {
+    return this.getSpecification(productId, true);
+  }
+
+  private async getSpecification(
+    productId: number,
+    activeCategoryOnly: boolean,
+  ) {
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: {
+        id: productId,
+        ...(activeCategoryOnly && { category: { isActive: true } }),
+      },
       select: {
         id: true,
         description: true,
@@ -413,7 +431,7 @@ export class ProductsService {
   }
 
   async adminUpdate(id: number, dto: AdminUpdateProductDto) {
-    await this.findOne(id);
+    await this.findProduct(id, false);
     const {
       taxId,
       taxPercent,
@@ -589,7 +607,7 @@ export class ProductsService {
   }
 
   async addImage(productId: number, dto: AdminAddImageDto) {
-    await this.findOne(productId);
+    await this.findProduct(productId, false);
     if (dto.isPrimary) {
       await this.prisma.productImage.updateMany({
         where: { productId },
@@ -617,7 +635,7 @@ export class ProductsService {
   // ─── Specification (Admin) ───────────────────────────────────────────────────
 
   async upsertSpecification(dto: UpsertSpecificationDto) {
-    await this.findOne(dto.productId);
+    await this.findProduct(dto.productId, false);
 
     const flattened = this.flattenSpecs(dto.productId, dto.specification);
     const desc = dto.description;
@@ -649,11 +667,11 @@ export class ProductsService {
       }),
     ]);
 
-    return this.findSpecification(dto.productId);
+    return this.getSpecification(dto.productId, false);
   }
 
   async deleteSpecification(productId: number) {
-    await this.findOne(productId);
+    await this.findProduct(productId, false);
     await this.prisma.productSpecItem.deleteMany({ where: { productId } });
     await this.prisma.productSpecification.deleteMany({
       where: { productId },

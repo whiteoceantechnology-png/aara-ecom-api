@@ -137,7 +137,11 @@ describe("CategoriesService", () => {
 
   describe("findProductsByCategory", () => {
     it("should return productImage as raw path", async () => {
-      prisma.category.findUnique.mockResolvedValue({ id: 1, name: "Herbs" });
+      prisma.category.findUnique.mockResolvedValue({
+        id: 1,
+        name: "Herbs",
+        isActive: true,
+      });
       prisma.product.findMany.mockResolvedValue([
         {
           id: 10,
@@ -151,12 +155,21 @@ describe("CategoriesService", () => {
 
       const result = await service.findProductsByCategory(1);
 
+      expect(prisma.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { categoryId: 1, status: true, category: { isActive: true } },
+        }),
+      );
       expect(result.data[0].productImage).toBe("2026/04/10/product-img.jpg");
       expect(result.data[0].productImage).not.toContain("/admin/images/serve");
     });
 
     it("should return null when productImage is null", async () => {
-      prisma.category.findUnique.mockResolvedValue({ id: 1, name: "Herbs" });
+      prisma.category.findUnique.mockResolvedValue({
+        id: 1,
+        name: "Herbs",
+        isActive: true,
+      });
       prisma.product.findMany.mockResolvedValue([
         {
           id: 10,
@@ -179,6 +192,15 @@ describe("CategoriesService", () => {
       await expect(service.findProductsByCategory(99)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it("should not list products for an inactive category", async () => {
+      prisma.category.findUnique.mockResolvedValue({ id: 1, isActive: false });
+
+      await expect(service.findProductsByCategory(1)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.product.findMany).not.toHaveBeenCalled();
     });
   });
 

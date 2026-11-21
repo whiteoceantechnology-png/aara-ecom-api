@@ -48,6 +48,7 @@ export class ProductsController {
   @Get()
   @ApiOperation({
     summary: "Get all products — filter by ?category=1 or ?search=ashwagandha",
+    description: "Products in inactive categories are excluded.",
   })
   @ApiQuery({ name: "category", required: false, type: Number })
   @ApiQuery({ name: "search", required: false, type: String })
@@ -124,7 +125,7 @@ export class ProductsController {
   @ApiOperation({
     summary: "Get product by ID with variants and images",
     description:
-      "Includes **`tax`**: `{ id, name, percent }` when `taxId` is set, else `tax: null`. Root `taxPercent` is always stored for pricing.",
+      "Products in inactive categories return 404. Includes **`tax`**: `{ id, name, percent }` when `taxId` is set, else `tax: null`. Root `taxPercent` is always stored for pricing.",
   })
   @ApiParam({ name: "id", type: Number })
   @ApiResponse({ status: 200, description: "Product details" })

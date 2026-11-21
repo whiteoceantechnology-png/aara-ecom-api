@@ -36,11 +36,11 @@ export class CategoriesService {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
     });
-    if (!category)
+    if (!category || !category.isActive)
       throw new NotFoundException(`Category #${categoryId} not found`);
 
     const products = await this.prisma.product.findMany({
-      where: { categoryId, status: true },
+      where: { categoryId, status: true, category: { isActive: true } },
       select: {
         id: true,
         categoryId: true,

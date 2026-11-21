@@ -119,7 +119,10 @@ describe("ProductsService", () => {
       await service.findAll({ category: 2 });
       expect(prisma.product.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ categoryId: 2 }),
+          where: expect.objectContaining({
+            categoryId: 2,
+            category: { isActive: true },
+          }),
         }),
       );
     });
@@ -135,6 +138,7 @@ describe("ProductsService", () => {
         expect.objectContaining({
           where: expect.objectContaining({
             name: { contains: "root", mode: "insensitive" },
+            category: { isActive: true },
             specItems: {
               some: {
                 key: "origin",
@@ -161,7 +165,9 @@ describe("ProductsService", () => {
 
       const result = await service.findOne(1);
       expect(prisma.product.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 1 } }),
+        expect.objectContaining({
+          where: { id: 1, category: { isActive: true } },
+        }),
       );
       expect(result).toHaveProperty("productName", "Ashwagandha");
       expect(result).not.toHaveProperty("slug");
@@ -181,7 +187,9 @@ describe("ProductsService", () => {
 
       expect(result.productName).toBe("Ashwagandha");
       expect(prisma.product.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 1 } }),
+        expect.objectContaining({
+          where: { id: 1, category: { isActive: true } },
+        }),
       );
     });
 
@@ -189,6 +197,22 @@ describe("ProductsService", () => {
       prisma.product.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(99)).rejects.toThrow(NotFoundException);
+    });
+
+    it("hides products in inactive categories from public lookups", async () => {
+      prisma.product.findUnique.mockResolvedValue(null);
+      for (const lookup of [
+        () => service.findOne(1),
+        () => service.findVariants(1),
+        () => service.findVariantsByProductId(1),
+        () => service.findSpecification(1),
+      ]) {
+        await expect(lookup()).rejects.toThrow(NotFoundException);
+      }
+      expect(prisma.product.findUnique).toHaveBeenCalledTimes(4);
+      for (const [query] of prisma.product.findUnique.mock.calls) {
+        expect(query.where).toEqual({ id: 1, category: { isActive: true } });
+      }
     });
   });
 
@@ -267,6 +291,9 @@ describe("ProductsService", () => {
 
       const result = await service.update(1, { name: "Up" } as any);
 
+      expect(prisma.product.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 } }),
+      );
       expect(prisma.product.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 1 },
@@ -704,6 +731,9 @@ describe("ProductsService", () => {
       });
       expect(result.specification?.productId).toBe(1);
       expect(result.description?.categoryName).toBe("Herbs");
+      expect(prisma.product.findUnique).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: { id: 1 } }),
+      );
     });
 
     it("should map productDescription and moreInfo aliases onto DB fields", async () => {

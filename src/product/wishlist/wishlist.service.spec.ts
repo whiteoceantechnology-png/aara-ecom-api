@@ -30,7 +30,11 @@ describe("WishlistService", () => {
 
   describe("add", () => {
     it("should create row when product exists and not yet wishlisted", async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 7, status: true });
+      prisma.product.findUnique.mockResolvedValue({
+        id: 7,
+        status: true,
+        category: { isActive: true },
+      });
       prisma.wishlist.findUnique.mockResolvedValue(null);
       prisma.wishlist.create.mockResolvedValue({ id: 1 });
 
@@ -43,7 +47,11 @@ describe("WishlistService", () => {
     });
 
     it("should return already message when duplicate", async () => {
-      prisma.product.findUnique.mockResolvedValue({ id: 7, status: true });
+      prisma.product.findUnique.mockResolvedValue({
+        id: 7,
+        status: true,
+        category: { isActive: true },
+      });
       prisma.wishlist.findUnique.mockResolvedValue({ id: 1 });
 
       const result = await service.add(1, 7);
@@ -63,6 +71,17 @@ describe("WishlistService", () => {
       prisma.product.findUnique.mockResolvedValue({ id: 7, status: false });
 
       await expect(service.add(1, 7)).rejects.toThrow(BadRequestException);
+    });
+
+    it("should reject a product in an inactive category", async () => {
+      prisma.product.findUnique.mockResolvedValue({
+        id: 7,
+        status: true,
+        category: { isActive: false },
+      });
+
+      await expect(service.add(1, 7)).rejects.toThrow(BadRequestException);
+      expect(prisma.wishlist.create).not.toHaveBeenCalled();
     });
   });
 
@@ -84,6 +103,14 @@ describe("WishlistService", () => {
 
       const result = await service.list(2, 1, 10);
 
+      const where = {
+        customerId: 2,
+        product: { category: { isActive: true } },
+      };
+      expect(prisma.wishlist.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+      expect(prisma.wishlist.count).toHaveBeenCalledWith({ where });
       expect(result.total).toBe(1);
       expect(result.items).toHaveLength(1);
       expect(result.items[0]).toMatchObject({
