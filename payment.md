@@ -203,19 +203,17 @@ Order `paymentStatus` is updated to `paid` and stock is confirmed.
 
 ## Meta (Facebook) Conversions API — Purchase event
 
-After an ONLINE order is confirmed via `verify` / the Razorpay webhook / status sync, the backend
-sends a server-side **Purchase** event to Meta Conversions API (never for COD or unpaid/cancelled
-orders — COD confirmation never calls this code path).
+The backend sends **Purchase** for a confirmed COD order, or an ONLINE order
+confirmed by a captured Razorpay payment. An authorized payment is not enough;
+verify, webhook and status sync wait for capture. If verify reports an
+uncaptured payment, retry status sync after capture or wait for the captured
+webhook. Cancelled or unpaid online orders do not send Purchase.
 
 **Deduplication with the browser Pixel:** Meta dedupes a Pixel event and a CAPI event when they
-share the same `event_id`. Two ways to achieve this:
-
-1. **Recommended** — when calling `fbq('track', 'Purchase', {...}, { eventID })` on the order
-   confirmation page, use `eventID = "purchase_order_" + orderNumber` (e.g.
-   `purchase_order_AARA-0003`). The backend derives the *same* id automatically when `metaEventId`
-   isn't sent, so no extra coordination is required.
-2. **Explicit** — generate any event id on the frontend and send it as `metaEventId` in the
-   `/payments/razorpay/verify` body; the backend will use that exact id instead.
+share the same `event_id`. Use `eventID = "purchase_order_" + orderNumber`
+on the confirmation page for both COD and online orders. The server always
+uses this deterministic ID, including when a webhook arrives before verify.
+If `metaEventId` is supplied to verify it must match this convention.
 
 Also forward the browser's `_fbp` / `_fbc` cookies and the current page URL as `fbp` / `fbc` /
 `eventSourceUrl` in the same `verify` call to improve Meta's Event Match Quality score.
@@ -223,8 +221,9 @@ Also forward the browser's `_fbp` / `_fbc` cookies and the current page URL as `
 **Configuration** (backend `.env` / `.env.local` — never exposed to the frontend):
 
 ```
-META_PIXEL_ID=<Meta Pixel / Dataset ID>
+META_PIXEL_ID=4653538934931886
 META_CAPI_ACCESS_TOKEN=<Conversions API access token>
+META_CAPI_COMMERCE_EVENTS_ENABLED=false
 # META_CAPI_API_VERSION=v21.0        (optional, defaults to v21.0)
 # META_CAPI_TEST_EVENT_CODE=TEST1234 (optional — set while testing in Events Manager → Test Events, then unset)
 ```
@@ -232,10 +231,11 @@ META_CAPI_ACCESS_TOKEN=<Conversions API access token>
 If either `META_PIXEL_ID` or `META_CAPI_ACCESS_TOKEN` is unset, the Purchase event is skipped (logged) and the
 order/payment flow is unaffected — Meta API outages or missing config never break checkout.
 
-To verify in **Meta Events Manager → Test Events**: set `META_CAPI_TEST_EVENT_CODE` to the code shown in that
-tab, restart the API, complete a real/test online payment, and confirm a server-side `Purchase` event appears
-and is marked "Deduplicated" against the browser Pixel event (fired with the matching `event_id`). Unset the
-test code afterwards so production traffic isn't flagged as test events.
+For Test Events, use an isolated test environment and set `META_CAPI_TEST_EVENT_CODE`
+to the code shown in Events Manager. After testing AddToCart and InitiateCheckout,
+set `META_CAPI_COMMERCE_EVENTS_ENABLED=true` in production and remove the test code.
+See [the frontend integration note](./META-CAPI-FRONTEND-NOTE.md) for event IDs
+and verification steps.
 
 ---
 

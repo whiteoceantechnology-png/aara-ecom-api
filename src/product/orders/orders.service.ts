@@ -122,6 +122,7 @@ export type MetaEventContext = {
   clientIpAddress?: string | null;
   clientUserAgent?: string | null;
   eventSourceUrl?: string | null;
+  isTestPayment?: boolean;
 };
 
 @Injectable()
@@ -294,6 +295,7 @@ export class OrdersService {
     if (paymentMethod === "COD") {
       await this.sendOrderConfirmationEmail(customerId, result, paymentMethod);
       await this.sendOrderPlacedWhatsApp(customerId, result);
+      await this.sendMetaPurchaseEvent(result);
     }
 
     return result;
@@ -332,6 +334,20 @@ export class OrdersService {
       }
 
       if (order.status === OrderStatus.PENDING_PAYMENT) {
+        const claimed = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            status: OrderStatus.PENDING_PAYMENT,
+            paymentStatus: { not: "paid" },
+          },
+          data: { status: OrderStatus.PROCESSING, paymentStatus: "paid" },
+        });
+        if (claimed.count !== 1) {
+          return tx.order.findUnique({
+            where: { id: orderId },
+            include: orderDetailInclude,
+          });
+        }
         justConfirmed = true;
         const byProduct = this.aggregateProductPoolUnits(
           order.items.map((item) => ({
@@ -397,9 +413,8 @@ export class OrdersService {
           stockByProduct,
         });
 
-        return tx.order.update({
+        return tx.order.findUnique({
           where: { id: orderId },
-          data: { status: OrderStatus.PROCESSING, paymentStatus: "paid" },
           include: orderDetailInclude,
         });
       }
@@ -419,9 +434,6 @@ export class OrdersService {
         "ONLINE",
       );
       await this.sendOrderPlacedWhatsApp(result.customerId, result);
-      // Meta Conversions API Purchase event — ONLINE payments only (COD is
-      // confirmed at placeOrder, never via this path; see requirement to
-      // skip failed/cancelled/offline payments).
       if (result.paymentMethod === "ONLINE") {
         await this.sendMetaPurchaseEvent(result, metaContext);
       }
@@ -895,14 +907,19 @@ export class OrdersService {
    * Meta Conversions API Purchase event — server-side mirror of the browser
    * Pixel Purchase event, deduplicated via a shared `event_id`. Best-effort:
    * never throws, so a Meta outage can't block payment/order confirmation.
-   * Only called for ONLINE orders that just transitioned to paid (see
-   * `applyPaymentSuccess`) — never for COD, failed, or cancelled payments.
+   * Called for confirmed COD orders or ONLINE orders transitioning to paid.
    */
   private async sendMetaPurchaseEvent(
     order: Record<string, unknown> | null,
     context?: MetaEventContext,
   ) {
     if (!order || !this.metaCapi.isConfigured()) return;
+    if (context?.isTestPayment && !this.metaCapi.isTestMode()) {
+      this.logger.warn(
+        `Meta CAPI Purchase skipped for test payment on order #${String(order.id)} without a test event code`,
+      );
+      return;
+    }
     try {
       const customerId = Number(order.customerId);
       const shippingAddressId = order.shippingAddressId
@@ -946,10 +963,8 @@ export class OrdersService {
         .filter(Boolean);
 
       await this.metaCapi.sendPurchaseEvent({
-        // Fallback keeps the browser Pixel and server CAPI event IDs aligned
-        // (frontend should fire Purchase with eventID `purchase_order_<orderNumber>`
-        // unless it sends an explicit `metaEventId` with the verify call).
-        eventId: context?.eventId || `purchase_order_${orderNumber}`,
+        // The deterministic ID also works when a webhook arrives before verify.
+        eventId: `purchase_order_${orderNumber}`,
         eventTime: Math.floor(Date.now() / 1000),
         value: Number(order.totalAmount ?? 0),
         currency: "INR",

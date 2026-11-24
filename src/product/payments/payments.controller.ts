@@ -79,7 +79,7 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "Verify Razorpay payment signature and capture payment — call after checkout success",
+      "Verify the Razorpay signature and confirm a captured payment — call after checkout success",
   })
   @ApiBody({ type: VerifyRazorpayPaymentDto })
   @ApiResponse({

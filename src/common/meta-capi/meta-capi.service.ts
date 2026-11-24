@@ -69,6 +69,17 @@ export class MetaCapiService {
     return Boolean(this.pixelId && this.accessToken);
   }
 
+  commerceEventsEnabled(): boolean {
+    return (
+      Boolean(this.testEventCode) ||
+      process.env.META_CAPI_COMMERCE_EVENTS_ENABLED === "true"
+    );
+  }
+
+  isTestMode(): boolean {
+    return Boolean(this.testEventCode);
+  }
+
   private hash(value: string): string {
     return createHash("sha256")
       .update(value.trim().toLowerCase())

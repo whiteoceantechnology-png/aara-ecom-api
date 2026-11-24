@@ -161,7 +161,7 @@ export class CartService {
     unitPrice: number,
     clientUserAgent?: string,
   ) {
-    if (!dto.metaEventId) return;
+    if (!dto.metaEventId || !this.metaCapi.commerceEventsEnabled()) return;
     try {
       const customer = await this.prisma.customer.findUnique({
         where: { id: customerId },

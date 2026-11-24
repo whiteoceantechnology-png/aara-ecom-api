@@ -47,7 +47,7 @@ export class CheckoutService {
     dto: PlaceOrderDto,
     clientUserAgent?: string,
   ) {
-    if (!dto.metaEventId) return;
+    if (!dto.metaEventId || !this.metaCapi.commerceEventsEnabled()) return;
     try {
       const summary = await this.getSummary(customerId, dto.addressId);
       if (!summary.items.length) return;

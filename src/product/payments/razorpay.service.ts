@@ -209,6 +209,15 @@ export class RazorpayService {
     });
     if (!order) throw new NotFoundException(`Order #${dto.orderId} not found`);
 
+    if (
+      dto.metaEventId &&
+      dto.metaEventId !== `purchase_order_${order.orderNumber}`
+    ) {
+      throw new BadRequestException(
+        "metaEventId must match purchase_order_<orderNumber>",
+      );
+    }
+
     if (order.paymentStatus === "paid") {
       const existing =
         order.payments.find((p) => p.paymentStatus === "paid") ??
@@ -238,9 +247,23 @@ export class RazorpayService {
     }
 
     const storedRpId = this.resolveStoredRazorpayOrderId(order);
-    if (storedRpId && storedRpId !== dto.razorpayOrderId) {
+    if (!storedRpId || storedRpId !== dto.razorpayOrderId) {
       throw new BadRequestException(
         "Razorpay order does not match this shop order",
+      );
+    }
+
+    if (!this.razorpay) {
+      throw new BadRequestException("Razorpay is not configured");
+    }
+    const captured = await this.razorpay.payments.fetch(dto.razorpayPaymentId);
+    if (
+      captured.status !== "captured" ||
+      captured.order_id !== storedRpId ||
+      Number(captured.amount) !== Math.round(Number(order.totalAmount) * 100)
+    ) {
+      throw new BadRequestException(
+        "Razorpay payment is not captured for this order and amount",
       );
     }
 
@@ -342,8 +365,11 @@ export class RazorpayService {
       );
     }
 
-    const successful = paymentsList.find((p) =>
-      ["captured", "authorized"].includes(String(p.status ?? "").toLowerCase()),
+    const successful = paymentsList.find(
+      (p) =>
+        p.status === "captured" &&
+        p.order_id === razorpayOrderId &&
+        Number(p.amount) === Math.round(Number(order.totalAmount) * 100),
     );
     const failed = paymentsList.find(
       (p) => String(p.status ?? "").toLowerCase() === "failed",
@@ -426,37 +452,37 @@ export class RazorpayService {
     const paymentEntity = payload.payload?.payment?.entity;
     const orderEntity = payload.payload?.order?.entity;
 
-    if (
-      !["payment.captured", "payment.authorized", "order.paid"].includes(event)
-    ) {
+    if (!["payment.captured", "order.paid"].includes(event)) {
       return { received: true, handled: false, event };
     }
 
     const razorpayPaymentId = paymentEntity?.id;
     const razorpayOrderId =
       paymentEntity?.order_id ?? orderEntity?.id ?? undefined;
-    const notes = paymentEntity?.notes ?? orderEntity?.notes ?? {};
-    const orderIdRaw = notes.orderId;
-    const orderId = orderIdRaw ? Number(orderIdRaw) : NaN;
+    const linked = razorpayOrderId
+      ? await this.prisma.payment.findFirst({
+          where: {
+            paymentMethod: "razorpay",
+            reference: razorpayOrderId,
+          },
+          orderBy: { id: "desc" },
+        })
+      : null;
+    const resolvedOrderId = linked?.orderId ?? null;
 
-    let resolvedOrderId = Number.isFinite(orderId) ? orderId : null;
-    if (!resolvedOrderId && razorpayOrderId) {
-      const linked = await this.prisma.payment.findFirst({
-        where: {
-          paymentMethod: "razorpay",
-          reference: razorpayOrderId,
-        },
-        orderBy: { id: "desc" },
-      });
-      resolvedOrderId = linked?.orderId ?? null;
-    }
-
-    if (!resolvedOrderId || !razorpayPaymentId || !razorpayOrderId) {
+    if (
+      !linked ||
+      !resolvedOrderId ||
+      !razorpayPaymentId ||
+      !razorpayOrderId ||
+      paymentEntity?.status !== "captured" ||
+      paymentEntity.amount == null ||
+      Number(paymentEntity.amount) !== Math.round(Number(linked.amount) * 100)
+    ) {
       this.logger.warn(
         `Webhook ${event} missing order/payment linkage: ${JSON.stringify({
           razorpayPaymentId,
           razorpayOrderId,
-          notes,
         })}`,
       );
       return { received: true, handled: false, event, reason: "unlinked" };
@@ -564,6 +590,9 @@ export class RazorpayService {
     amount?: Prisma.Decimal | number | string;
     metaContext?: MetaEventContext;
   }) {
+    const metaContext = this.keyId.startsWith("rzp_test_")
+      ? { ...params.metaContext, isTestPayment: true }
+      : params.metaContext;
     const already = await this.prisma.payment.findFirst({
       where: {
         OR: [
@@ -579,10 +608,10 @@ export class RazorpayService {
     });
 
     if (already?.paymentStatus === "paid") {
-      if (params.metaContext) {
+      if (metaContext) {
         await this.ordersService.applyPaymentSuccess(
           params.orderId,
-          params.metaContext,
+          metaContext,
         );
       } else {
         await this.ordersService.applyPaymentSuccess(params.orderId);
@@ -630,11 +659,8 @@ export class RazorpayService {
       });
     }
 
-    if (params.metaContext) {
-      await this.ordersService.applyPaymentSuccess(
-        params.orderId,
-        params.metaContext,
-      );
+    if (metaContext) {
+      await this.ordersService.applyPaymentSuccess(params.orderId, metaContext);
     } else {
       await this.ordersService.applyPaymentSuccess(params.orderId);
     }

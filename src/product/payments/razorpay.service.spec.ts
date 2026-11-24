@@ -29,6 +29,7 @@ const mockOrdersCreate = jest.fn().mockResolvedValue({
 });
 const mockOrdersFetch = jest.fn();
 const mockOrdersFetchPayments = jest.fn();
+const mockPaymentsFetch = jest.fn();
 
 const mockOrdersService = {
   applyPaymentSuccess: jest
@@ -70,6 +71,9 @@ jest.mock("razorpay", () =>
       fetch: (...args: unknown[]) => mockOrdersFetch(...args),
       fetchPayments: (...args: unknown[]) => mockOrdersFetchPayments(...args),
     },
+    payments: {
+      fetch: (...args: unknown[]) => mockPaymentsFetch(...args),
+    },
   })),
 );
 
@@ -103,6 +107,11 @@ describe("RazorpayService", () => {
       amount: 10000,
       currency: "INR",
       status: "created",
+    });
+    mockPaymentsFetch.mockResolvedValue({
+      status: "captured",
+      order_id: "order_xxx",
+      amount: 10000,
     });
     mockPrisma.order.update.mockResolvedValue({});
     mockPrisma.payment.create.mockResolvedValue({
@@ -379,12 +388,53 @@ describe("RazorpayService", () => {
       });
 
       expect(mockPrisma.payment.update).toHaveBeenCalled();
-      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(1);
+      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(1, {
+        isTestPayment: true,
+      });
       expect(result).toMatchObject({
         success: true,
         alreadyPaid: false,
         payment: { id: 7, paymentStatus: "paid" },
       });
+    });
+
+    it("does not confirm an authorized but uncaptured payment", async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        orderNumber: "ORD-1",
+        paymentStatus: "pending",
+        notes: "razorpayOrderId:order_xxx",
+        payments: [],
+        totalAmount: 100,
+      });
+      mockPaymentsFetch.mockResolvedValue({
+        status: "authorized",
+        order_id: "order_xxx",
+        amount: 10000,
+      });
+      await expect(
+        service.verifyAndCapturePayment({
+          ...baseDto,
+          razorpaySignature: buildValidSignature("order_xxx", "pay_xxx"),
+        }),
+      ).rejects.toThrow("not captured");
+      expect(mockOrdersService.applyPaymentSuccess).not.toHaveBeenCalled();
+    });
+
+    it("rejects a custom Purchase ID that cannot survive a webhook race", async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        orderNumber: "ORD-1",
+        paymentStatus: "pending",
+        payments: [],
+      });
+      await expect(
+        service.verifyAndCapturePayment({
+          ...baseDto,
+          razorpaySignature: "signature",
+          metaEventId: "custom",
+        }),
+      ).rejects.toThrow("metaEventId must match");
     });
   });
 
@@ -428,7 +478,14 @@ describe("RazorpayService", () => {
         amount: 10000,
       });
       mockOrdersFetchPayments.mockResolvedValue({
-        items: [{ id: "pay_ok", status: "captured", order_id: "order_xxx" }],
+        items: [
+          {
+            id: "pay_ok",
+            status: "captured",
+            order_id: "order_xxx",
+            amount: 10000,
+          },
+        ],
       });
       mockPrisma.payment.findFirst
         .mockResolvedValueOnce(null)
@@ -453,7 +510,9 @@ describe("RazorpayService", () => {
         razorpayPaymentStatus: "captured",
         synced: true,
       });
-      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(1);
+      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(1, {
+        isTestPayment: true,
+      });
     });
 
     it("keeps unprocessed when QR/checkout never completed", async () => {
@@ -495,6 +554,49 @@ describe("RazorpayService", () => {
       ).rejects.toThrow("Invalid Razorpay webhook signature");
     });
 
+    it("ignores authorized payments", async () => {
+      const body = { event: "payment.authorized" };
+      const raw = JSON.stringify(body);
+      const signature = crypto
+        .createHmac("sha256", TEST_WEBHOOK_SECRET)
+        .update(raw)
+        .digest("hex");
+      await expect(
+        service.handleWebhook(signature, raw, body),
+      ).resolves.toMatchObject({
+        handled: false,
+      });
+      expect(mockOrdersService.applyPaymentSuccess).not.toHaveBeenCalled();
+    });
+
+    it("ignores captured payments without a linked shop order", async () => {
+      const body = {
+        event: "payment.captured",
+        payload: {
+          payment: {
+            entity: {
+              id: "pay_wh",
+              order_id: "order_unlinked",
+              status: "captured",
+              amount: 10000,
+              notes: { orderId: "5" },
+            },
+          },
+        },
+      };
+      const raw = JSON.stringify(body);
+      const signature = crypto
+        .createHmac("sha256", TEST_WEBHOOK_SECRET)
+        .update(raw)
+        .digest("hex");
+      await expect(
+        service.handleWebhook(signature, raw, body),
+      ).resolves.toMatchObject({
+        handled: false,
+      });
+      expect(mockOrdersService.applyPaymentSuccess).not.toHaveBeenCalled();
+    });
+
     it("marks order paid on payment.captured", async () => {
       const bodyObj = {
         event: "payment.captured",
@@ -517,6 +619,7 @@ describe("RazorpayService", () => {
         .digest("hex");
 
       mockPrisma.payment.findFirst
+        .mockResolvedValueOnce({ orderId: 5, amount: 100 })
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
       mockPrisma.payment.create.mockResolvedValue({
@@ -535,7 +638,9 @@ describe("RazorpayService", () => {
         orderId: 5,
         razorpayPaymentId: "pay_wh",
       });
-      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(5);
+      expect(mockOrdersService.applyPaymentSuccess).toHaveBeenCalledWith(5, {
+        isTestPayment: true,
+      });
     });
   });
 });

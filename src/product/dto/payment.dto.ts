@@ -39,7 +39,7 @@ export class VerifyRazorpayPaymentDto {
   @ApiPropertyOptional({
     example: "purchase_order_AARA-0001",
     description:
-      "Same event ID used by the browser Meta Pixel Purchase event (fbq 'eventID' option) — required to deduplicate the server-side Meta Conversions API event against the Pixel event. If omitted, the backend derives `purchase_order_<orderNumber>`.",
+      "If supplied, must equal `purchase_order_<orderNumber>`, the browser Pixel Purchase eventID.",
   })
   @IsOptional()
   @IsString()
